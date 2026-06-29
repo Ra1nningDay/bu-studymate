@@ -155,6 +155,13 @@ async function updateChatSession(lineUserId: string, values: Partial<ChatSession
   });
 }
 
+export async function resetTicketFlow(lineUserId: string) {
+  await updateChatSession(lineUserId, {
+    state: "IDLE",
+    draft_data: {}
+  });
+}
+
 async function generateTicketCode() {
   const data = await prisma.ticket.findMany({
     select: { ticketCode: true },

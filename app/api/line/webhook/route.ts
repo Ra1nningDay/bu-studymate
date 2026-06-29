@@ -1,13 +1,16 @@
 import { NextResponse } from "next/server";
-import { answerKnowledgeQuestion } from "@/lib/knowledge";
-import { classifyIntent, extractTicketCode } from "@/lib/intent";
-import { replyLineText, verifyLineSignature, type LineWebhookEvent } from "@/lib/line";
+import { createBotReply } from "@/lib/bot";
+import { createStudyNoteFlex } from "@/lib/flex-messages";
 import {
-  continueTicketFlow,
-  formatTicketStatusReply,
-  getOrCreateChatSession,
-  getTicketByCode
-} from "@/lib/ticket";
+  getLineMessageContent,
+  markLineMessageAsRead,
+  replyLineText,
+  replyLineMessage,
+  showLineLoadingAnimation,
+  verifyLineSignature,
+  type LineWebhookEvent
+} from "@/lib/line";
+import { saveStudyFile, type SavedStudyFile } from "@/lib/study-file";
 
 export const runtime = "nodejs";
 
@@ -15,35 +18,94 @@ async function handleTextMessage(event: LineWebhookEvent) {
   const replyToken = event.replyToken;
   const lineUserId = event.source?.userId;
   const message = event.message?.text?.trim();
+  const markAsReadToken = event.message?.markAsReadToken;
 
   if (!replyToken || !lineUserId || !message) {
     return;
   }
 
-  const session = await getOrCreateChatSession(lineUserId);
-  const intent = classifyIntent(message, session);
-  let replyText: string;
+  // Mark as read + show loading animation immediately (both fire-and-forget)
+  if (markAsReadToken) {
+    void markLineMessageAsRead(markAsReadToken);
+  }
+  void showLineLoadingAnimation(lineUserId);
 
-  if (intent === "ASK_BU_INFO") {
-    replyText = await answerKnowledgeQuestion(message);
-  } else if (intent === "CREATE_TICKET") {
-    replyText = await continueTicketFlow({ lineUserId, message, session });
-  } else if (intent === "CHECK_TICKET_STATUS") {
-    const ticketCode = extractTicketCode(message);
-    if (!ticketCode) {
-      replyText = "ขอรหัส Ticket ด้วยครับ เช่น เช็ค ticket BU-TICKET-0001";
-    } else {
-      const ticket = await getTicketByCode(ticketCode);
-      replyText = ticket
-        ? formatTicketStatusReply(ticket)
-        : `ยังไม่พบ Ticket: ${ticketCode} ครับ`;
-    }
+  const reply = await createBotReply({ channel: "line", lineUserId, message });
+  if (reply.flexMessage) {
+    await replyLineMessage(replyToken, [reply.flexMessage]);
   } else {
-    replyText =
-      "สวัสดีครับ ผมคือ BU StudyMate ช่วยตอบข้อมูลทั่วไปของ BU และรับแจ้งปัญหาห้องเรียน/สิ่งอำนวยความสะดวกได้ครับ";
+    await replyLineText(replyToken, reply.text);
+  }
+}
+
+function formatSavedStudyFileReply(file: SavedStudyFile) {
+  const lines = [
+    `รับไฟล์ ${file.fileName} แล้วครับ`,
+    `บันทึกเป็นโน้ตวิชา ${file.note.courseName} แล้ว`,
+    `ชนิดไฟล์: ${file.sourceType}${file.usedOcr ? " (ใช้ OCR)" : ""}`
+  ];
+
+  if (file.pageCount) {
+    lines.push(`จำนวนหน้า: ${file.pageCount}`);
   }
 
-  await replyLineText(replyToken, replyText);
+  if (file.note.summary) {
+    lines.push(`สรุป: ${file.note.summary}`);
+  }
+
+  if (file.note.assignments.length > 0) {
+    for (const assignment of file.note.assignments) {
+      lines.push(`พบ assignment: ${assignment.title}`);
+      if (assignment.dueDateText) {
+        lines.push(`กำหนดส่ง: ${assignment.dueDateText}`);
+      }
+    }
+  }
+
+  if (file.warnings.length > 0) {
+    lines.push(`หมายเหตุ: ${file.warnings.join(" ")}`);
+  }
+
+  return lines.join("\n");
+}
+
+async function handleFileMessage(event: LineWebhookEvent) {
+  const replyToken = event.replyToken;
+  const lineUserId = event.source?.userId;
+  const messageId = event.message?.id;
+  const fileName = event.message?.fileName;
+  const mimeType = event.message?.mimeType;
+  const markAsReadToken = event.message?.markAsReadToken;
+
+  if (!replyToken || !lineUserId || !messageId) {
+    return;
+  }
+
+  if (markAsReadToken) {
+    void markLineMessageAsRead(markAsReadToken);
+  }
+  void showLineLoadingAnimation(lineUserId, 60);
+
+  try {
+    const buffer = await getLineMessageContent(messageId);
+    const savedFile = await saveStudyFile({
+      buffer,
+      fileName,
+      lineUserId,
+      mimeType
+    });
+
+    await replyLineMessage(replyToken, [
+      { type: "text", text: formatSavedStudyFileReply(savedFile) },
+      createStudyNoteFlex(savedFile.note)
+    ]);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "ไม่สามารถอ่านไฟล์นี้ได้ครับ";
+    await replyLineText(
+      replyToken,
+      `ยังบันทึกไฟล์นี้ไม่ได้ครับ\n${message}\n\nรองรับไฟล์ PDF และ DOCX เท่านั้น`
+    );
+  }
 }
 
 export async function POST(request: Request) {
@@ -59,6 +121,8 @@ export async function POST(request: Request) {
   for (const event of payload.events ?? []) {
     if (event.type === "message" && event.message?.type === "text") {
       await handleTextMessage(event);
+    } else if (event.type === "message" && event.message?.type === "file") {
+      await handleFileMessage(event);
     }
   }
 

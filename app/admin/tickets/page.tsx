@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { listTickets, ticketStatuses } from "@/lib/ticket";
 import type { TicketStatus } from "@/lib/types";
 
@@ -114,8 +115,22 @@ export default async function TicketsPage({ searchParams }: any) {
               View LINE-reported classroom and facility issues, then update their status.
             </p>
           </div>
-          <div className="rounded-md border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm font-medium text-cyan-800">
-            {tickets.length} active records
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <Link
+              href="/"
+              className="inline-flex items-center justify-center rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+            >
+              Home
+            </Link>
+            <Link
+              href={password ? `/admin/runs?password=${encodeURIComponent(password)}` : "/admin/runs"}
+              className="inline-flex items-center justify-center rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-bu-cyan/40 hover:text-bu-cyan"
+            >
+              Open runs
+            </Link>
+            <div className="rounded-md border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm font-medium text-cyan-800">
+              {tickets.length} active records
+            </div>
           </div>
         </header>
 

@@ -50,3 +50,108 @@ model ChatSession {
   @@index([lineUserId])
   @@map("chat_sessions")
 }
+
+model ChatMessage {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  lineUserId String   @map("line_user_id")
+  sessionId  String?  @map("session_id") @db.Uuid
+  role       String
+  content    String
+  intent     String?
+  channel    String
+  metadata   Json     @default("{}")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  /// TODO: Add message_sources table for normalized answer citations and source verification metadata.
+  /// TODO: Add retention cleanup policy for chat history and operational logs.
+  /// TODO: Add user data deletion/export workflows before production launch.
+  @@index([lineUserId])
+  @@index([createdAt])
+  @@index([intent])
+  @@index([role])
+  @@map("chat_messages")
+}
+
+model BotRun {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  lineUserId         String   @map("line_user_id")
+  userMessageId      String?  @map("user_message_id") @db.Uuid
+  assistantMessageId String?  @map("assistant_message_id") @db.Uuid
+  intent             String?
+  status             String
+  latencyMs          Int?     @map("latency_ms")
+  usedWebSearch      Boolean  @default(false) @map("used_web_search")
+  usedOpenAI         Boolean  @default(false) @map("used_openai")
+  usedStudyMemory    Boolean  @default(false) @map("used_study_memory")
+  usedTicketFlow     Boolean  @default(false) @map("used_ticket_flow")
+  errorCode          String?  @map("error_code")
+  metadata           Json     @default("{}")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  /// TODO: Add webhook_events idempotency table keyed by LINE event IDs before accepting high-volume production traffic.
+  /// TODO: Add retention cleanup policy for chat history and operational logs.
+  /// TODO: Add user data deletion/export workflows before production launch.
+  @@index([lineUserId])
+  @@index([createdAt])
+  @@index([intent])
+  @@index([status])
+  @@map("bot_runs")
+}
+
+model StudyMaterial {
+  id          String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  lineUserId  String          @map("line_user_id")
+  courseName  String          @map("course_name")
+  title       String?
+  sourceType  String          @default("text") @map("source_type")
+  rawText     String          @map("raw_text")
+  summary     String?
+  keyPoints   Json            @default("[]") @map("key_points")
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  chunks      MaterialChunk[]
+  assignments Assignment[]
+
+  @@index([lineUserId])
+  @@index([courseName])
+  @@index([createdAt])
+  @@map("study_materials")
+}
+
+model MaterialChunk {
+  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  materialId  String        @map("material_id") @db.Uuid
+  lineUserId  String        @map("line_user_id")
+  courseName  String        @map("course_name")
+  content     String
+  chunkIndex  Int           @map("chunk_index")
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  material    StudyMaterial @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  /// TODO: Add nullable pgvector embedding column and vector search after the text MVP is stable.
+  @@index([materialId])
+  @@index([lineUserId])
+  @@index([courseName])
+  @@map("material_chunks")
+}
+
+model Assignment {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  lineUserId       String         @map("line_user_id")
+  courseName       String         @map("course_name")
+  title            String
+  description      String?
+  dueDateText      String?        @map("due_date_text")
+  dueAt            DateTime?      @map("due_at") @db.Timestamptz(6)
+  sourceMaterialId String?        @map("source_material_id") @db.Uuid
+  status           String         @default("OPEN")
+  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  sourceMaterial   StudyMaterial? @relation(fields: [sourceMaterialId], references: [id], onDelete: SetNull)
+
+  @@index([lineUserId])
+  @@index([courseName])
+  @@index([status])
+  @@index([dueAt])
+  @@map("assignments")
+}

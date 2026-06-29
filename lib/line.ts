@@ -1,10 +1,5 @@
 import crypto from "node:crypto";
 
-type LineTextMessage = {
-  type: "text";
-  text: string;
-};
-
 export type LineWebhookEvent = {
   type: string;
   replyToken?: string;
@@ -12,8 +7,13 @@ export type LineWebhookEvent = {
     userId?: string;
   };
   message?: {
-    type: string;
+    fileName?: string;
+    fileSize?: number;
+    id?: string;
+    markAsReadToken?: string;
+    mimeType?: string;
     text?: string;
+    type: string;
   };
 };
 
@@ -42,12 +42,46 @@ export function verifyLineSignature(body: string, signature: string | null) {
   return crypto.timingSafeEqual(signatureBuffer, digestBuffer);
 }
 
-export async function replyLineText(replyToken: string, text: string) {
+export async function markLineMessageAsRead(markAsReadToken: string) {
   const accessToken = requireLineEnv("LINE_CHANNEL_ACCESS_TOKEN");
-  const message: LineTextMessage = {
-    type: "text",
-    text
-  };
+
+  try {
+    await fetch("https://api.line.me/v2/bot/chat/markAsRead", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ markAsReadToken })
+    });
+  } catch {
+    // Non-critical — never block the reply if mark-read fails
+  }
+}
+
+export async function showLineLoadingAnimation(chatId: string, loadingSeconds = 20) {
+  const accessToken = requireLineEnv("LINE_CHANNEL_ACCESS_TOKEN");
+
+  try {
+    await fetch("https://api.line.me/v2/bot/chat/loading/start", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ chatId, loadingSeconds })
+    });
+  } catch {
+    // Non-critical — never block the reply if loading animation fails
+  }
+}
+
+export async function replyLineText(replyToken: string, text: string) {
+  return replyLineMessage(replyToken, [{ type: "text", text }]);
+}
+
+export async function replyLineMessage(replyToken: string, messages: any[]) {
+  const accessToken = requireLineEnv("LINE_CHANNEL_ACCESS_TOKEN");
 
   const response = await fetch("https://api.line.me/v2/bot/message/reply", {
     method: "POST",
@@ -57,11 +91,26 @@ export async function replyLineText(replyToken: string, text: string) {
     },
     body: JSON.stringify({
       replyToken,
-      messages: [message]
+      messages
     })
   });
 
   if (!response.ok) {
     throw new Error(`LINE reply failed: ${response.status} ${await response.text()}`);
   }
+}
+
+export async function getLineMessageContent(messageId: string) {
+  const accessToken = requireLineEnv("LINE_CHANNEL_ACCESS_TOKEN");
+  const response = await fetch(`https://api-data.line.me/v2/bot/message/${messageId}/content`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`LINE content download failed: ${response.status} ${await response.text()}`);
+  }
+
+  return Buffer.from(await response.arrayBuffer());
 }

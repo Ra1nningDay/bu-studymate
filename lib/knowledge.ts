@@ -72,15 +72,19 @@ export async function searchKnowledge(query: string) {
   return best.item;
 }
 
-export async function answerKnowledgeQuestion(query: string) {
+export async function answerKnowledgeQuestion(
+  query: string,
+  history: Array<{ content: string; role: "assistant" | "user" }> = []
+) {
   const item = await searchKnowledge(query);
   if (!item) {
-    return FALLBACK_NO_INFO;
+    return { text: FALLBACK_NO_INFO, usage: undefined, model: undefined };
   }
 
   return rewriteKnowledgeAnswer({
-    question: query,
-    context: item.content
+    context: item.content,
+    history,
+    question: query
   });
 }
 
