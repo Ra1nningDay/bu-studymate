@@ -1,0 +1,32 @@
+{
+  "name": "bu-studymate",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "prisma generate",
+    "db:migrate:dev": "tsx scripts/prisma.ts migrate dev",
+    "db:migrate:deploy": "tsx scripts/prisma.ts migrate deploy",
+    "seed:knowledge": "tsx scripts/seed-knowledge.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "next": "^15.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.4",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47",
+    "prisma": "^6.19.3",
+    "tailwindcss": "^3.4.13",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.2"
+  }
+}

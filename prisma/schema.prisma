@@ -1,0 +1,52 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model KnowledgeItem {
+  id        String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title     String                   @unique
+  category  String
+  content   String
+  keywords  String[]                 @default([])
+  source    String?
+  embedding Unsupported("vector(1536)")?
+  createdAt DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([category])
+  @@map("knowledge_items")
+}
+
+model Ticket {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ticketCode  String   @unique @map("ticket_code")
+  lineUserId  String   @map("line_user_id")
+  location    String?
+  room        String?
+  description String
+  status      String   @default("PENDING")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([ticketCode])
+  @@index([status])
+  @@map("tickets")
+}
+
+model ChatSession {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  lineUserId String   @unique @map("line_user_id")
+  state      String   @default("IDLE")
+  draftData  Json     @default("{}") @map("draft_data")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([lineUserId])
+  @@map("chat_sessions")
+}
