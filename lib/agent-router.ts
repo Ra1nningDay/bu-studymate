@@ -194,9 +194,10 @@ export async function classifyWithAgentRouter(
             "Do not answer the student. Do not call tools. Do not mutate data. " +
             "Route saved-note/class/assignment questions to Study Memory only. " +
             "Route current, changing, dated, opening-hours, schedule, news, holiday, admission-round, fee, or deadline questions to fresh info. " +
-            "Route stable Bangkok University how-to information to the knowledge base. " +
+            "Route stable Bangkok University how-to information, locations, departments, and contact info to the knowledge base. " +
+            "Route short keywords or terms related to BU (e.g., app names, places) to the knowledge base. " +
             "Route room/facility/lost-item problems to ticket creation. " +
-            "Use UNKNOWN when the message is ambiguous or the target conflicts with the intent."
+            "Use UNKNOWN when the message is completely ambiguous or unrelated to the university."
         },
         {
           role: "user",
@@ -224,6 +225,11 @@ export async function classifyWithAgentRouter(
                 intent: "ASK_FRESH_INFO",
                 message: "ที่นี่สมัครยังไงบ้าง",
                 selectedTarget: "web_search"
+              },
+              {
+                intent: "ASK_BU_INFO",
+                message: "BU Mobile",
+                selectedTarget: "knowledge_base"
               },
               {
                 intent: "ASK_BU_INFO",

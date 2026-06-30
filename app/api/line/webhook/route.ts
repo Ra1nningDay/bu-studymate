@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createBotReply } from "@/lib/bot";
-import { createStudyNoteFlex } from "@/lib/flex-messages";
+import { createGreetingRichMessage, createStudyNoteFlex } from "@/lib/flex-messages";
 import {
   getLineMessageContent,
   markLineMessageAsRead,
@@ -38,10 +38,20 @@ async function handleTextMessage(event: LineWebhookEvent) {
   }
 }
 
+async function handleFollowEvent(event: LineWebhookEvent) {
+  const replyToken = event.replyToken;
+  if (!replyToken) {
+    return;
+  }
+
+  await replyLineMessage(replyToken, [createGreetingRichMessage()]);
+}
+
 function formatSavedStudyFileReply(file: SavedStudyFile) {
   const lines = [
-    `รับไฟล์ ${file.fileName} แล้วครับ`,
-    `บันทึกเป็นโน้ตวิชา ${file.note.courseName} แล้ว`,
+    `สรุปบทเรียนให้แล้วครับ`,
+    `วิชา: ${file.note.courseName}`,
+    `ไฟล์: ${file.fileName}`,
     `ชนิดไฟล์: ${file.sourceType}${file.usedOcr ? " (ใช้ OCR)" : ""}`
   ];
 
@@ -49,15 +59,21 @@ function formatSavedStudyFileReply(file: SavedStudyFile) {
     lines.push(`จำนวนหน้า: ${file.pageCount}`);
   }
 
+  if (file.note.keyPoints.length > 0) {
+    lines.push("หัวข้อหลัก:");
+    lines.push(...file.note.keyPoints.slice(0, 5).map((point) => `- ${point}`));
+  }
+
   if (file.note.summary) {
-    lines.push(`สรุป: ${file.note.summary}`);
+    lines.push(`จำง่าย ๆ: ${file.note.summary}`);
   }
 
   if (file.note.assignments.length > 0) {
+    lines.push("งานที่พบ:");
     for (const assignment of file.note.assignments) {
-      lines.push(`พบ assignment: ${assignment.title}`);
+      lines.push(`- ${assignment.title}`);
       if (assignment.dueDateText) {
-        lines.push(`กำหนดส่ง: ${assignment.dueDateText}`);
+        lines.push(`  กำหนดส่ง: ${assignment.dueDateText}`);
       }
     }
   }
@@ -65,6 +81,8 @@ function formatSavedStudyFileReply(file: SavedStudyFile) {
   if (file.warnings.length > 0) {
     lines.push(`หมายเหตุ: ${file.warnings.join(" ")}`);
   }
+
+  lines.push("เลือกปุ่มใน Study Pack เพื่อให้ช่วยติวต่อได้เลยครับ");
 
   return lines.join("\n");
 }
@@ -119,7 +137,9 @@ export async function POST(request: Request) {
   const payload = JSON.parse(body) as { events?: LineWebhookEvent[] };
 
   for (const event of payload.events ?? []) {
-    if (event.type === "message" && event.message?.type === "text") {
+    if (event.type === "follow") {
+      await handleFollowEvent(event);
+    } else if (event.type === "message" && event.message?.type === "text") {
       await handleTextMessage(event);
     } else if (event.type === "message" && event.message?.type === "file") {
       await handleFileMessage(event);

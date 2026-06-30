@@ -26,7 +26,7 @@ export type Ticket = {
 export type ChatSession = {
   id: string;
   line_user_id: string;
-  state: "IDLE" | "CREATING_TICKET";
+  state: "IDLE" | "CREATING_TICKET" | "CONFIRMING_TICKET";
   draft_data: Record<string, unknown>;
   created_at: string;
   updated_at: string;

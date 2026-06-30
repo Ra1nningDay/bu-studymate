@@ -78,14 +78,20 @@ export async function answerKnowledgeQuestion(
 ) {
   const item = await searchKnowledge(query);
   if (!item) {
-    return { text: FALLBACK_NO_INFO, usage: undefined, model: undefined };
+    return { text: FALLBACK_NO_INFO, usage: undefined, model: undefined, isMiss: true };
   }
 
-  return rewriteKnowledgeAnswer({
+  const result = await rewriteKnowledgeAnswer({
     context: item.content,
     history,
     question: query
   });
+  
+  if (result.text === "NO_VERIFIED_INFO_FOUND") {
+    return { text: FALLBACK_NO_INFO, usage: result.usage, model: result.model, isMiss: true };
+  }
+
+  return { ...result, isMiss: false };
 }
 
 // TODO: Add pgvector retrieval using match_knowledge_items after the MVP LINE

@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { ChatSession, Ticket, TicketStatus } from "@/lib/types";
+import { extractTicketDraftFromLLM } from "@/lib/ai";
 
 export const ticketStatuses: TicketStatus[] = [
   "PENDING",
@@ -71,7 +72,7 @@ function toChatSession(session: {
   return {
     id: session.id,
     line_user_id: session.lineUserId,
-    state: session.state === "CREATING_TICKET" ? "CREATING_TICKET" : "IDLE",
+    state: session.state === "CREATING_TICKET" ? "CREATING_TICKET" : session.state === "CONFIRMING_TICKET" ? "CONFIRMING_TICKET" : "IDLE",
     draft_data: toDraftData(session.draftData),
     created_at: session.createdAt.toISOString(),
     updated_at: session.updatedAt.toISOString()
@@ -82,7 +83,16 @@ function cleanValue(value?: string | null) {
   return value?.replace(/\s+/g, " ").trim() || undefined;
 }
 
-export function parseTicketDraft(message: string): TicketDraft {
+export async function parseTicketDraft(message: string): Promise<TicketDraft> {
+  const llmExtraction = await extractTicketDraftFromLLM(message);
+  if (llmExtraction) {
+    return {
+      location: cleanValue(llmExtraction.location),
+      room: cleanValue(llmExtraction.room),
+      description: cleanValue(llmExtraction.description)
+    };
+  }
+
   const locationMatch = message.match(
     /(อาคาร|ตึก|building)\s*([A-Za-z0-9ก-๙\s.-]+?)(?=\s*(ห้อง|room|lab|แอร์|โปรเจคเตอร์|projector|คอม|เสีย|ไม่|สกปรก|หาย|$))/i
   );
@@ -207,8 +217,26 @@ export async function continueTicketFlow({
   lineUserId: string;
   message: string;
   session: ChatSession;
-}) {
-  const draft = mergeDraft(session.draft_data ?? {}, parseTicketDraft(message));
+}): Promise<{ text: string; flexMessage?: any }> {
+  if (session.state === "CONFIRMING_TICKET") {
+    if (message.includes("ยืนยัน") || message.toLowerCase() === "yes" || message.includes("ใช่")) {
+      const ticket = await createTicket({
+        lineUserId,
+        draft: session.draft_data as Required<TicketDraft>
+      });
+      await updateChatSession(lineUserId, { state: "IDLE", draft_data: {} });
+
+      return { text: `รับเรื่องเรียบร้อยครับ\nTicket: ${ticket.ticket_code}\nสถานะ: ${formatTicketStatus(ticket.status)}` };
+    } else if (message.includes("ยกเลิก") || message.toLowerCase() === "no" || message.includes("ไม่")) {
+      await updateChatSession(lineUserId, { state: "IDLE", draft_data: {} });
+      return { text: "ยกเลิกการแจ้งปัญหาเรียบร้อยครับ หากมีอะไรให้ช่วยเหลือพิมพ์บอกได้เลยครับ" };
+    } else {
+      return { text: "กรุณาพิมพ์ 'ยืนยัน' เพื่อส่งเรื่อง หรือ 'ยกเลิก' เพื่อยกเลิกครับ" };
+    }
+  }
+
+  const parsedDraft = await parseTicketDraft(message);
+  const draft = mergeDraft(session.draft_data ?? {}, parsedDraft);
   const missing = missingTicketFields(draft);
 
   if (missing.length > 0) {
@@ -216,18 +244,39 @@ export async function continueTicketFlow({
       state: "CREATING_TICKET",
       draft_data: draft
     });
-    return buildMissingFieldsReply(missing);
+    return { text: buildMissingFieldsReply(missing) };
   }
 
-  const ticket = await createTicket({
-    lineUserId,
-    draft: draft as Required<TicketDraft>
+  await updateChatSession(lineUserId, {
+    state: "CONFIRMING_TICKET",
+    draft_data: draft
   });
-  await updateChatSession(lineUserId, { state: "IDLE", draft_data: {} });
 
-  return `รับเรื่องเรียบร้อยครับ\nTicket: ${ticket.ticket_code}\nสถานะ: ${formatTicketStatus(
-    ticket.status
-  )}`;
+  const confirmFlex = {
+    type: "template",
+    altText: "กรุณายืนยันการแจ้งปัญหา",
+    template: {
+      type: "confirm",
+      text: `ข้อมูลถูกต้องไหมครับ?\nสถานที่: ${draft.location}\nห้อง: ${draft.room}\nปัญหา: ${draft.description}`,
+      actions: [
+        {
+          type: "message",
+          label: "ยืนยัน",
+          text: "ยืนยัน"
+        },
+        {
+          type: "message",
+          label: "ยกเลิก",
+          text: "ยกเลิก"
+        }
+      ]
+    }
+  };
+
+  return {
+    text: `กรุณาตรวจสอบข้อมูลก่อนส่งเรื่อง:\nอาคาร/สถานที่: ${draft.location}\nห้อง: ${draft.room}\nปัญหา: ${draft.description}`,
+    flexMessage: confirmFlex
+  };
 }
 
 export async function getTicketByCode(ticketCode: string) {

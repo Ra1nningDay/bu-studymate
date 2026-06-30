@@ -1,7 +1,147 @@
 import type { SavedStudyNote } from "@/lib/study-memory";
 import type { getAssignments } from "@/lib/study-memory";
 
+function getPublicAssetUrl(path: string) {
+  const appUrl =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.APP_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "");
+
+  if (!appUrl) {
+    return null;
+  }
+
+  return new URL(path, appUrl).toString();
+}
+
+function createStudyMateHeader(title: string) {
+  return {
+    type: "box",
+    layout: "vertical",
+    paddingAll: "16px",
+    backgroundColor: "#1DB446",
+    contents: [
+      {
+        type: "text",
+        text: title,
+        weight: "bold",
+        size: "lg",
+        color: "#FFFFFF",
+        wrap: true
+      }
+    ]
+  };
+}
+
+function createSaveNoteHero() {
+  const imageUrl = getPublicAssetUrl("/save-note.png");
+  if (!imageUrl) {
+    return null;
+  }
+
+  return {
+    type: "image",
+    url: imageUrl,
+    size: "full",
+    aspectRatio: "20:10",
+    aspectMode: "cover"
+  };
+}
+
+function createHeroImage(path: string) {
+  const imageUrl = getPublicAssetUrl(path);
+  if (!imageUrl) {
+    return null;
+  }
+
+  return {
+    type: "image",
+    url: imageUrl,
+    size: "full",
+    aspectRatio: "20:10",
+    aspectMode: "cover"
+  };
+}
+
+function createTutorActionButton(label: string, text: string) {
+  return {
+    type: "button",
+    style: "secondary",
+    height: "sm",
+    action: {
+      type: "message",
+      label,
+      text
+    }
+  };
+}
+
+export function createGreetingFlex() {
+  const greetingHero = createHeroImage("/Greeting-hero.png");
+
+  return {
+    type: "flex",
+    altText: "ยินดีต้อนรับสู่ BU StudyMate",
+    contents: {
+      type: "bubble",
+      size: "mega",
+      hero: greetingHero ?? undefined,
+      header: greetingHero
+        ? undefined
+        : createStudyMateHeader("ให้ StudyMate ช่วยเรื่องเรียน")
+    }
+  };
+}
+
+export function createGreetingRichMessage() {
+  const baseUrl = getPublicAssetUrl("/api/line/imagemap/greeting");
+
+  if (!baseUrl) {
+    return createGreetingFlex();
+  }
+
+  return {
+    type: "imagemap",
+    baseUrl,
+    altText: "ให้ StudyMate ช่วยเรื่องเรียน",
+    baseSize: {
+      width: 1040,
+      height: 702
+    },
+    actions: [
+      {
+        type: "message",
+        text: "อัปโหลดบทเรียน",
+        area: { x: 32, y: 451, width: 480, height: 103 }
+      },
+      {
+        type: "message",
+        text: "งานที่ต้องส่งมีอะไรบ้าง",
+        area: { x: 527, y: 451, width: 482, height: 103 }
+      },
+      {
+        type: "message",
+        text: "ถามข้อมูล BU",
+        area: { x: 32, y: 569, width: 480, height: 103 }
+      },
+      {
+        type: "message",
+        text: "แจ้งปัญหาห้องเรียน",
+        area: { x: 527, y: 569, width: 482, height: 103 }
+      }
+    ]
+  };
+}
+
 export function createStudyNoteFlex(note: SavedStudyNote) {
+  const keyPointItems = note.keyPoints.slice(0, 5).map((point) => ({
+    type: "text",
+    text: `- ${point}`,
+    size: "sm",
+    color: "#334155",
+    wrap: true
+  }));
+
   const assignments = note.assignments.map((assignment) => ({
     type: "box",
     layout: "vertical",
@@ -57,6 +197,43 @@ export function createStudyNoteFlex(note: SavedStudyNote) {
   }));
 
   const contents: any[] = [];
+
+  contents.push({
+    type: "text",
+    text: "Study Pack พร้อมแล้ว",
+    size: "lg",
+    weight: "bold",
+    color: "#14532D",
+    wrap: true
+  });
+
+  contents.push({
+    type: "text",
+    text: note.courseName,
+    color: "#222222",
+    size: "md",
+    weight: "bold",
+    wrap: true
+  });
+
+  if (keyPointItems.length > 0) {
+    contents.push({
+      type: "box",
+      layout: "vertical",
+      spacing: "xs",
+      margin: "lg",
+      contents: [
+        {
+          type: "text",
+          text: "หัวข้อหลัก",
+          size: "sm",
+          weight: "bold",
+          color: "#166534"
+        },
+        ...keyPointItems
+      ]
+    });
+  }
   
   if (assignments.length > 0) {
     contents.push({
@@ -66,7 +243,7 @@ export function createStudyNoteFlex(note: SavedStudyNote) {
       contents: [
         {
           type: "text",
-          text: "Assignment",
+          text: "งานที่พบ",
           size: "xs",
           color: "#888888",
           weight: "bold"
@@ -97,10 +274,10 @@ export function createStudyNoteFlex(note: SavedStudyNote) {
       contents: [
         {
           type: "text",
-          text: "Summary",
+          text: "จำง่าย ๆ",
           size: "sm",
           weight: "bold",
-          color: "#333333"
+          color: "#166534"
         },
         {
           type: "text",
@@ -123,39 +300,54 @@ export function createStudyNoteFlex(note: SavedStudyNote) {
     });
   }
 
+  const saveNoteHero = createSaveNoteHero();
   const flex = {
     type: "flex",
     altText: `บันทึกโน้ต ${note.courseName} แล้ว`,
     contents: {
       type: "bubble",
       size: "mega",
-      header: {
-        type: "box",
-        layout: "vertical",
-        paddingAll: "16px",
-        backgroundColor: "#1DB446",
-        contents: [
-          {
-            type: "text",
-            text: "บันทึกโน้ตแล้ว",
-            weight: "bold",
-            size: "lg",
-            color: "#FFFFFF"
-          },
-          {
-            type: "text",
-            text: note.courseName,
-            size: "sm",
-            color: "#E8FFF0",
-            margin: "sm"
-          }
-        ]
-      },
+      hero: saveNoteHero ?? undefined,
+      header: saveNoteHero ? undefined : createStudyMateHeader("บันทึกโน้ตแล้ว"),
       body: {
         type: "box",
         layout: "vertical",
         spacing: "md",
         contents
+      },
+      footer: {
+        type: "box",
+        layout: "vertical",
+        spacing: "sm",
+        contents: [
+          {
+            type: "text",
+            text: "อยากให้ช่วยต่อไหม?",
+            size: "sm",
+            weight: "bold",
+            color: "#334155",
+            wrap: true
+          },
+          {
+            type: "box",
+            layout: "horizontal",
+            spacing: "sm",
+            contents: [
+              createTutorActionButton("อธิบายง่าย ๆ", "อธิบายโน้ตล่าสุดแบบเพื่อนสอน"),
+              createTutorActionButton("คำถามทบทวน", "ออกคำถามทบทวนจากโน้ตล่าสุด")
+            ]
+          },
+          {
+            type: "box",
+            layout: "horizontal",
+            spacing: "sm",
+            contents: [
+              createTutorActionButton("Flashcards", "ทำ flashcards จากโน้ตล่าสุด"),
+              createTutorActionButton("สรุปก่อนสอบ", "สรุปก่อนสอบจากโน้ตล่าสุด")
+            ]
+          },
+          createTutorActionButton("ถามจากบทเรียนนี้", "ถามจากบทเรียนนี้")
+        ]
       }
     }
   };

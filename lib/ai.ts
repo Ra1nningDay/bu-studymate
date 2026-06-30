@@ -90,6 +90,18 @@ function uniqueSources(sources: AnswerSource[]) {
   });
 }
 
+function getCurrentBangkokDate() {
+  const parts = new Intl.DateTimeFormat("en", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "Asia/Bangkok",
+    year: "numeric"
+  }).formatToParts(new Date());
+
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
 async function fetchSource(url: string, method: "GET" | "HEAD") {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 6000);
@@ -268,12 +280,14 @@ export async function createWebSearchResponse({
       "Do not answer from model memory or general Thai public-holiday knowledge. " +
       "Do not infer missing facts. Do not list holidays, dates, deadlines, fees, opening hours, or admission dates unless an official source explicitly states them. " +
       "If no official BU source directly supports the answer, reply exactly: VERIFIED_SOURCE_NOT_FOUND. " +
-      "You must cite EVERY piece of information. At the end of your response, provide an exhaustive list of ALL URLs you visited or used for context.\n\n" +
+      "Cite only the official source or sources that directly support the final answer. Do not provide an exhaustive list of every URL visited. " +
+      "Multiple source URLs are acceptable when they directly support different parts of the answer, but prefer the latest official version and exclude outdated duplicate documents. " +
+      "For calendar, holiday, or academic-calendar questions, use the latest official calendar/holiday documents unless the user asks for a specific year.\n\n" +
       styleRules
     : "When using web search, prefer official Bangkok University sources first. " +
       "Treat bu.ac.th, faq.bu.ac.th, admission.bu.ac.th, and other official BU subdomains as the most reliable sources. " +
       "If no reliable official source is found, say that the information should be verified with the university. " +
-      "You must provide a comprehensive list of ALL URLs you visited or used as a Markdown list at the end of your answer.\n\n" +
+      "Cite only the most relevant source URLs that directly support the answer. Prefer the latest official version and exclude outdated duplicate documents. Do not provide an exhaustive list of every URL visited.\n\n" +
       styleRules;
 
   const response = await fetch("https://api.openai.com/v1/responses", {
@@ -294,9 +308,9 @@ export async function createWebSearchResponse({
           role: "user",
           content:
             `Question:\n${message}\n\n` +
-            "Current date: 2026-06-29.\n" +
-            "Please perform a deep and thorough web search before answering. Prefer official Bangkok University pages and BU-hosted files. " +
-            "You MUST explicitly write out a 'แหล่งที่มา:' section at the very end containing Markdown links to ALL pages you visited."
+            `Current date: ${getCurrentBangkokDate()}.\n` +
+            "Search enough to verify the answer, then answer from the most directly relevant official Bangkok University page or BU-hosted file. " +
+            "At the end, write a 'แหล่งที่มา:' section containing only the final source URL(s) that directly support the answer."
         }
       ],
       tools: [
@@ -446,7 +460,7 @@ export async function rewriteKnowledgeAnswer({
         ...history,
         {
           role: "user",
-          content: `Question:\n${question}\n\nVerified context:\n${context}`
+          content: `Question:\n${question}\n\nVerified context:\n${context}\n\nIMPORTANT: If the context does not contain the answer to the question, you MUST output exactly and only: NO_VERIFIED_INFO_FOUND`
         }
       ]
     })
@@ -469,4 +483,50 @@ export async function rewriteKnowledgeAnswer({
     usage: data.usage,
     model: data.model || process.env.OPENAI_MODEL || "gpt-4o-mini"
   };
+}
+
+export async function extractTicketDraftFromLLM(message: string): Promise<{ location?: string; room?: string; description?: string } | null> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return null;
+
+  try {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+        temperature: 0.1,
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content: "You are an assistant that extracts ticket issue details from messages. Extract 'location' (building/place), 'room', and 'description' (the problem itself). Output JSON with these 3 keys. If a field is not mentioned, omit it or set it to null."
+          },
+          {
+            role: "user",
+            content: message
+          }
+        ]
+      })
+    });
+
+    if (!response.ok) return null;
+    
+    const data = await response.json();
+    const text = data.choices?.[0]?.message?.content;
+    if (!text) return null;
+    
+    const parsed = JSON.parse(text);
+    return {
+      location: parsed.location || undefined,
+      room: parsed.room || undefined,
+      description: parsed.description || undefined
+    };
+  } catch (err) {
+    console.error("LLM ticket extraction failed", err);
+    return null;
+  }
 }

@@ -11,6 +11,7 @@ export type SavedStudyNote = {
     title: string;
   }>;
   courseName: string;
+  keyPoints: string[];
   materialId: string;
   summary: string | null;
   sourceType: "text" | StudyMaterialSourceType;
@@ -62,6 +63,53 @@ async function getUserCourses(lineUserId: string) {
   });
 
   return materials.map((material) => material.courseName);
+}
+
+async function getUserStudyMaterials(lineUserId: string) {
+  return prisma.studyMaterial.findMany({
+    orderBy: { createdAt: "desc" },
+    select: {
+      courseName: true,
+      createdAt: true,
+      sourceType: true,
+      summary: true,
+      title: true
+    },
+    take: 5,
+    where: { lineUserId }
+  });
+}
+
+function formatSavedMaterialsList(
+  materials: Awaited<ReturnType<typeof getUserStudyMaterials>>,
+  isThai: boolean
+) {
+  if (materials.length === 0) {
+    return isThai
+      ? "คุณยังไม่ได้บันทึกบทเรียนไว้ครับ ลองพิมพ์ /addnote <ชื่อวิชา> แล้วตามด้วยเนื้อหาที่เรียนดูนะครับ"
+      : "You haven't saved any study materials yet. Try /addnote <Course Name> followed by the lesson content.";
+  }
+
+  if (!isThai) {
+    const lines = ["Here are your latest saved study materials:"];
+    materials.forEach((material, index) => {
+      lines.push(`${index + 1}. ${material.courseName}${material.title ? ` - ${material.title}` : ""}`);
+      if (material.summary) lines.push(`   ${material.summary}`);
+    });
+    lines.push("Ask about a course name or the latest lesson when you want to continue.");
+    return lines.join("\n");
+  }
+
+  const lines = ["ตอนนี้มีบทเรียนที่บันทึกไว้ล่าสุดครับ"];
+  materials.forEach((material, index) => {
+    lines.push(`${index + 1}. ${material.courseName}${material.title ? ` - ${material.title}` : ""}`);
+    if (material.summary) {
+      lines.push(`   ${material.summary}`);
+    }
+  });
+  lines.push("พิมพ์ชื่อวิชา หรือถามต่อจากบทเรียนล่าสุดได้เลยครับ");
+
+  return lines.join("\n");
 }
 
 export async function findCourseNameInMessage(lineUserId: string, message: string) {
@@ -127,6 +175,7 @@ export async function saveStudyNote(
       title: assignment.title
     })),
     courseName: material.courseName,
+    keyPoints: extracted.keyPoints,
     materialId: material.id,
     summary: material.summary,
     sourceType: material.sourceType as "text" | StudyMaterialSourceType,
@@ -173,6 +222,58 @@ function scoreMaterial({
   }
 
   return score;
+}
+
+type StudyTutorAction = "FRIEND_EXPLAIN" | "REVIEW_QUESTIONS" | "FLASHCARDS" | "EXAM_SUMMARY";
+
+function getStudyTutorAction(message: string): StudyTutorAction | null {
+  if (/อธิบายโน้ตล่าสุดแบบเพื่อนสอน|อธิบาย.*เพื่อนสอน/i.test(message)) return "FRIEND_EXPLAIN";
+  if (/ออกคำถามทบทวนจากโน้ตล่าสุด|คำถามทบทวน/i.test(message)) return "REVIEW_QUESTIONS";
+  if (/flashcards|แฟลชการ์ด/i.test(message)) return "FLASHCARDS";
+  if (/สรุปก่อนสอบจากโน้ตล่าสุด|สรุปก่อนสอบ/i.test(message)) return "EXAM_SUMMARY";
+  return null;
+}
+
+function getStudyTutorTitle(action: StudyTutorAction) {
+  switch (action) {
+    case "FRIEND_EXPLAIN":
+      return "อธิบายแบบเพื่อนสอน";
+    case "REVIEW_QUESTIONS":
+      return "คำถามทบทวน";
+    case "FLASHCARDS":
+      return "Flashcards";
+    case "EXAM_SUMMARY":
+      return "สรุปก่อนสอบ";
+  }
+}
+
+function buildStudyTutorPrompt(action: StudyTutorAction, courseName: string) {
+  switch (action) {
+    case "FRIEND_EXPLAIN":
+      return (
+        `อธิบายบทเรียนล่าสุดของวิชา ${courseName} แบบเพื่อนสอนเพื่อน ` +
+        "ให้เหมือนคนกำลังคุยกัน ไม่ใช่คัดลอกโน้ตมาตอบ เริ่มจากภาพรวมง่าย ๆ แล้วอธิบาย 2-4 จุดสำคัญด้วยภาษาธรรมชาติ " +
+        "ถ้ามีคำว่า Today หรือ วันนี้ในโน้ต ให้แปลงเป็นคำอธิบายบทเรียนแทน อย่าใช้สำนวนไดอารี่แบบ 'วันนี้เรียน' เว้นแต่จำเป็น"
+      );
+    case "REVIEW_QUESTIONS":
+      return `สร้างคำถามทบทวน 5 ข้อจากบทเรียนล่าสุดของวิชา ${courseName} พร้อมเฉลยสั้น ๆ ใช้ภาษาคุยง่ายและอิงเฉพาะข้อมูลในโน้ต`;
+    case "FLASHCARDS":
+      return `ทำ flashcards 5 ใบจากบทเรียนล่าสุดของวิชา ${courseName} รูปแบบ Q: ... A: ... ให้สั้น อ่านง่าย และอิงเฉพาะข้อมูลในโน้ต`;
+    case "EXAM_SUMMARY":
+      return (
+        `สรุปก่อนสอบจากบทเรียนล่าสุดของวิชา ${courseName} เป็นหัวข้อสั้น ๆ ` +
+        "แบ่งเป็น ต้องจำอะไร, จุดที่มักสับสน, และทวนเร็ว ใช้ภาษาง่าย ไม่คัดลอกโน้ตยาว ๆ"
+      );
+  }
+}
+
+function isListNotesRequest(message: string) {
+  const noteWord = "(?:โน[้๊]?ต|notes?)";
+  const hasListVerbNearNote = new RegExp(`(?:มี|ดู|แสดง|list|all).{0,20}${noteWord}`, "i").test(message);
+  const hasNoteNearListQuestion = new RegExp(`${noteWord}.{0,30}(?:อะไรบ้าง|ทั้งหมด|ที่บันทึกไว้|saved)`, "i").test(message);
+  const hasGenericSavedQuestion = /(?:มี|ดู|แสดง).{0,20}(?:อะไร|ความรู้|บทเรียน|เนื้อหา).{0,20}บันทึก.{0,10}(?:ไว้|บ้าง)|(?:ความรู้|บทเรียน|เนื้อหา).{0,20}(?:เคย)?บันทึก|บันทึก(?:อะไร|อะไรไว้|ไว้บ้าง)/i.test(message);
+
+  return hasListVerbNearNote || hasNoteNearListQuestion || hasGenericSavedQuestion || /วิชาอะไรบ้าง|all notes|list notes/i.test(message);
 }
 
 export async function searchStudyMemory(lineUserId: string, query: string) {
@@ -266,15 +367,11 @@ Description: ${assignment.description ?? "-"}`;
 }
 
 export async function answerFromStudyMemory(lineUserId: string, userMessage: string, isThai: boolean = true, executionLog?: any[]) {
-  if (/มีโน้ต|วิชาอะไรบ้าง|all notes|list notes|โน้ต.*อะไรบ้าง/i.test(userMessage)) {
-    executionLog?.push({ action: "Extract Intent", details: "Detected 'list all courses' request" });
-    const courses = await getUserCourses(lineUserId);
-    if (courses.length === 0) {
-      executionLog?.push({ action: "Query Database", details: `Queried unique course names for user. Found: 0 courses.` });
-      return { text: isThai ? "คุณยังไม่ได้บันทึกโน้ตวิชาไหนเลยครับ ลองพิมพ์ /addnote <ชื่อวิชา> ดูนะครับ" : "You haven't saved any notes yet." };
-    }
-    executionLog?.push({ action: "Query Database", details: `Queried unique course names for user. Found ${courses.length} courses: ${courses.join(', ')}` });
-    return { text: isThai ? `ตอนนี้คุณมีโน้ตของวิชาเหล่านี้ครับ:\n- ${courses.join("\n- ")}` : `You have notes for these courses:\n- ${courses.join("\n- ")}` };
+  if (isListNotesRequest(userMessage)) {
+    executionLog?.push({ action: "Extract Intent", details: "Detected 'list saved study materials' request" });
+    const materials = await getUserStudyMaterials(lineUserId);
+    executionLog?.push({ action: "Query Database", details: `Queried latest saved study materials. Found: ${materials.length}.` });
+    return { text: formatSavedMaterialsList(materials, isThai) };
   }
 
   executionLog?.push({ action: "Extract Intent", details: "Detected 'search study memory' request" });
@@ -286,6 +383,26 @@ export async function answerFromStudyMemory(lineUserId: string, userMessage: str
     executionLog?.push({ action: "Search Results", details: `Matched ${result.materials.length} notes (Top match: ${result.materials[0]?.courseName}) and ${result.assignments.length} assignments.` });
   } else {
     executionLog?.push({ action: "Search Results", details: `No relevant notes or assignments found in database.` });
+  }
+
+  const tutorAction = getStudyTutorAction(userMessage);
+  if (tutorAction) {
+    if (!latestMaterial) {
+      return { text: isThai ? "ยังไม่พบข้อมูลนี้ในโน้ตที่บันทึกไว้ครับ" : "I couldn't find this information in your saved notes." };
+    }
+
+    executionLog?.push({ action: "Generate Study Tutor Answer (OpenAI)", details: getStudyTutorTitle(tutorAction) });
+    const tutorPrompt = buildStudyTutorPrompt(tutorAction, latestMaterial.courseName);
+    const answer = await generateStudyAnswer(tutorPrompt, result.context, isThai);
+
+    if (answer === "ยังไม่พบข้อมูลนี้ในโน้ตที่บันทึกไว้ครับ" || answer === "I couldn't find this information in your saved notes.") {
+      executionLog?.push({ action: "Format Response", details: "No tutor answer found in context" });
+      return { text: answer };
+    }
+
+    const title = getStudyTutorTitle(tutorAction);
+    executionLog?.push({ action: "Format Study Tutor Answer", details: `Generated ${title} with length ${answer.length}` });
+    return { text: answer, flexMessage: createStudyAnswerFlex(latestMaterial.courseName, title, answer) };
   }
 
   if (/สรุป|summary|latest class|last class|ล่าสุด/i.test(userMessage)) {

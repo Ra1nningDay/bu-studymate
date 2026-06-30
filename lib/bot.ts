@@ -62,6 +62,7 @@ export type BotReply = {
 type RouterType = AgentRouterDecision["routerType"] | "hard_guard";
 
 type ResolvedRoute = {
+  guideAction?: "UPLOAD_STUDY_MATERIAL" | "ASK_BU_INFO_GUIDE" | "REPORT_ISSUE_GUIDE" | "ASK_LATEST_STUDY_GUIDE";
   intent: Intent;
   needsWebSearch: boolean;
   resetRequested?: boolean;
@@ -89,22 +90,34 @@ function parseAddNoteCommand(message: string) {
 }
 
 function formatSavedStudyNoteReply(note: Awaited<ReturnType<typeof saveStudyNote>>, isThai: boolean) {
-  const lines = isThai 
-    ? [`จำโน้ตของวิชา ${note.courseName} แล้วครับ`]
-    : [`Saved study note for ${note.courseName}.`];
+  const lines = isThai
+    ? [`สรุปบทเรียนให้แล้วครับ`, `วิชา: ${note.courseName}`]
+    : [`Your study pack is ready.`, `Course: ${note.courseName}`];
+
+  if (note.keyPoints.length > 0) {
+    lines.push(isThai ? "หัวข้อหลัก:" : "Key topics:");
+    lines.push(...note.keyPoints.slice(0, 5).map((point) => `- ${point}`));
+  }
 
   if (note.summary) {
-    lines.push(isThai ? `สรุป: ${note.summary}` : `Summary: ${note.summary}`);
+    lines.push(isThai ? `จำง่าย ๆ: ${note.summary}` : `Easy summary: ${note.summary}`);
   }
 
   if (note.assignments.length > 0) {
+    lines.push(isThai ? "งานที่พบ:" : "Assignments found:");
     for (const assignment of note.assignments) {
-      lines.push(isThai ? `พบ assignment: ${assignment.title}` : `Found assignment: ${assignment.title}`);
+      lines.push(`- ${assignment.title}`);
       if (assignment.dueDateText) {
-        lines.push(isThai ? `กำหนดส่ง: ${assignment.dueDateText}` : `Due: ${assignment.dueDateText}`);
+        lines.push(isThai ? `  กำหนดส่ง: ${assignment.dueDateText}` : `  Due: ${assignment.dueDateText}`);
       }
     }
   }
+
+  lines.push(
+    isThai
+      ? "เลือกปุ่มใน Study Pack เพื่อให้ช่วยติวต่อได้เลยครับ"
+      : "Use the Study Pack buttons if you want me to tutor you from this material."
+  );
 
   return lines.join("\n");
 }
@@ -166,6 +179,10 @@ function isResetOrCancelCommand(message: string) {
   return /^(\/reset|cancel|ยกเลิก)$/i.test(message.trim());
 }
 
+function normalizeMenuMessage(message: string) {
+  return message.replace(/\s+/g, " ").trim().toLowerCase();
+}
+
 function hardGuardRoute({
   session,
   trimmedMessage
@@ -173,6 +190,67 @@ function hardGuardRoute({
   session: Awaited<ReturnType<typeof getOrCreateChatSession>>;
   trimmedMessage: string;
 }): ResolvedRoute | null {
+  const menuMessage = normalizeMenuMessage(trimmedMessage);
+
+  if (menuMessage === "อัปโหลดบทเรียน") {
+    return {
+      guideAction: "UPLOAD_STUDY_MATERIAL",
+      intent: "GENERAL_CHAT",
+      needsWebSearch: false,
+      routerConfidence: 1,
+      routerReason: "Greeting menu upload guide",
+      routerType: "hard_guard",
+      selectedTarget: "general_chat"
+    };
+  }
+
+  if (menuMessage === "ถามข้อมูล bu") {
+    return {
+      guideAction: "ASK_BU_INFO_GUIDE",
+      intent: "GENERAL_CHAT",
+      needsWebSearch: false,
+      routerConfidence: 1,
+      routerReason: "Greeting menu BU info guide",
+      routerType: "hard_guard",
+      selectedTarget: "general_chat"
+    };
+  }
+
+  if (menuMessage === "แจ้งปัญหาห้องเรียน") {
+    return {
+      guideAction: "REPORT_ISSUE_GUIDE",
+      intent: "GENERAL_CHAT",
+      needsWebSearch: false,
+      routerConfidence: 1,
+      routerReason: "Greeting menu issue report guide",
+      routerType: "hard_guard",
+      selectedTarget: "general_chat"
+    };
+  }
+
+  if (menuMessage === "งานที่ต้องส่งมีอะไรบ้าง") {
+    return {
+      intent: "LIST_ASSIGNMENTS",
+      needsWebSearch: false,
+      routerConfidence: 1,
+      routerReason: "Greeting menu assignments shortcut",
+      routerType: "hard_guard",
+      selectedTarget: "study_memory"
+    };
+  }
+
+  if (menuMessage === "ถามจากบทเรียนนี้") {
+    return {
+      guideAction: "ASK_LATEST_STUDY_GUIDE",
+      intent: "GENERAL_CHAT",
+      needsWebSearch: false,
+      routerConfidence: 1,
+      routerReason: "Study pack ask latest guide",
+      routerType: "hard_guard",
+      selectedTarget: "general_chat"
+    };
+  }
+
   if (isResetOrCancelCommand(trimmedMessage)) {
     return {
       intent: "GENERAL_CHAT",
@@ -284,7 +362,47 @@ async function executeBotReply({
 
   const isThai = /[\u0E00-\u0E7F]/.test(trimmedMessage);
 
-  if (route.resetRequested) {
+  if (route.guideAction === "UPLOAD_STUDY_MATERIAL") {
+    executionLog.push({ action: "Greeting Menu Guide", details: "Upload study material" });
+    reply = asReply(
+      "บันทึกบทเรียนได้ 2 วิธีครับ\n\n1. แนบไฟล์ PDF หรือ DOCX มาในแชตนี้ได้เลย\n\n2. พิมพ์โน้ตเป็นข้อความด้วยรูปแบบนี้:\n/addnote <ชื่อวิชา>\n<เนื้อหาที่เรียนหรืองานที่ต้องส่ง>\n\nตัวอย่าง:\n/addnote Marketing\nToday we learned customer segmentation.\nAssignment due Friday: create one customer persona.",
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      executionLog
+    );
+  } else if (route.guideAction === "ASK_BU_INFO_GUIDE") {
+    executionLog.push({ action: "Greeting Menu Guide", details: "Ask BU info" });
+    reply = asReply(
+      "พิมพ์คำถามเกี่ยวกับ BU มาได้เลยครับ\n\nตัวอย่าง:\n- BU Wi-Fi ใช้ยังไง\n- ดูวันหยุดมหาวิทยาลัยที่ไหน\n- ติดต่อหน่วยงานไหนได้บ้าง",
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      executionLog
+    );
+  } else if (route.guideAction === "REPORT_ISSUE_GUIDE") {
+    executionLog.push({ action: "Greeting Menu Guide", details: "Report classroom issue" });
+    reply = asReply(
+      "แจ้งอาคาร ห้อง และรายละเอียดปัญหาได้เลยครับ\n\nตัวอย่าง:\nอาคาร A3 ชั้น 2 ห้อง LAB 2 แอร์ไม่เย็น",
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      executionLog
+    );
+  } else if (route.guideAction === "ASK_LATEST_STUDY_GUIDE") {
+    executionLog.push({ action: "Study Pack Guide", details: "Ask from latest lesson" });
+    reply = asReply(
+      "พิมพ์คำถามเกี่ยวกับบทเรียนล่าสุดได้เลยครับ\n\nตัวอย่าง:\n- อธิบายหัวข้อนี้ให้ง่ายขึ้น\n- จุดไหนสำคัญสุด\n- ออกข้อสอบจากบทเรียนนี้ให้หน่อย",
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      executionLog
+    );
+  } else if (route.resetRequested) {
     executionLog.push({ action: "Reset Ticket Flow" });
     await resetTicketFlow(lineUserId);
     reply = asReply(isThai ? "รีเซ็ตบทสนทนาเรียบร้อยครับ พิมพ์เรื่องใหม่ที่ต้องการให้ช่วยได้เลยครับ" : "Conversation reset. How can I help you?", undefined, undefined, undefined, undefined, executionLog);
@@ -315,7 +433,7 @@ async function executeBotReply({
   } else if (intent === "ASK_BU_INFO") {
     executionLog.push({ action: "Search Knowledge Base" });
     const knowledgeAnswer = await answerKnowledgeQuestion(trimmedMessage, history);
-    if (knowledgeAnswer.text === "ขออภัยครับ ตอนนี้ StudyMate ยังไม่มีข้อมูลที่ยืนยันได้เพียงพอสำหรับคำถามนี้") {
+    if (knowledgeAnswer.isMiss) {
       executionLog.push({ action: "Knowledge Base Miss - Falling back to Web Search" });
       reply = await answerFreshQuestion(trimmedMessage, history);
       // Aggregate usage if the knowledge base also used tokens
@@ -330,13 +448,14 @@ async function executeBotReply({
     if (!reply.executionLog) reply.executionLog = executionLog;
   } else if (intent === "CREATE_TICKET") {
     executionLog.push({ action: "Continue Ticket Flow" });
+    const ticketReply = await continueTicketFlow({
+      lineUserId,
+      message: trimmedMessage,
+      session
+    });
     reply = asReply(
-      await continueTicketFlow({
-        lineUserId,
-        message: trimmedMessage,
-        session
-      }),
-      undefined, undefined, undefined, undefined, executionLog
+      ticketReply.text,
+      undefined, undefined, undefined, ticketReply.flexMessage, executionLog
     );
   } else if (intent === "CHECK_TICKET_STATUS") {
     executionLog.push({ action: "Check Ticket Status" });

@@ -29,7 +29,9 @@ export async function generateStudyAnswer(question: string, context: string, isT
             content:
               `You are BU StudyMate's Study Memory answerer. Answer only from the provided saved note context. ` +
               `Do not use web search or general knowledge. If the context does not contain the answer, reply exactly: "${missingStudyInfoReply}". ` +
-              "Answer in a friendly, conversational, and helpful assistant tone. You MUST reply in the exact same language as the user's question, translating the context if necessary. Keep it concise for LINE chat. Summarize and explain the answer clearly instead of just copy-pasting the raw text. Do NOT use any Markdown formatting (no **bold**, no *italic*)."
+              "Answer in a friendly, conversational, and helpful assistant tone. You MUST reply in the exact same language as the user's question, translating the context if necessary. Keep it concise for LINE chat. " +
+              "When the user asks for explanation, review questions, flashcards, or exam summary, transform the saved note into a teaching response. Do not copy long raw sentences verbatim. Avoid diary-style phrasing like 'today we learned' or 'วันนี้เรียน' unless the user explicitly asks for a class log. " +
+              "Summarize and explain the answer clearly instead of just copy-pasting the raw text. Do NOT use any Markdown formatting (no **bold**, no *italic*)."
           },
           {
             role: "user",
