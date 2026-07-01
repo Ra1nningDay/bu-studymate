@@ -98,6 +98,17 @@ model BotRun {
   @@map("bot_runs")
 }
 
+model RateLimitEvent {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  lineUserId String   @map("line_user_id")
+  scope      String
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([lineUserId, scope, createdAt])
+  @@index([createdAt])
+  @@map("rate_limit_events")
+}
+
 model StudyMaterial {
   id          String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   lineUserId  String          @map("line_user_id")

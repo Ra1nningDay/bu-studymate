@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { isAiConfigured } from "@/lib/ai";
+import {
+  consumeRateLimit,
+  fileUploadRateLimit,
+  formatRateLimitMessage
+} from "@/lib/rate-limit";
 import { saveStudyFile } from "@/lib/study-file";
 import { normalizeWebSessionId } from "@/lib/web-session";
 
@@ -24,12 +29,27 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "File is required" }, { status: 400 });
   }
 
+  const lineUserId = normalizeWebSessionId(getFormString(formData, "sessionId"));
+  const rateLimit = await consumeRateLimit({
+    lineUserId,
+    ...fileUploadRateLimit
+  });
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      {
+        error: formatRateLimitMessage(rateLimit),
+        retryAfterSeconds: rateLimit.retryAfterSeconds ?? 60
+      },
+      { status: 429 }
+    );
+  }
+
   try {
     const savedFile = await saveStudyFile({
       buffer: Buffer.from(await file.arrayBuffer()),
       courseName: getFormString(formData, "courseName"),
       fileName: file.name,
-      lineUserId: normalizeWebSessionId(getFormString(formData, "sessionId")),
+      lineUserId,
       mimeType: file.type
     });
 

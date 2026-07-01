@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { isAiConfigured } from "@/lib/ai";
 import { createBotReply } from "@/lib/bot";
+import {
+  consumeRateLimit,
+  formatRateLimitMessage,
+  messageRateLimit
+} from "@/lib/rate-limit";
 import { normalizeWebSessionId } from "@/lib/web-session";
 
 export const runtime = "nodejs";
@@ -23,9 +28,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Message is required" }, { status: 400 });
   }
 
+  const lineUserId = normalizeWebSessionId(body.sessionId);
+  const rateLimit = await consumeRateLimit({
+    lineUserId,
+    ...messageRateLimit
+  });
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      {
+        error: formatRateLimitMessage(rateLimit),
+        retryAfterSeconds: rateLimit.retryAfterSeconds ?? 60
+      },
+      { status: 429 }
+    );
+  }
+
   const reply = await createBotReply({
     channel: "web",
-    lineUserId: normalizeWebSessionId(body.sessionId),
+    lineUserId,
     message: body.message
   });
 

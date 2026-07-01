@@ -10,6 +10,12 @@ import {
   verifyLineSignature,
   type LineWebhookEvent
 } from "@/lib/line";
+import {
+  consumeRateLimit,
+  fileUploadRateLimit,
+  formatRateLimitMessage,
+  messageRateLimit
+} from "@/lib/rate-limit";
 import { saveStudyFile, type SavedStudyFile } from "@/lib/study-file";
 
 export const runtime = "nodejs";
@@ -28,6 +34,16 @@ async function handleTextMessage(event: LineWebhookEvent) {
   if (markAsReadToken) {
     void markLineMessageAsRead(markAsReadToken);
   }
+
+  const rateLimit = await consumeRateLimit({
+    lineUserId,
+    ...messageRateLimit
+  });
+  if (!rateLimit.allowed) {
+    await replyLineText(replyToken, formatRateLimitMessage(rateLimit));
+    return;
+  }
+
   void showLineLoadingAnimation(lineUserId);
 
   const reply = await createBotReply({ channel: "line", lineUserId, message });
@@ -102,6 +118,16 @@ async function handleFileMessage(event: LineWebhookEvent) {
   if (markAsReadToken) {
     void markLineMessageAsRead(markAsReadToken);
   }
+
+  const rateLimit = await consumeRateLimit({
+    lineUserId,
+    ...fileUploadRateLimit
+  });
+  if (!rateLimit.allowed) {
+    await replyLineText(replyToken, formatRateLimitMessage(rateLimit));
+    return;
+  }
+
   void showLineLoadingAnimation(lineUserId, 60);
 
   try {

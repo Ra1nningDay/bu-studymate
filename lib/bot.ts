@@ -6,7 +6,6 @@ import {
 import {
   classifyWithAgentRouter,
   type AgentRouterDecision,
-  type AgentRouterIntent,
   type RouteTarget
 } from "@/lib/agent-router";
 import {
@@ -204,7 +203,7 @@ function hardGuardRoute({
     };
   }
 
-  if (menuMessage === "ถามข้อมูล bu") {
+  if (menuMessage === "ถามข้อมูล bu" || menuMessage === "ถามข้อมูลทั่วไป") {
     return {
       guideAction: "ASK_BU_INFO_GUIDE",
       intent: "GENERAL_CHAT",
@@ -234,6 +233,17 @@ function hardGuardRoute({
       needsWebSearch: false,
       routerConfidence: 1,
       routerReason: "Greeting menu assignments shortcut",
+      routerType: "hard_guard",
+      selectedTarget: "study_memory"
+    };
+  }
+
+  if (menuMessage === "ดูบันทึกโน้ต") {
+    return {
+      intent: "ASK_STUDY_MEMORY",
+      needsWebSearch: false,
+      routerConfidence: 1,
+      routerReason: "Rich menu saved notes shortcut",
       routerType: "hard_guard",
       selectedTarget: "study_memory"
     };

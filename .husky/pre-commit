@@ -1,0 +1,7 @@
+if command -v powershell.exe >/dev/null 2>&1; then
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "pnpm lint"
+elif command -v pnpm.cmd >/dev/null 2>&1; then
+  pnpm.cmd lint
+else
+  pnpm lint
+fi
