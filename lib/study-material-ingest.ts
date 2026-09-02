@@ -18,18 +18,12 @@ export type ExtractedStudyMaterialFile = {
   warnings: string[];
 };
 
-function readPositiveNumber(value: string | undefined, fallback: number) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-}
+import { env } from "@/src/config/env";
 
-const maxOcrPages = readPositiveNumber(process.env.STUDY_MEMORY_OCR_MAX_PAGES, 5);
-const ocrLanguage = process.env.STUDY_MEMORY_OCR_LANG || "tha+eng";
-const ocrScale = readPositiveNumber(process.env.STUDY_MEMORY_OCR_SCALE, 2);
-const minimumPdfTextLength = readPositiveNumber(
-  process.env.STUDY_MEMORY_PDF_TEXT_MIN_CHARS,
-  80
-);
+const maxOcrPages = env.STUDY_MEMORY_OCR_MAX_PAGES;
+const ocrLanguage = env.STUDY_MEMORY_OCR_LANG;
+const ocrScale = env.STUDY_MEMORY_OCR_SCALE;
+const minimumPdfTextLength = env.STUDY_MEMORY_PDF_TEXT_MIN_CHARS;
 
 function normalizeExtractedText(value: string) {
   return value
@@ -125,7 +119,7 @@ async function extractPdf(buffer: Buffer): Promise<ExtractedStudyMaterialFile> {
     };
   }
 
-  if (process.env.STUDY_MEMORY_OCR_ENABLED === "false") {
+  if (!env.STUDY_MEMORY_OCR_ENABLED) {
     warnings.push("PDF text extraction found very little text and OCR is disabled.");
     return {
       pageCount: extracted.pageCount,

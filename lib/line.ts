@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { env } from "@/src/config/env";
 
 export type LineWebhookEvent = {
   type: string;
@@ -17,8 +18,8 @@ export type LineWebhookEvent = {
   };
 };
 
-function requireLineEnv(name: string) {
-  const value = process.env[name];
+function requireLineEnv(name: "LINE_CHANNEL_SECRET" | "LINE_CHANNEL_ACCESS_TOKEN") {
+  const value = env[name];
   if (!value) {
     throw new Error(`Missing required environment variable: ${name}`);
   }

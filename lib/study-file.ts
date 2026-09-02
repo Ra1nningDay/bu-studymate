@@ -13,15 +13,9 @@ export type SavedStudyFile = {
   warnings: string[];
 };
 
-function readPositiveNumber(value: string | undefined, fallback: number) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-}
+import { env } from "@/src/config/env";
 
-const maxStudyFileBytes = readPositiveNumber(
-  process.env.STUDY_MEMORY_MAX_FILE_BYTES,
-  10 * 1024 * 1024
-);
+const maxStudyFileBytes = env.STUDY_MEMORY_MAX_FILE_BYTES;
 
 function stripKnownExtension(fileName: string) {
   return fileName.replace(/\.(pdf|docx)$/i, "");

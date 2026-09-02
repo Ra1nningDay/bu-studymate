@@ -1,60 +1,27 @@
-import type { Prisma } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
+/**
+ * Facade for backward compatibility.
+ * Core chat logging data access has been refactored to src/repositories/chat-log.repository.ts
+ */
+export {
+  chatLogRepository,
+  ChatLogRepository,
+  type ChatChannel,
+  type ChatRole,
+  type BotRunStatus
+} from "@/src/repositories/chat-log.repository";
 
-export type ChatChannel = "line" | "web";
-export type ChatRole = "assistant" | "system" | "user";
-export type BotRunStatus = "error" | "processing" | "success";
+import {
+  chatLogRepository,
+  type ChatChannel,
+  type ChatRole,
+  type BotRunStatus
+} from "@/src/repositories/chat-log.repository";
+import type { Prisma } from "@prisma/client";
 
 export type ChatHistoryMessage = {
   content: string;
   role: "assistant" | "user";
 };
-
-const MAX_HISTORY_MESSAGES = 50; // 25 turns × 2 messages (user + assistant)
-
-type SafeMetadata = Record<string, boolean | number | string | null | string[]>;
-
-const metadataKeyBlocklist = /api[-_]?key|token|secret|authorization|password|stack/i;
-
-function sanitizeMetadata(metadata?: Record<string, unknown>): Prisma.InputJsonValue {
-  if (!metadata) {
-    return {};
-  }
-
-  const safe: SafeMetadata = {};
-
-  for (const [key, value] of Object.entries(metadata)) {
-    if (metadataKeyBlocklist.test(key)) {
-      continue;
-    }
-
-    if (
-      typeof value === "string" ||
-      typeof value === "number" ||
-      typeof value === "boolean" ||
-      value === null
-    ) {
-      safe[key] = value;
-      continue;
-    }
-
-    if (Array.isArray(value)) {
-      if (value.every((item) => typeof item === "string")) {
-        safe[key] = value.slice(0, 20);
-      } else if (
-        key === "executionLog" &&
-        value.every(
-          (item) =>
-            typeof item === "object" && item !== null && "action" in item
-        )
-      ) {
-        safe[key] = value as any;
-      }
-    }
-  }
-
-  return safe as Prisma.InputJsonValue;
-}
 
 export async function createChatMessageLog({
   channel,
@@ -74,16 +41,14 @@ export async function createChatMessageLog({
   sessionId?: string | null;
 }) {
   try {
-    return await prisma.chatMessage.create({
-      data: {
-        channel,
-        content,
-        intent,
-        lineUserId,
-        metadata: sanitizeMetadata(metadata),
-        role,
-        sessionId
-      }
+    return await chatLogRepository.createChatMessage({
+      channel,
+      content,
+      intent,
+      lineUserId,
+      metadata: metadata as Prisma.InputJsonValue,
+      role,
+      sessionId
     });
   } catch (error) {
     console.error("Chat message logging failed", error);
@@ -103,14 +68,12 @@ export async function createBotRunLog({
   userMessageId?: string | null;
 }) {
   try {
-    return await prisma.botRun.create({
-      data: {
-        intent,
-        lineUserId,
-        metadata: sanitizeMetadata(metadata),
-        status: "processing",
-        userMessageId
-      }
+    return await chatLogRepository.createBotRun({
+      intent,
+      lineUserId,
+      metadata: metadata as Prisma.InputJsonValue,
+      status: "processing",
+      userMessageId
     });
   } catch (error) {
     console.error("Bot run logging failed", error);
@@ -146,19 +109,16 @@ export async function updateBotRunLog({
   }
 
   try {
-    return await prisma.botRun.update({
-      data: {
-        assistantMessageId,
-        errorCode,
-        latencyMs,
-        metadata: sanitizeMetadata(metadata),
-        status,
-        usedOpenAI: Boolean(usedOpenAI),
-        usedStudyMemory: Boolean(usedStudyMemory),
-        usedTicketFlow: Boolean(usedTicketFlow),
-        usedWebSearch: Boolean(usedWebSearch)
-      },
-      where: { id: runId }
+    return await chatLogRepository.updateBotRun(runId, {
+      assistantMessageId,
+      errorCode,
+      latencyMs,
+      metadata: metadata as Prisma.InputJsonValue,
+      status,
+      usedOpenAI,
+      usedStudyMemory,
+      usedTicketFlow,
+      usedWebSearch
     });
   } catch (error) {
     console.error("Bot run update failed", error);
@@ -168,22 +128,10 @@ export async function updateBotRunLog({
 
 export async function getRecentChatHistory(
   lineUserId: string,
-  limit = MAX_HISTORY_MESSAGES
+  limit = 50
 ): Promise<ChatHistoryMessage[]> {
   try {
-    const rows = await prisma.chatMessage.findMany({
-      orderBy: { createdAt: "desc" },
-      select: { content: true, role: true },
-      take: limit,
-      where: {
-        lineUserId,
-        role: { in: ["user", "assistant"] }
-      }
-    });
-    // Reverse to get chronological order (oldest first for OpenAI messages array)
-    return rows
-      .reverse()
-      .map((r) => ({ content: r.content, role: r.role as "assistant" | "user" }));
+    return await chatLogRepository.getRecentChatHistory(lineUserId, limit);
   } catch {
     return [];
   }
