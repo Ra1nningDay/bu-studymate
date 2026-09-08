@@ -22,7 +22,7 @@ import {
   fileUploadRateLimitConfig,
   type RateLimitService
 } from "@/src/services/rate-limit.service";
-import { saveStudyFile, type SavedStudyFile } from "@/lib/study-file";
+import type { SavedStudyFile } from "@/lib/study-file";
 
 function formatSavedStudyFileReply(file: SavedStudyFile) {
   const lines = [
@@ -141,6 +141,7 @@ export class LineWebhookController {
     void showLineLoadingAnimation(lineUserId, 60);
 
     try {
+      const { saveStudyFile } = await import("@/lib/study-file");
       const buffer = await getLineMessageContent(messageId);
       const savedFile = await saveStudyFile({
         buffer,

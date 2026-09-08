@@ -1,3 +1,4 @@
+import "pdf-parse/worker";
 import mammoth from "mammoth";
 import { PDFParse } from "pdf-parse";
 import { recognize } from "tesseract.js";
