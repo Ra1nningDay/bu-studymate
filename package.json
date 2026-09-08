@@ -10,6 +10,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "prepare": "husky",
+    "postinstall": "prisma generate",
     "check:fresh-info": "tsx scripts/manual-fresh-info-check.ts",
     "line:richmenu:upload": "tsx scripts/upload-rich-menu.ts",
     "db:generate": "prisma generate",
