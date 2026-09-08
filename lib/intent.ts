@@ -7,6 +7,8 @@ export type Intent =
   | "CHECK_TICKET_STATUS"
   | "GENERAL_CHAT"
   | "LIST_ASSIGNMENTS"
+  | "LIST_NOTEBOOKS"
+  | "VIEW_NOTEBOOK"
   | "UNKNOWN";
 
 export function extractTicketCode(message: string) {

@@ -109,9 +109,38 @@ model RateLimitEvent {
   @@map("rate_limit_events")
 }
 
+model Notebook {
+  id         String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  lineUserId String          @map("line_user_id")
+  name       String
+  emoji      String          @default("📘")
+  createdAt  DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  materials  StudyMaterial[]
+
+  @@unique([lineUserId, name])
+  @@index([lineUserId])
+  @@map("notebooks")
+}
+
+model UserMemory {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  lineUserId String   @map("line_user_id")
+  key        String
+  value      String
+  source     String   @default("inferred")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([lineUserId, key])
+  @@index([lineUserId])
+  @@map("user_memories")
+}
+
 model StudyMaterial {
   id          String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   lineUserId  String          @map("line_user_id")
+  notebookId  String?         @map("notebook_id") @db.Uuid
   courseName  String          @map("course_name")
   title       String?
   sourceType  String          @default("text") @map("source_type")
@@ -120,10 +149,12 @@ model StudyMaterial {
   keyPoints   Json            @default("[]") @map("key_points")
   createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  notebook    Notebook?       @relation(fields: [notebookId], references: [id], onDelete: SetNull)
   chunks      MaterialChunk[]
   assignments Assignment[]
 
   @@index([lineUserId])
+  @@index([notebookId])
   @@index([courseName])
   @@index([createdAt])
   @@map("study_materials")

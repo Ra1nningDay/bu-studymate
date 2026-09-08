@@ -114,3 +114,17 @@ pnpm typecheck
 pnpm lint
 ```
 Both must pass with **0 errors and 0 warnings** before concluding work.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs are tracked in GitHub Issues for `Ra1nningDay/bu-studymate`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The repo uses the five canonical triage labels. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+The repo uses a single-context domain documentation layout. See `docs/agents/domain.md`.

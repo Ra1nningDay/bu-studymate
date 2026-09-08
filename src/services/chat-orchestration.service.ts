@@ -150,7 +150,7 @@ function formatAssignmentsReply(
 }
 
 function didUseStudyMemory(intent: Intent) {
-  return ["ADD_STUDY_NOTE", "ASK_STUDY_MEMORY", "LIST_ASSIGNMENTS"].includes(intent);
+  return ["ADD_STUDY_NOTE", "ASK_STUDY_MEMORY", "LIST_ASSIGNMENTS", "LIST_NOTEBOOKS", "VIEW_NOTEBOOK"].includes(intent);
 }
 
 function didUseTicketFlow(intent: Intent) {
@@ -261,7 +261,7 @@ export class ChatOrchestrationService {
 
     if (menuMessage === "ดูบันทึกโน้ต") {
       return {
-        intent: "ASK_STUDY_MEMORY",
+        intent: "LIST_NOTEBOOKS",
         needsWebSearch: false,
         routerConfidence: 1,
         routerReason: "Rich menu saved notes shortcut",
@@ -475,6 +475,37 @@ export class ChatOrchestrationService {
         undefined,
         undefined,
         this.flexPresenter.createAssignmentsFlex(assignments),
+        executionLog
+      );
+    } else if (intent === "LIST_NOTEBOOKS") {
+      executionLog.push({ action: "List Notebooks" });
+      const notebookReply = await this.studySvc.listNotebooks(
+        lineUserId,
+        isThai,
+        executionLog
+      );
+      reply = asReply(
+        notebookReply.text,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        executionLog
+      );
+    } else if (intent === "VIEW_NOTEBOOK") {
+      executionLog.push({ action: "View Notebook" });
+      const notebookReply = await this.studySvc.viewNotebook(
+        lineUserId,
+        trimmedMessage,
+        isThai,
+        executionLog
+      );
+      reply = asReply(
+        notebookReply.text,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
         executionLog
       );
     } else if (intent === "ASK_STUDY_MEMORY") {

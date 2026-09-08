@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 export type CreateStudyMaterialInput = {
   courseName: string;
   lineUserId: string;
+  notebookId?: string | null;
   rawText: string;
   sourceType: string;
   summary?: string | null;
@@ -100,6 +101,7 @@ export class StudyMaterialRepository {
         courseName: data.courseName,
         keyPoints: data.keyPoints,
         lineUserId: data.lineUserId,
+        notebookId: data.notebookId ?? null,
         rawText: data.rawText,
         sourceType: data.sourceType,
         summary: data.summary,

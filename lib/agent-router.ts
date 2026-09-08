@@ -7,6 +7,8 @@ const routerIntents = [
   "ASK_FRESH_INFO",
   "ASK_STUDY_MEMORY",
   "LIST_ASSIGNMENTS",
+  "LIST_NOTEBOOKS",
+  "VIEW_NOTEBOOK",
   "CREATE_TICKET",
   "CHECK_TICKET_STATUS",
   "GENERAL_CHAT",
@@ -99,7 +101,12 @@ function policyFallback(reason: string): AgentRouterDecision {
 function expectedTarget(intent: AgentRouterIntent): RouteTarget {
   if (intent === "ASK_BU_INFO") return "knowledge_base";
   if (intent === "ASK_FRESH_INFO") return "web_search";
-  if (intent === "ASK_STUDY_MEMORY" || intent === "LIST_ASSIGNMENTS") {
+  if (
+    intent === "ASK_STUDY_MEMORY" ||
+    intent === "LIST_ASSIGNMENTS" ||
+    intent === "LIST_NOTEBOOKS" ||
+    intent === "VIEW_NOTEBOOK"
+  ) {
     return "study_memory";
   }
   if (intent === "CREATE_TICKET" || intent === "CHECK_TICKET_STATUS") return "ticket";
@@ -130,7 +137,10 @@ export function validateRouterPolicy(
   }
 
   if (
-    (decision.intent === "ASK_STUDY_MEMORY" || decision.intent === "LIST_ASSIGNMENTS") &&
+    (decision.intent === "ASK_STUDY_MEMORY" ||
+      decision.intent === "LIST_ASSIGNMENTS" ||
+      decision.intent === "LIST_NOTEBOOKS" ||
+      decision.intent === "VIEW_NOTEBOOK") &&
     decision.selectedTarget !== "study_memory"
   ) {
     return policyFallback("Study Memory route must stay on saved notes only");
@@ -192,7 +202,10 @@ export async function classifyWithAgentRouter(
           content:
             "You are BU StudyMate's routing classifier. Return only the structured routing decision. " +
             "Do not answer the student. Do not call tools. Do not mutate data. " +
-            "Route saved-note/class/assignment questions to Study Memory only. " +
+            "Route 'list all notes' or 'what notes do I have' requests to LIST_NOTEBOOKS. " +
+            "Route 'show notes for <course>' or 'open <course> notebook' requests to VIEW_NOTEBOOK. " +
+            "Route specific study questions about saved notes/class content to ASK_STUDY_MEMORY. " +
+            "Route assignment/homework deadline questions to LIST_ASSIGNMENTS. " +
             "Route current, changing, dated, opening-hours, schedule, news, holiday, admission-round, fee, or deadline questions to fresh info. " +
             "Route stable Bangkok University how-to information, locations, departments, and contact info to the knowledge base. " +
             "Route short keywords or terms related to BU (e.g., app names, places) to the knowledge base. " +
@@ -235,6 +248,26 @@ export async function classifyWithAgentRouter(
                 intent: "ASK_BU_INFO",
                 message: "BU Wi-Fi ใช้ยังไง",
                 selectedTarget: "knowledge_base"
+              },
+              {
+                intent: "LIST_NOTEBOOKS",
+                message: "มีโน้ตอะไรบ้าง",
+                selectedTarget: "study_memory"
+              },
+              {
+                intent: "LIST_NOTEBOOKS",
+                message: "วิชาอะไรบ้าง",
+                selectedTarget: "study_memory"
+              },
+              {
+                intent: "VIEW_NOTEBOOK",
+                message: "ดูโน้ต IT232",
+                selectedTarget: "study_memory"
+              },
+              {
+                intent: "VIEW_NOTEBOOK",
+                message: "เปิด Data Visualization",
+                selectedTarget: "study_memory"
               },
               {
                 intent: "LIST_ASSIGNMENTS",

@@ -4,6 +4,10 @@ import {
   type StudyMaterialRepository
 } from "@/src/repositories/study-material.repository";
 import {
+  notebookRepository,
+  type NotebookRepository
+} from "@/src/repositories/notebook.repository";
+import {
   lineFlexPresenter,
   type LineFlexPresenter
 } from "@/src/presenters/line-flex.presenter";
@@ -142,40 +146,87 @@ function isListNotesRequest(message: string) {
   return hasListVerbNearNote || hasNoteNearListQuestion || hasGenericSavedQuestion || /วิชาอะไรบ้าง|all notes|list notes/i.test(message);
 }
 
-function formatSavedMaterialsList(
-  materials: Array<{
-    courseName: string;
-    createdAt: Date;
-    sourceType: string;
-    summary: string | null;
-    title: string | null;
+function formatNotebookSummary(
+  notebooks: Array<{
+    emoji: string;
+    name: string;
+    noteCount: number;
   }>,
+  uncategorizedCount: number,
   isThai: boolean
 ) {
-  if (materials.length === 0) {
+  const totalNotes = notebooks.reduce((sum, nb) => sum + nb.noteCount, 0) + uncategorizedCount;
+
+  if (totalNotes === 0) {
     return isThai
       ? "คุณยังไม่ได้บันทึกบทเรียนไว้ครับ ลองพิมพ์ /addnote <ชื่อวิชา> แล้วตามด้วยเนื้อหาที่เรียนดูนะครับ"
       : "You haven't saved any study materials yet. Try /addnote <Course Name> followed by the lesson content.";
   }
 
   if (!isThai) {
-    const lines = ["Here are your latest saved study materials:"];
-    materials.forEach((material, index) => {
-      lines.push(`${index + 1}. ${material.courseName}${material.title ? ` - ${material.title}` : ""}`);
-      if (material.summary) lines.push(`   ${material.summary}`);
-    });
-    lines.push("Ask about a course name or the latest lesson when you want to continue.");
+    const lines = [`You have ${totalNotes} note${totalNotes > 1 ? "s" : ""}.`, ""];
+    for (const nb of notebooks) {
+      lines.push(`${nb.emoji} ${nb.name} — ${nb.noteCount} note${nb.noteCount > 1 ? "s" : ""}`);
+    }
+    if (uncategorizedCount > 0) {
+      lines.push(`📝 Uncategorized — ${uncategorizedCount} note${uncategorizedCount > 1 ? "s" : ""}`);
+    }
+    lines.push("", "Which course would you like to see?");
     return lines.join("\n");
   }
 
-  const lines = ["ตอนนี้มีบทเรียนที่บันทึกไว้ล่าสุดครับ"];
-  materials.forEach((material, index) => {
-    lines.push(`${index + 1}. ${material.courseName}${material.title ? ` - ${material.title}` : ""}`);
-    if (material.summary) {
-      lines.push(`   ${material.summary}`);
+  const lines = [`ตอนนี้มีโน้ต ${totalNotes} รายการครับ`, ""];
+  for (const nb of notebooks) {
+    lines.push(`${nb.emoji} ${nb.name} — ${nb.noteCount} โน้ต`);
+  }
+  if (uncategorizedCount > 0) {
+    lines.push(`📝 ไม่ระบุวิชา — ${uncategorizedCount} โน้ต`);
+  }
+  lines.push("", "อยากดูวิชาไหนครับ?");
+
+  return lines.join("\n");
+}
+
+function formatTimeAgo(date: Date, isThai: boolean) {
+  const diffMs = Date.now() - date.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) return isThai ? "วันนี้" : "today";
+  if (diffDays === 1) return isThai ? "เมื่อวาน" : "yesterday";
+  return isThai ? `${diffDays} วันที่แล้ว` : `${diffDays} days ago`;
+}
+
+function formatNotebookNotes(
+  notebookName: string,
+  notes: Array<{
+    courseName: string;
+    createdAt: Date;
+    summary: string | null;
+    title: string | null;
+  }>,
+  isThai: boolean
+) {
+  if (notes.length === 0) {
+    return isThai
+      ? `ไม่พบโน้ตในวิชา "${notebookName}" ครับ`
+      : `No notes found in "${notebookName}".`;
+  }
+
+  const header = isThai
+    ? `📘 ${notebookName} — ${notes.length} โน้ต`
+    : `📘 ${notebookName} — ${notes.length} note${notes.length > 1 ? "s" : ""}`;
+
+  const lines = [header, ""];
+  notes.forEach((note, index) => {
+    const timeAgo = formatTimeAgo(note.createdAt, isThai);
+    lines.push(`${index + 1}. ${note.title ?? note.courseName} (${timeAgo})`);
+    if (note.summary) {
+      const shortSummary = note.summary.length > 80 ? note.summary.slice(0, 80) + "…" : note.summary;
+      lines.push(`   ${shortSummary}`);
     }
   });
-  lines.push("พิมพ์ชื่อวิชา หรือถามต่อจากบทเรียนล่าสุดได้เลยครับ");
+
+  lines.push("", isThai ? "อยากถามเรื่องไหนต่อครับ?" : "Which topic would you like to ask about?");
 
   return lines.join("\n");
 }
@@ -183,6 +234,7 @@ function formatSavedMaterialsList(
 export class StudyMemoryService {
   constructor(
     private repo: StudyMaterialRepository = studyMaterialRepository,
+    private notebookRepo: NotebookRepository = notebookRepository,
     private flexPresenter: LineFlexPresenter = lineFlexPresenter
   ) {}
 
@@ -208,10 +260,13 @@ export class StudyMemoryService {
     const chunks = chunkText(cleanRawText);
     const title = extracted.title ?? options.title ?? null;
 
+    const notebook = await this.notebookRepo.findOrCreateByCourseName(lineUserId, cleanCourseName);
+
     const material = await this.repo.createMaterialWithChunksAndAssignments({
       courseName: cleanCourseName,
       keyPoints: extracted.keyPoints as Prisma.InputJsonValue,
       lineUserId,
+      notebookId: notebook.id,
       rawText: cleanRawText,
       sourceType: options.sourceType ?? "text",
       summary: extracted.summary,
@@ -352,12 +407,10 @@ Description: ${assignment.description ?? "-"}`;
     userMessage: string,
     isThai: boolean = true,
     executionLog?: any[]
-  ) {
+  ): Promise<{ text: string; flexMessage?: any }> {
     if (isListNotesRequest(userMessage)) {
-      executionLog?.push({ action: "Extract Intent", details: "Detected 'list saved study materials' request" });
-      const materials = await this.repo.getRecentMaterials(lineUserId, 5);
-      executionLog?.push({ action: "Query Database", details: `Queried latest saved study materials. Found: ${materials.length}.` });
-      return { text: formatSavedMaterialsList(materials, isThai) };
+      executionLog?.push({ action: "Extract Intent", details: "Detected 'list notebooks' request — redirecting to listNotebooks" });
+      return this.listNotebooks(lineUserId, isThai, executionLog);
     }
 
     executionLog?.push({ action: "Extract Intent", details: "Detected 'search study memory' request" });
@@ -419,6 +472,43 @@ Description: ${assignment.description ?? "-"}`;
 
     return { text: answer, flexMessage };
   }
+
+  async listNotebooks(
+    lineUserId: string,
+    isThai: boolean = true,
+    executionLog?: any[]
+  ) {
+    executionLog?.push({ action: "Query Notebooks", details: "Fetching notebook summary with note counts" });
+    const [notebooks, uncategorizedCount] = await Promise.all([
+      this.notebookRepo.getNotebooksWithCounts(lineUserId),
+      this.notebookRepo.getUncategorizedCount(lineUserId)
+    ]);
+    executionLog?.push({ action: "Notebook Results", details: `Found ${notebooks.length} notebooks, ${uncategorizedCount} uncategorized` });
+
+    return { text: formatNotebookSummary(notebooks, uncategorizedCount, isThai) };
+  }
+
+  async viewNotebook(
+    lineUserId: string,
+    userMessage: string,
+    isThai: boolean = true,
+    executionLog?: any[]
+  ) {
+    executionLog?.push({ action: "View Notebook", details: "Matching course name from message" });
+    const courseName = await this.findCourseNameInMessage(lineUserId, userMessage);
+
+    if (!courseName) {
+      executionLog?.push({ action: "View Notebook", details: "No matching course found — falling back to listNotebooks" });
+      return this.listNotebooks(lineUserId, isThai, executionLog);
+    }
+
+    executionLog?.push({ action: "Get Notebook Notes", details: `Course: ${courseName}` });
+    const notes = await this.notebookRepo.getNotebookNotes(lineUserId, courseName);
+    executionLog?.push({ action: "Notebook Notes", details: `Found ${notes.length} notes in ${courseName}` });
+
+    return { text: formatNotebookNotes(courseName, notes, isThai) };
+  }
 }
 
 export const studyMemoryService = new StudyMemoryService();
+
