@@ -1,8 +1,12 @@
 allowBuilds:
+  '@playwright/browser-chromium': true
   '@prisma/client': true
   '@prisma/engines': true
+  '@swc/core': true
   esbuild: true
+  onnxruntime-node: true
   prisma: true
+  protobufjs: true
   sharp: true
   tesseract.js: true
   unrs-resolver: true

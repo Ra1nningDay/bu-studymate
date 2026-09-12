@@ -1,0 +1,164 @@
+# evals/datasets/agent-router.yaml
+# Benchmark test cases for BU StudyMate Agent Router Intent Classification
+
+- vars:
+    message: "แอร์ห้อง LAB 2 ตึก A3 ไม่เย็นเลยครับ ช่วยดูหน่อย"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.selectedTarget === 'ticket' && d.intent === 'CREATE_TICKET'"
+
+- vars:
+    message: "โปรเจคเตอร์ห้อง 402 เปิดไม่ติด มีเสียงพัดลมดัง"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.selectedTarget === 'ticket' && d.intent === 'CREATE_TICKET'"
+
+- vars:
+    message: "ห้องน้ำชั้น 3 อาคาร B4 ก๊อกน้ำรั่วไหลตลอดเวลาครับ"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.selectedTarget === 'ticket' && d.intent === 'CREATE_TICKET'"
+
+- vars:
+    message: "ลืมกระเป๋าสตางค์สีดำไว้ที่โต๊ะใต้ตึกนิเทศ ช่วยตามหาหน่อยครับ"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.selectedTarget === 'ticket' && d.intent === 'CREATE_TICKET'"
+
+- vars:
+    message: "เก้าอี้ห้อง 501 ขาหัก นั่งไม่ได้อันตรายครับ"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.selectedTarget === 'ticket' && d.intent === 'CREATE_TICKET'"
+
+- vars:
+    message: "เช็คสถานะ ticket BU-TICKET-0001 หน่อยครับ"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.selectedTarget === 'ticket' && d.intent === 'CHECK_TICKET_STATUS'"
+
+- vars:
+    message: "ติดตามเรื่อง BU-TICKET-0042 ไปถึงไหนแล้ว"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.selectedTarget === 'ticket' && d.intent === 'CHECK_TICKET_STATUS'"
+
+- vars:
+    message: "ตั๋ว BU-TICKET-0105 ซ่อมเสร็จยังครับ"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.selectedTarget === 'ticket' && d.intent === 'CHECK_TICKET_STATUS'"
+
+- vars:
+    message: "รหัสผ่าน Wi-Fi BU ต้องใช้ user อะไรเข้าสู่ระบบ"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.selectedTarget === 'knowledge_base' && d.intent === 'ASK_BU_INFO'"
+
+- vars:
+    message: "ฝ่ายทะเบียน ม.กรุงเทพ อยู่ตึกไหนครับ"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.selectedTarget === 'knowledge_base' && d.intent === 'ASK_BU_INFO'"
+
+- vars:
+    message: "รถตู้รับส่งระหว่างรังสิตกับกล้วยน้ำไทขึ้นตรงไหน"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.selectedTarget === 'knowledge_base' && d.intent === 'ASK_BU_INFO'"
+
+- vars:
+    message: "ห้องสมุดสุรัตน์ โอสถานุเคราะห์ อยู่ที่ตึกอะไร"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.selectedTarget === 'knowledge_base' && d.intent === 'ASK_BU_INFO'"
+
+- vars:
+    message: "ติดต่อขอดรอปเรียนหรือผ่อนผันค่าเทอมได้ที่หน่วยงานไหน"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.selectedTarget === 'knowledge_base' && d.intent === 'ASK_BU_INFO'"
+
+- vars:
+    message: "วันนี้มหาวิทยาลัยเปิดไหม มีวันหยุดอะไรบ้างเดือนนี้"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.selectedTarget === 'web_search' && d.intent === 'ASK_FRESH_INFO' && d.needsWebSearch === true"
+
+- vars:
+    message: "กำหนดการรับสมัครนักศึกษาใหม่รอบ 2 สิ้นสุดวันไหน"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.selectedTarget === 'web_search' && d.intent === 'ASK_FRESH_INFO' && d.needsWebSearch === true"
+
+- vars:
+    message: "ค่าเทอมคณะนิเทศศาสตร์ปีการศึกษา 2568 เท่าไหร่"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.selectedTarget === 'web_search' && d.intent === 'ASK_FRESH_INFO' && d.needsWebSearch === true"
+
+- vars:
+    message: "ม.กรุงเทพ หยุดปีใหม่วันไหนถึงวันไหนครับปีนี้"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.selectedTarget === 'web_search' && d.intent === 'ASK_FRESH_INFO' && d.needsWebSearch === true"
+
+- vars:
+    message: "สรุปเนื้อหาสำคัญของวิชา MKT101 บทที่ 2 ให้หน่อย"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.selectedTarget === 'study_memory' && d.intent === 'ASK_STUDY_MEMORY'"
+
+- vars:
+    message: "อาจารย์สอนอะไรบ้างในคลาส Marketing ล่าสุด"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.selectedTarget === 'study_memory' && d.intent === 'ASK_STUDY_MEMORY'"
+
+- vars:
+    message: "จุดสำคัญที่มักออกสอบในโน้ตวิชาคอมพิวเตอร์คืออะไร"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.selectedTarget === 'study_memory' && d.intent === 'ASK_STUDY_MEMORY'"
+
+- vars:
+    message: "มีงานอะไรต้องส่งสัปดาห์นี้บ้าง"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.selectedTarget === 'study_memory' && d.intent === 'LIST_ASSIGNMENTS'"
+
+- vars:
+    message: "การบ้านวิชาการตลาดมีกำหนดส่งวันไหน"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.selectedTarget === 'study_memory' && d.intent === 'LIST_ASSIGNMENTS'"
+
+- vars:
+    message: "มีวิชาอะไรที่จดโน้ตไว้บ้าง"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.selectedTarget === 'study_memory' && d.intent === 'LIST_NOTEBOOKS'"
+
+- vars:
+    message: "เปิดสมุดโน้ตวิชา MKT101"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.selectedTarget === 'study_memory' && d.intent === 'VIEW_NOTEBOOK'"
+
+- vars:
+    message: "สวัสดีครับ วันนี้อากาศดีจัง"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.selectedTarget === 'general_chat' && d.intent === 'GENERAL_CHAT'"
+
+- vars:
+    message: "StudyMate ทำอะไรได้บ้าง แนะนำตัวหน่อย"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.selectedTarget === 'general_chat' && d.intent === 'GENERAL_CHAT'"
+
+- vars:
+    message: "ช่วยแต่งกลอนเกี่ยวกับไดโนเสาร์กินพืชหน่อย"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.selectedTarget === 'unknown' || d.intent === 'UNKNOWN' || d.selectedTarget === 'general_chat'"

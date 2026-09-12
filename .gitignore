@@ -9,3 +9,5 @@ tsconfig.tsbuildinfo
 screenshots
 .agents
 .codex
+.promptfoo
+promptfoo-output.json
