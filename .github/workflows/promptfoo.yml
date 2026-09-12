@@ -1,0 +1,50 @@
+name: LLM Evaluation (Promptfoo)
+
+on:
+  pull_request:
+    branches: [ master, main ]
+    paths:
+      - 'evals/**'
+      - 'lib/agent-router.ts'
+      - 'src/data/bu-knowledge.ts'
+      - '.github/workflows/promptfoo.yml'
+  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
+
+jobs:
+  evaluation:
+    name: Agent Router Benchmark
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma Client
+        run: pnpm db:generate
+
+      - name: Check OPENAI_API_KEY
+        run: |
+          if [ -z "${{ secrets.OPENAI_API_KEY }}" ]; then
+            echo "::error::OPENAI_API_KEY secret is not configured in this repository. Please add it to Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+
+      - name: Run Promptfoo Evaluation
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          pnpm exec promptfoo eval -c evals/agent-router.eval.yaml --no-progress-bar --table
