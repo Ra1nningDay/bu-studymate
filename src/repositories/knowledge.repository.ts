@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { knowledgeEmbeddingModel, knowledgeVectorSchema } from "@/lib/knowledge-embedding";
 import { knowledgeContentHash, tokenizeKnowledge } from "@/lib/knowledge-index";
 import type { KnowledgeDocument } from "@/src/dtos/knowledge.dto";
-import type { KnowledgeFilters } from "@/src/dtos/knowledge-admin.dto";
+import type { KnowledgeFilters, KnowledgeSelection } from "@/src/dtos/knowledge-admin.dto";
 import type { KnowledgeItem } from "@/lib/types";
 
 export type KnowledgeEvidence = KnowledgeItem & {
@@ -16,6 +16,11 @@ export type KnowledgeEvidence = KnowledgeItem & {
   similarity: number | null;
   keywordRank?: number | null;
   vectorRank?: number | null;
+};
+
+export type KnowledgeMetadataUpdate = {
+  id: string; category: string; keywords: string[]; contentHash: string | null;
+  chunks: Array<{ id: string; searchText: string; embedding?: number[] }>;
 };
 
 export class KnowledgeRepository {
@@ -40,6 +45,51 @@ export class KnowledgeRepository {
     return this.db.knowledgeItem.findUnique({ where: { id }, select: { id: true, chunks: {
       select: { id: true, ordinal: true, content: true, embeddingModel: true }, orderBy: { ordinal: "asc" }
     } } });
+  }
+
+  async findBulkDocuments(ids: string[]) {
+    return this.db.knowledgeItem.findMany({ where: { id: { in: ids } }, include: { chunks: {
+      select: { id: true, ordinal: true, content: true, embeddingModel: true, documentHash: true }, orderBy: { ordinal: "asc" }
+    } } });
+  }
+
+  private async mutateSelection(selection: KnowledgeSelection, mutate: (tx: Prisma.TransactionClient) => Promise<number>) {
+    const write = async (tx: Prisma.TransactionClient) => {
+      const current = await tx.knowledgeItem.findMany({ where: { id: { in: selection.map((item) => item.id) } }, select: { id: true, updatedAt: true } });
+      if (current.length !== selection.length || selection.some((item) =>
+        current.find((row) => row.id === item.id)?.updatedAt.getTime() !== new Date(item.updatedAt).getTime())) {
+        throw new Error("Selected documents changed; refresh before saving");
+      }
+      return mutate(tx);
+    };
+    return "$transaction" in this.db
+      ? (this.db as PrismaClient).$transaction(write, { isolationLevel: "Serializable", timeout: 20000 })
+      : write(this.db);
+  }
+
+  async deleteAdminDocuments(selection: KnowledgeSelection) {
+    return this.mutateSelection(selection, async (tx) => {
+      const { count } = await tx.knowledgeItem.deleteMany({ where: { id: { in: selection.map((item) => item.id) } } });
+      return count;
+    });
+  }
+
+  async updateAdminMetadata(selection: KnowledgeSelection, documents: KnowledgeMetadataUpdate[]) {
+    return this.mutateSelection(selection, async (tx) => {
+      for (const item of documents) {
+        await tx.knowledgeItem.update({ where: { id: item.id }, data: { category: item.category, keywords: item.keywords, contentHash: item.contentHash } });
+      }
+      const chunks = documents.flatMap((document) => document.chunks.map((chunk) => Prisma.sql`
+        (${chunk.id}::uuid, ${document.contentHash}::text, ${chunk.searchText}::text,
+          ${chunk.embedding ? JSON.stringify(knowledgeVectorSchema.parse(chunk.embedding)) : null}::public.vector(1536))
+      `));
+      if (chunks.length) await tx.$executeRaw(Prisma.sql`
+        UPDATE ${this.chunks} c SET document_hash = p.hash, search_text = p.text,
+          embedding = coalesce(p.embedding, c.embedding)
+        FROM (VALUES ${Prisma.join(chunks)}) AS p(id, hash, text, embedding) WHERE c.id = p.id
+      `);
+      return documents.length;
+    });
   }
 
   async listAdminDocuments(search: string, page: number, limit: number, filters?: KnowledgeFilters) {

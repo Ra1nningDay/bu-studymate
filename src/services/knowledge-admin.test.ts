@@ -38,8 +38,11 @@ function fixture(existing = false) {
     listAdminDocuments: async (search: string, page: number, limit: number) => { calls.push({ search, page, limit }); return { items: [item], total: 25, stats: { total: 25, ready: 1, unapproved: 24, review: 0 }, categories: [item.category] }; },
     readAdminDocument: async () => ({ id, chunks: [{ id: "chunk-one", ordinal: 0, content: raw.content, embeddingModel: "text-embedding-3-small" }] }),
     findById: async () => existing ? item : null,
-    findIndexedDocument: async () => existing ? item : null
-  } as Pick<KnowledgeRepository, "listAdminDocuments" | "readAdminDocument" | "findById" | "findIndexedDocument">;
+    findIndexedDocument: async () => existing ? item : null,
+    findBulkDocuments: async () => [],
+    deleteAdminDocuments: async () => 0,
+    updateAdminMetadata: async () => 0
+  } as Pick<KnowledgeRepository, "listAdminDocuments" | "readAdminDocument" | "findById" | "findIndexedDocument" | "findBulkDocuments" | "deleteAdminDocuments" | "updateAdminMetadata">;
   const ingestion = {
     importReviewedDocument: async (value: unknown, expectedId?: string | null) => { calls.push({ value, expectedId }); return { id, chunks: 1, embedded: true }; },
     checkSources: async (value?: string) => { calls.push(value); return [{ id, status: "UNCHANGED", reviewOverdue: false }]; }

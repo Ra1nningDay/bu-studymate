@@ -1,9 +1,10 @@
-import { knowledgeContentHash } from "@/lib/knowledge-index";
-import { knowledgeEmbeddingModel } from "@/lib/knowledge-embedding";
+import { Prisma } from "@prisma/client";
+import { knowledgeContentHash, knowledgeEmbeddingText, splitKnowledgeContent, tokenizeKnowledge } from "@/lib/knowledge-index";
+import { embedKnowledge, knowledgeEmbeddingModel } from "@/lib/knowledge-embedding";
 import { fetchKnowledgeSource } from "@/lib/knowledge-source";
-import type { KnowledgeSave, KnowledgeFilters } from "@/src/dtos/knowledge-admin.dto";
+import type { KnowledgeSave, KnowledgeFilters, KnowledgeBulk } from "@/src/dtos/knowledge-admin.dto";
 import { officialKnowledgeUrlSchema } from "@/src/dtos/knowledge.dto";
-import { knowledgeRepository, type KnowledgeRepository } from "@/src/repositories/knowledge.repository";
+import { knowledgeRepository, type KnowledgeRepository, type KnowledgeMetadataUpdate } from "@/src/repositories/knowledge.repository";
 import { knowledgeIngestionService, type KnowledgeIngestionService } from "./knowledge-ingestion.service";
 
 export class KnowledgeAdminError extends Error {
@@ -27,9 +28,10 @@ export function knowledgeAvailability(item: AdminDocument, now = new Date()) {
 
 export class KnowledgeAdminService {
   constructor(
-    private repo: Pick<KnowledgeRepository, "listAdminDocuments" | "readAdminDocument" | "findById" | "findIndexedDocument"> = knowledgeRepository,
+    private repo: Pick<KnowledgeRepository, "listAdminDocuments" | "readAdminDocument" | "findById" | "findIndexedDocument" | "findBulkDocuments" | "deleteAdminDocuments" | "updateAdminMetadata"> = knowledgeRepository,
     private ingestion: Pick<KnowledgeIngestionService, "importReviewedDocument" | "checkSources"> = knowledgeIngestionService,
-    private fetchSource = fetchKnowledgeSource
+    private fetchSource = fetchKnowledgeSource,
+    private embed = embedKnowledge
   ) {}
 
   async list(search: string, page: number, filters: KnowledgeFilters = { category: "", status: "all", source: "all", limit: 10 }) {
@@ -52,6 +54,50 @@ export class KnowledgeAdminService {
     const document = await this.repo.readAdminDocument(id);
     if (!document) throw new KnowledgeAdminError("ไม่พบบทความ", 404);
     return document;
+  }
+
+  async bulk(input: KnowledgeBulk) {
+    try {
+      if (input.action === "delete") return { count: await this.repo.deleteAdminDocuments(input.selection) };
+      const records = await this.repo.findBulkDocuments(input.selection.map((item) => item.id));
+      if (records.length !== input.selection.length || records.some((item) =>
+        input.selection.find((selected) => selected.id === item.id)?.updatedAt !== item.updatedAt.toISOString())) {
+        throw new Error("Selected documents changed; refresh before saving");
+      }
+      const updates: KnowledgeMetadataUpdate[] = [];
+      const requests: Array<{ text: string; chunk: KnowledgeMetadataUpdate["chunks"][number] }> = [];
+      for (const previous of records) {
+        const item = { ...previous, category: input.changes.category ?? previous.category, keywords: input.changes.keywords ?? previous.keywords };
+        if (item.category === previous.category && JSON.stringify(item.keywords) === JSON.stringify(previous.keywords)) continue;
+        const parts = splitKnowledgeContent(previous.content);
+        const indexed = Boolean(previous.sourceUrl) && previous.contentHash === knowledgeContentHash({ ...previous, sourceUrl: previous.sourceUrl! }) &&
+          previous.chunks.length > 0 && previous.chunks.length === parts.length && previous.chunks.every((chunk, index) =>
+            chunk.documentHash === previous.contentHash && chunk.embeddingModel === knowledgeEmbeddingModel && chunk.content === parts[index]);
+        const update: KnowledgeMetadataUpdate = { id: item.id, category: item.category, keywords: item.keywords,
+          contentHash: indexed ? knowledgeContentHash({ ...item, sourceUrl: item.sourceUrl! }) : previous.contentHash, chunks: [] };
+        if (indexed) for (const original of previous.chunks) {
+          const chunk: KnowledgeMetadataUpdate["chunks"][number] = { id: original.id,
+            searchText: tokenizeKnowledge(`${item.title}\n${item.category}\n${item.keywords.join(" ")}\n${original.content}`) };
+          update.chunks.push(chunk);
+          if (item.category !== previous.category) requests.push({ text: knowledgeEmbeddingText(item, original.content), chunk });
+        }
+        updates.push(update);
+      }
+      // Prepare outside the transaction; the adapter accepts at most 32 passages per call.
+      for (let offset = 0; offset < requests.length; offset += 32) {
+        const batch = requests.slice(offset, offset + 32);
+        const { vectors } = await this.embed(batch.map((request) => request.text));
+        if (vectors.length !== batch.length) throw new Error("Missing passage embeddings");
+        batch.forEach((request, index) => { request.chunk.embedding = vectors[index]; });
+      }
+      return { count: await this.repo.updateAdminMetadata(input.selection, updates) };
+    } catch (error) {
+      if ((error instanceof Error && error.message.startsWith("Selected documents changed")) ||
+        (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034")) {
+        throw new KnowledgeAdminError("มีบทความเปลี่ยนแปลงหรือหายไป กรุณารีเฟรชและเลือกใหม่ ยังไม่ได้เปลี่ยนข้อมูลชุดนี้", 409);
+      }
+      throw error;
+    }
   }
 
   async save({ id, document }: KnowledgeSave) {

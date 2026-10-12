@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { KnowledgeIdSchema, KnowledgeListSchema, KnowledgeSaveSchema, KnowledgeSourceSchema } from "@/src/dtos/knowledge-admin.dto";
+import { KnowledgeIdSchema, KnowledgeListSchema, KnowledgeSaveSchema, KnowledgeSourceSchema, KnowledgeBulkSchema } from "@/src/dtos/knowledge-admin.dto";
 import { adminAuthService } from "@/src/services/admin-auth.service";
 import { KnowledgeAdminError, knowledgeAdminService } from "@/src/services/knowledge-admin.service";
 import { isSameOrigin } from "./admin-auth.controller";
@@ -48,6 +48,17 @@ export class KnowledgeAdminController {
     if (denied) return denied;
     if (!KnowledgeIdSchema.safeParse(id).success) return this.json({ error: "Invalid document ID" }, 400);
     try { return this.json(await this.service.read(id)); }
+    catch (error) { return this.failure(error); }
+  }
+
+  async bulk(request: Request) {
+    const denied = this.guard(request, true);
+    if (denied) return denied;
+    let body: unknown;
+    try { body = await request.json(); } catch { return this.json({ error: "Invalid JSON" }, 400); }
+    const parsed = KnowledgeBulkSchema.safeParse(body);
+    if (!parsed.success) return this.json({ error: "เลือกบทความไม่ซ้ำ 1–50 รายการ พร้อมข้อมูลล่าสุด และระบุหมวดหมู่หรือคำค้นที่ต้องการเปลี่ยน" }, 400);
+    try { return this.json(await this.service.bulk(parsed.data)); }
     catch (error) { return this.failure(error); }
   }
 
