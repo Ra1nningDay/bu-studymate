@@ -1,30 +1,21 @@
 # Domain Docs
 
-This repository uses a single-context domain documentation layout.
+StudyMate uses a single-context layout:
 
-## Before exploring, read these
+- [CONTEXT.md](../../CONTEXT.md): glossary, including terms to avoid.
+- `architecture-decisions/`: ADRs for actual architectural trade-offs.
+- [ARCHITECTURE.md](../../ARCHITECTURE.md): source ownership, flows and technical boundaries.
+- [.scratch/README.md](../../.scratch/README.md): work status; linked plans/tickets own scope and verification.
 
-- `CONTEXT.md` at the repository root
-- Relevant ADRs under `docs/adr/`
+Before domain or architecture work, read the glossary and relevant ADRs. Use
+canonical terms in specs, code and reports. Surface a conflict with an ADR
+explicitly before changing the decision.
 
-If a file or directory does not exist, proceed silently. Domain-modeling skills create them lazily when terminology or decisions are resolved.
+Create ADRs lazily at `architecture-decisions/NNNN-<slug>.md` when a real decision
+needs its context, alternatives, status and consequences recorded. If the
+directory is absent, proceed. Keep proposed decisions visibly proposed; accepted
+decisions still need source/check evidence before claiming implementation.
 
-## File structure
-
-```text
-/
-├── CONTEXT.md
-├── docs/
-│   └── adr/
-└── src/
-```
-
-## Use the glossary vocabulary
-
-Use domain terms exactly as defined in `CONTEXT.md`. Avoid synonyms explicitly listed under `_Avoid_`.
-
-If a required concept is absent, reconsider whether it belongs to the domain or record the gap for domain modeling.
-
-## Flag ADR conflicts
-
-Surface conflicts with an existing ADR explicitly instead of silently overriding it.
+Keep the glossary about domain language. Put implementation details in
+Architecture, UI rules in Design and task history in local tickets. New ADRs use
+`architecture-decisions/`, replacing the previous `docs/adr/` convention.

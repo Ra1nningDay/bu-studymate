@@ -1,0 +1,162 @@
+# BU StudyMate Interface Design
+
+Source inspected: 2026-10-12, current working tree.
+Status: source-inspected visual/interaction baseline with separately labeled
+maintenance targets. Admin Overview, shared login/navigation and Web Chat interactions
+were verified locally with synthetic persistence at desktop/mobile viewports;
+see [admin-01](.scratch/admin-dashboard/issues/01-unified-workspace.md) and
+[playground-01](.scratch/playground/issues/01-admin-playground.md).
+LINE visual verification is outside that evidence.
+
+## 1. Document Authority and Experience
+
+This document owns layout, visual conventions, copy, interaction states,
+responsive behavior and visual verification. [ARCHITECTURE.md](ARCHITECTURE.md)
+owns technical boundaries, [CONTEXT.md](CONTEXT.md) owns vocabulary and
+[.scratch/README.md](.scratch/README.md) links scope/status/verification tickets.
+Read this document for UI or LINE presentation work; update affected sections
+when the implemented interface changes.
+
+StudyMate's student loop is ask → receive a grounded answer or a short
+clarification → continue into campus information, saved learning context or a
+ticket workflow. Admin screens support operating tickets and inspecting saved
+runs. Keep student answers focused and place operational detail in admin views.
+
+## 2. Current Screen Baseline
+
+| Surface | Source | Existing presentation |
+|---|---|---|
+| `/login` | [login](app/login/page.tsx) | 2-column admin sign-in: StudyMate mascot poster on the left, username/password form on the right. |
+| `/admin` | [overview](app/admin/page.tsx), [shell](app/admin/admin-shell.tsx) | Green reference-inspired sidebar/header, recorded KPIs, daily/intent charts, knowledge snapshot and attention preview. |
+| `/admin/chat` | [workspace](app/admin/chat/playground.tsx), [upload](app/admin/chat/study-upload.tsx) | Green reference layout: searchable history, mint user bubbles, assistant avatar, compact composer/upload and tabbed Execution Trace; responsive columns/stack. |
+| `/`, `/chat` | [root](app/page.tsx), [chat alias](app/chat/page.tsx) | Redirect to `/admin` and `/admin/chat`, respectively. |
+| `/admin/tickets` | [tickets page](app/admin/tickets/page.tsx) | Login/setup states, status badges and ticket management. |
+| `/admin/runs` | [runs page](app/admin/runs/page.tsx), [workspace](app/admin/runs/runs-workspace.tsx) | Emerald metric cards, 12-row paginated table and selected-run panel; desktop columns, mobile stacking. |
+| `/admin/playground` | [alias](app/admin/playground/page.tsx), [guide](docs/playground.md) | Redirect to `/admin/chat`; old report paths redirect to new report paths. |
+| LINE | [presenter](src/presenters/line-flex.presenter.ts), [templates](lib/flex-messages.ts) | Greeting, study packs, assignments, study answers and ticket confirmation. |
+
+The standalone web tester has been consolidated into the saved-session workspace.
+Reload in the same tab reads saved messages/runs for the selected session. Lesson
+results display locally, while stored materials remain tied to that identity.
+The browser does not render a full LINE Flex card; verify LINE delivery separately.
+
+## 3. Existing Visual Conventions
+
+Use [tailwind.config.ts](tailwind.config.ts) and [app/globals.css](app/globals.css)
+as the source of values; this table is a navigation snapshot, not a new theme.
+
+| Token / role | Current value |
+|---|---|
+| `bu-purple`, primary controls/brand | `#4b148c` |
+| `bu-ink`, primary text | `#161326` |
+| `bu-cyan`, secondary accent | `#16b8c8` |
+| Page background | `#f7f7fb` |
+| Admin primary / background | Emerald 700 `#047857` / `#f4fbf8`; white panels and emerald/slate borders. |
+| Surfaces and boundaries | White panels, slate borders, small shadows, rounded corners |
+| Body font stack | Inter followed by system sans-serif fallbacks; no custom font loading is established by this stack. |
+
+Admin chat uses mint user bubbles and pale slate assistant bubbles with preserved
+line breaks; source chips sit below the reply. Controls use Lucide icons. Desktop
+history, messages and trace scroll independently with the composer visible;
+mobile stacks the panels. Ticket badges pair color with text:
+`PENDING` amber, `IN_PROGRESS` cyan, `RESOLVED` emerald. Reuse local component
+styles rather than introducing a separate design system for one screen.
+The root document declares Thai; existing UI labels/copy include English.
+
+The Bot Runs workspace follows the supplied emerald admin reference and the
+existing shared shell. Total Runs counts server-filtered records; success rate,
+average latency and failures describe the loaded page, with explicit labels.
+Search and model filtering apply to that page. Server filters retain status,
+intent, channel, target and web-search support. Selected-run views expose saved
+messages, router/flags, execution logs, sources and review JSON. Missing values
+show a dash or a recorded-data notice; no trends, step durations or fabricated
+tool-call/session details are shown. The header shows the latest loaded timestamp
+in Bangkok time instead of an unsupported date-range selector. No bulk actions
+or additional sidebar destinations were added.
+
+Desktop 1536×1024 and mobile 390×844 checks with synthetic persistence passed;
+see [admin-02](.scratch/admin-dashboard/issues/02-runs-ui.md). Tables scroll within
+their panel on narrow screens; the page does not scroll horizontally. Detail
+controls are keyboard-operable and source URLs only become links for HTTP(S).
+
+## 4. Current Interactions and States
+
+- **Web Chat compose:** The Send button submits; Enter inserts a newline. Sending disables
+  send/upload/session actions and displays a typing state. This is a complete-response
+  HTTP interaction, not proof of token streaming.
+- **Upload:** Composer document control opens the PDF/DOCX chooser, optional course field and upload action. Show
+  ingestion outcomes/OCR warnings from the server; an upload is not successful
+  merely because a file was selected.
+- **Failure:** Chat has a visible error region. Distinguish the failed request
+  from a saved reply; inspect persisted state before retrying operational writes.
+- **Sources:** Preserve source URLs/titles when returned. A displayed source
+  link does not independently validate answer freshness or correctness.
+- **Ticket confirmation:** LINE presents confirm/cancel actions; retain the
+  explicit draft review before creation. Status lookup is a separate workflow.
+- **Playground:** Selecting a saved reply exposes its saved run in Trace, Messages,
+  Sources or Raw tabs. Tabs support arrow/Home/End keys. History and trace can be
+  hidden and reopened. History search covers loaded IDs, dates, states and the
+  selected transcript's first question; unselected sessions retain ID/date labels
+  because the list API does not supply titles or message previews. Reports read
+  stored transcripts. Auth/error/empty states follow the Playground guide.
+  Desktop uses session/chat/trace columns; mobile stacks them without horizontal
+  scrolling. Its textarea accepts newlines and the Send button submits. Sending
+  disables session changes; failures retain the input and reload saved state
+  without repeating the POST. Reload restores the selected session in the same
+  tab. Failed runs without a reply remain selectable. A missing admin password
+  shows a setup state. The operational write notice was removed from the chat
+  header at the user's request; environment guidance remains in the chat guide.
+- **Admin access:** One login covers Overview, Web Chat, reports, Tickets, Runs and
+  their private APIs. No password is passed through links or ticket forms. The
+  shared header provides logout; mobile navigation opens as a dismissible drawer.
+- **Overview:** Seven days of actual recorded metrics include LINE and web tests.
+  Use Successful Runs instead of unmeasured Resolution Rate. Knowledge Snapshot
+  shows counts without an invented healthy/processing status or trend change.
+
+## 5. Copy and Interaction Targets
+
+These are maintenance targets, not a claim that every existing screen satisfies
+them. Implement only through a task with acceptance criteria.
+
+- Follow the glossary's Operator-style Reply and Progressive Detail: short,
+  direct replies in the student's latest language; expand when requested.
+  Static Guides and safety-critical information have different length needs.
+- Keep uncertainty visible for unverified BU information. Do not invent official
+  facts, ticket completion, freshness or Human Handoff.
+- Explain the next action in errors and confirmations. Distinguish ticket draft,
+  confirmed creation and actual status updates using the server result.
+- Keep admin traces and provider diagnostics readable without exposing them as
+  the normal student conversation.
+- Preserve useful existing Thai/English wording unless copy changes are in scope.
+
+## 6. Responsive and Accessibility Targets
+
+For affected screens verify narrow mobile and desktop layouts, long Thai/English
+text, source URL wrapping and upload/confirmation controls. Keep composer/actions
+reachable with the mobile keyboard open and avoid page-wide horizontal scrolling.
+
+Use semantic controls, visible labels/focus, readable contrast and status text
+alongside color. Validate keyboard navigation, loading/error announcements and
+touch targets. Verify IME composition before treating Enter as send: the current
+web handler checks Enter/Shift only, so IME safety remains an unverified target.
+Do not label accessibility or responsive behavior as passed from source alone.
+
+## 7. Verification and Maintenance
+
+For a UI change, record route, viewport, tested states and screenshots/results in
+its ticket. Check idle/loading/success/error/empty states, keyboard/IME behavior
+and real text wrapping. Inspect LINE messages on LINE separately from web JSON
+inspection. Use test data for operational flows and the intended provider/database
+environment for real behavior checks.
+
+Run `pnpm typecheck` and `pnpm lint` for code changes; those checks do not replace
+visual or workflow verification. This setup changed documentation only and did
+not run UI/provider/database checks. Update the source snapshot date only when
+the affected source has been inspected again.
+
+The Web Chat reference update was verified locally on 2026-10-12 at 1536×1024,
+1024×768 and 390×844 with synthetic persistence and stubbed uploads. This includes
+long Thai text/source wrapping, empty/loading/error states, trace keyboard tabs,
+session/send/reload, reports and mobile navigation; see
+[admin-03](.scratch/admin-dashboard/issues/03-chat-ui.md). Real DB/provider, mobile
+keyboard/IME and LINE checks remain separate.

@@ -1,5 +1,14 @@
 # Repository Guidelines: BU StudyMate
 
+## Start of Task and Documentation
+
+- Read [.scratch/README.md](.scratch/README.md) and the relevant plan/ticket before changes; check branch and `git status` and preserve unrelated work.
+- Read [ARCHITECTURE.md](ARCHITECTURE.md) for onboarding, ownership, call paths, persistence or integration changes; confirm affected behavior in source.
+- Read [DESIGN.md](DESIGN.md) for UI, LINE presentation, interaction or copy changes.
+- For domain terminology or decisions, read [CONTEXT.md](CONTEXT.md) and relevant ADRs using [domain guidance](docs/agents/domain.md).
+- Update affected documentation and ticket evidence in the same task. Read references when their condition applies; loading every document for every task is unnecessary.
+- `.scratch/README.md` owns work status; plans describe intent. Claim a ticket before multi-step work, record checks and limitations, then resolve it and update the index only when its acceptance criteria are satisfied.
+
 ## Project Overview & Technology Stack
 
 **BU StudyMate** is an intelligent assistant for Bangkok University students, supporting course note management, AI-assisted tutoring, campus knowledge Q&A, and classroom issue reporting (ticketing).
@@ -90,41 +99,21 @@ Run both `pnpm typecheck` and `pnpm lint` before submitting or completing code c
 
 ---
 
-## Agent Working Guidelines
+## jevgrep and Graphify
 
-### Think Before Coding
-Understand the current architectural layer and intent before writing code. If an architectural tradeoff or decision is ambiguous, clarify or state assumptions clearly.
+This project has a Graphify knowledge graph at `graphify-out/`.
 
-### Simplicity First & Surgical Changes
-Implement the minimal, cleanest solution that solves the user request. Touch only files directly related to the task. Do not make cosmetic or reformatting changes to unrelated modules.
+Rules:
+- Use `jg "<question>" .` first when behavior is unfamiliar or the relevant files/symbols are unknown. Read its results before further discovery.
+- If `jg` provides sufficient context, continue with targeted file reads or `rg`; avoid redundant repository-wide searches.
+- When the exact path, symbol, or string is already known, skip `jg` and use direct reads or `rg`.
+- Use Graphify for dependency relationships, call paths, architecture, and cross-module impact analysis: `graphify query`, `graphify path`, or `graphify explain`.
+- When present, use `graphify-out/wiki/index.md` for broad navigation; otherwise use `ARCHITECTURE.md` and graph queries. Read `graphify-out/GRAPH_REPORT.md` only when deeper graph context is needed. Confirm graph claims in current source; inferred edges and planned docs are not implementation proof.
+- If a discovery tool fails or is unavailable, record the limitation and continue with targeted source reads; avoid repeatedly running a stalled broad search.
+- After modifying code, run `graphify update .` to keep the graph current.
 
-### Layered Architecture Discipline
-When adding new features or modifying existing workflows:
-1. Define **DTOs & Zod Schemas** in `src/dtos/`
-2. Implement **Database Queries** in `src/repositories/`
-3. Encapsulate **Business Logic** in `src/services/`
-4. Separate **LINE / UI Templates** in `src/presenters/`
-5. Handle **HTTP Requests & Responses** in `src/controllers/`
-6. Keep `app/api/**/route.ts` as a thin delegator
+## Agent Skills
 
-### Goal-Driven Verification
-Always verify changes with:
-```bash
-pnpm typecheck
-pnpm lint
-```
-Both must pass with **0 errors and 0 warnings** before concluding work.
-
-## Agent skills
-
-### Issue tracker
-
-Issues and specs are tracked in GitHub Issues for `Ra1nningDay/bu-studymate`. See `docs/agents/issue-tracker.md`.
-
-### Triage labels
-
-The repo uses the five canonical triage labels. See `docs/agents/triage-labels.md`.
-
-### Domain docs
-
-The repo uses a single-context domain documentation layout. See `docs/agents/domain.md`.
+- Issues/specs: local `.scratch/` Markdown; see [docs/agents/issue-tracker.md](docs/agents/issue-tracker.md).
+- Domain: `CONTEXT.md`, ADRs in `architecture-decisions/`; see [docs/agents/domain.md](docs/agents/domain.md).
+- Distinguish plans from implementation using [.scratch/README.md](.scratch/README.md) and tickets; record verification separately from deployment or release.

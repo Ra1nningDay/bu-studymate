@@ -1,4 +1,8 @@
-# Triage Labels
+# Triage Roles
+
+For local tickets, optionally record a role as `Triage: <canonical-role>`.
+`Status: open|claimed|resolved` tracks execution separately. Existing GitHub
+labels use the same names when a remote update is part of the requested task.
 
 | Canonical role    | GitHub label      | Meaning                                   |
 | ----------------- | ----------------- | ----------------------------------------- |
