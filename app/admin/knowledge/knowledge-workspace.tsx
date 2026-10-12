@@ -2,7 +2,7 @@
 
 import { useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { BookOpen, CheckCircle2, FileText, Plus, RefreshCw, Search, AlertTriangle, Clock3, Play, X, ChevronLeft, ChevronRight, PencilLine } from "lucide-react";
+import { BookOpen, CheckCircle2, FileText, Plus, RefreshCw, Search, AlertTriangle, Clock3, Play, X, ChevronLeft, ChevronRight, PencilLine, Trash2 } from "lucide-react";
 import type { KnowledgeAdminList } from "@/src/services/knowledge-admin.service";
 import type { KnowledgeFilters } from "@/src/dtos/knowledge-admin.dto";
 
@@ -81,12 +81,22 @@ export function KnowledgeWorkspace({ initialData }: { initialData: KnowledgeAdmi
   const [notice, setNotice] = useState("");
   const [tab, setTab] = useState<DetailTab>("ข้อมูลทั่วไป");
   const [chunks, setChunks] = useState<Chunk[] | null>(null);
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
+  const [bulkEditing, setBulkEditing] = useState(false);
+  const [bulkCategoryEnabled, setBulkCategoryEnabled] = useState(false);
+  const [bulkKeywordsEnabled, setBulkKeywordsEnabled] = useState(false);
+  const [bulkCategory, setBulkCategory] = useState("");
+  const [bulkKeywords, setBulkKeywords] = useState("");
+  const [bulkDirty, setBulkDirty] = useState(false);
   const editorRef = useRef<HTMLElement>(null);
 
-  function canLeave() { return !editing || !dirty || window.confirm("ยังไม่ได้บันทึกบทความ ต้องการออกจากการแก้ไขหรือไม่?"); }
+  function canLeave(checkBulk = true) {
+    return (!(editing && dirty) && !(checkBulk && bulkEditing && bulkDirty)) || window.confirm("ยังไม่ได้บันทึกบทความ ต้องการออกจากการแก้ไขหรือไม่?");
+  }
 
   function open(item: Item | null, edit = false) {
-    if (!canLeave()) return;
+    if (!canLeave(edit)) return;
+    if (edit) { setCheckedIds(new Set()); setBulkEditing(false); setBulkDirty(false); }
     setSelected(item); setEditing(edit); setDraft(draftFor(item ?? undefined));
     setDirty(false); setApproved(false); setError(""); setNotice("");
     setTab("ข้อมูลทั่วไป"); setChunks(null);
@@ -98,7 +108,45 @@ export function KnowledgeWorkspace({ initialData }: { initialData: KnowledgeAdmi
     setData(next); setQuery(term); setFilters(nextFilters);
     setSelected(next.items.find((item) => item.id === selectedId) ?? next.items[0] ?? null);
     setTab("ข้อมูลทั่วไป"); setChunks(null);
+    setCheckedIds(new Set()); setBulkEditing(false); setBulkDirty(false);
     return next;
+  }
+
+  const checkedItems = data.items.filter((item) => checkedIds.has(item.id));
+  const allChecked = data.items.length > 0 && checkedItems.length === data.items.length;
+
+  function toggleChecked(id: string) {
+    setCheckedIds((previous) => {
+      const next = new Set(previous);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function clearChecked() {
+    if (!canLeave()) return;
+    setCheckedIds(new Set()); setBulkEditing(false); setBulkDirty(false);
+  }
+
+  async function bulkAction(action: "delete" | "update") {
+    if (!checkedItems.length || busy) return;
+    if (action === "delete" && !window.confirm(`ลบ ${checkedItems.length} บทความพร้อม passages ทั้งหมดหรือไม่?\n${checkedItems.slice(0, 5).map((item) => `• ${item.title}`).join("\n")}${checkedItems.length > 5 ? `\nและอีก ${checkedItems.length - 5} บทความ` : ""}\nกู้คืนจากหน้านี้ไม่ได้`)) return;
+    setBusy(true); setError(""); setNotice("");
+    let committed = false;
+    try {
+      const result = await requestJson("/api/admin/knowledge/bulk", {
+        action, selection: checkedItems.map(({ id, updatedAt }) => ({ id, updatedAt })),
+        ...(action === "update" ? { changes: {
+          ...(bulkCategoryEnabled ? { category: bulkCategory } : {}),
+          ...(bulkKeywordsEnabled ? { keywords: bulkKeywords.split(",").map((word) => word.trim()).filter(Boolean) } : {})
+        } } : {})
+      });
+      committed = true; setCheckedIds(new Set()); setBulkEditing(false); setBulkDirty(false);
+      await load(query, data.page, action === "update" ? selected?.id : undefined);
+      setNotice(`${action === "delete" ? "ลบ" : "แก้ไข"}แล้ว ${result.count} บทความ`);
+    } catch (failure) {
+      setError(committed ? "ดำเนินการสำเร็จ แต่โหลดรายการใหม่ไม่ได้ กรุณารีเฟรช" : failure instanceof Error ? failure.message : "ดำเนินการไม่สำเร็จ");
+    } finally { setBusy(false); }
   }
 
   async function browse(term: string, page: number, nextFilters = filters) {
@@ -208,10 +256,27 @@ export function KnowledgeWorkspace({ initialData }: { initialData: KnowledgeAdmi
           <label className="min-w-0 text-xs text-slate-500">สถานะ<select aria-label="สถานะบทความ" disabled={busy} value={filters.status} onChange={(event) => void browse(search.trim(), 1, { ...filters, status: event.target.value as KnowledgeFilters["status"] })} className={fieldClass}><option value="all">ทั้งหมด</option><option value="ready">พร้อมใช้งาน</option><option value="unapproved">รอตรวจทาน</option><option value="review">ต้องตรวจสอบ</option></select></label>
           <label className="min-w-0 text-xs text-slate-500">แหล่งอ้างอิง<select aria-label="แหล่งอ้างอิงบทความ" disabled={busy} value={filters.source} onChange={(event) => void browse(search.trim(), 1, { ...filters, source: event.target.value as KnowledgeFilters["source"] })} className={fieldClass}><option value="all">ทั้งหมด</option><option value="official">เว็บไซต์ BU</option><option value="legacy">ข้อมูลแหล่งที่มาเดิม</option><option value="missing">ไม่ระบุ</option></select></label>
         </form>
+        {checkedItems.length > 0 && <div className="mb-4 rounded-lg border border-emerald-100 bg-emerald-50/60 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-3"><p role="status" className="text-xs font-semibold text-emerald-800">เลือก {checkedItems.length} บทความในหน้านี้</p><div className="flex flex-wrap gap-2">
+            <button disabled={busy} onClick={() => { setBulkEditing(true); setError(""); }} className={`${buttonClass} flex items-center gap-2`}><PencilLine aria-hidden="true" className="h-3.5 w-3.5" />แก้ไขที่เลือก</button>
+            <button disabled={busy} onClick={() => void bulkAction("delete")} className={`${buttonClass} flex items-center gap-2 border-red-200 text-red-700 hover:bg-red-50`}><Trash2 aria-hidden="true" className="h-3.5 w-3.5" />ลบที่เลือก</button>
+            <button disabled={busy} onClick={clearChecked} className={buttonClass}>ยกเลิกการเลือก</button>
+          </div></div>
+          {bulkEditing && <form aria-label="แก้ไขบทความที่เลือก" onSubmit={(event) => { event.preventDefault(); void bulkAction("update"); }} className="mt-4 border-t border-emerald-100 pt-4">
+            <fieldset disabled={busy} className="space-y-3">
+              <label className="flex items-center gap-2 text-xs font-medium"><input type="checkbox" checked={bulkCategoryEnabled} onChange={(event) => { setBulkCategoryEnabled(event.target.checked); setBulkDirty(true); }} className="h-4 w-4 accent-emerald-700" />เปลี่ยนหมวดหมู่</label>
+              {bulkCategoryEnabled && <label className="block text-xs text-slate-600">หมวดหมู่ใหม่<input required maxLength={100} value={bulkCategory} onChange={(event) => { setBulkCategory(event.target.value); setBulkDirty(true); }} className={fieldClass} /></label>}
+              <label className="flex items-center gap-2 text-xs font-medium"><input type="checkbox" checked={bulkKeywordsEnabled} onChange={(event) => { setBulkKeywordsEnabled(event.target.checked); setBulkDirty(true); }} className="h-4 w-4 accent-emerald-700" />แทนที่คำค้นเดิม</label>
+              {bulkKeywordsEnabled && <label className="block text-xs text-slate-600">คำค้นใหม่ (คั่นด้วย comma; เว้นว่างเพื่อล้างคำค้น)<input value={bulkKeywords} onChange={(event) => { setBulkKeywords(event.target.value); setBulkDirty(true); }} className={fieldClass} /></label>}
+              <p className="text-xs leading-5 text-slate-500">ใช้ค่าข้างต้นกับทุกบทความที่เลือก การเปลี่ยนหมวดหมู่จะปรับ embeddings ของดัชนีที่ใช้ได้ก่อนบันทึก เนื้อหาและวันที่ตรวจทานคงเดิม บทความที่ยังไม่มีดัชนีที่ใช้ได้ยังต้องตรวจทานรายบทความ</p>
+              <div className="flex flex-wrap gap-2"><button disabled={busy || (!bulkCategoryEnabled && !bulkKeywordsEnabled)} className={primaryClass}>บันทึกบทความที่เลือก</button><button type="button" disabled={busy} onClick={() => { if (canLeave()) { setBulkEditing(false); setBulkDirty(false); } }} className={buttonClass}>ปิดฟอร์มแก้ไขเป็นชุด</button></div>
+            </fieldset>
+          </form>}
+        </div>}
         <div className="max-h-[650px] overflow-auto"><table className="w-full min-w-[760px] table-fixed border-collapse text-left text-xs"><caption className="sr-only">บทความในคลังความรู้ เลือกชื่อเพื่อดูรายละเอียด</caption>
-          <thead className="sticky top-0 z-10 bg-slate-50 text-[11px] text-slate-500"><tr><th className="w-8 p-2"><span className="sr-only">เลือก</span></th><th className="w-[29%] py-3 font-medium">ชื่อบทความ</th><th className="w-[15%] px-2 font-medium">หมวดหมู่</th><th className="w-[14%] px-2 font-medium">แหล่งอ้างอิง</th><th className="w-[9%] px-2 font-medium">Passages</th><th className="w-[14%] px-2 font-medium">อัปเดตล่าสุด</th><th className="w-[15%] px-2 font-medium">สถานะ</th><th className="w-9"><span className="sr-only">แก้ไข</span></th></tr></thead>
+          <thead className="sticky top-0 z-10 bg-slate-50 text-[11px] text-slate-500"><tr><th className="w-8 p-2"><input type="checkbox" aria-label="เลือกทั้งหมดในหน้านี้" aria-checked={checkedItems.length > 0 && !allChecked ? "mixed" : allChecked} ref={(node) => { if (node) node.indeterminate = checkedItems.length > 0 && !allChecked; }} checked={allChecked} disabled={busy || !data.items.length} onChange={() => setCheckedIds(allChecked ? new Set() : new Set(data.items.map((item) => item.id)))} className="h-3.5 w-3.5 accent-emerald-700" /></th><th className="w-[29%] py-3 font-medium">ชื่อบทความ</th><th className="w-[15%] px-2 font-medium">หมวดหมู่</th><th className="w-[14%] px-2 font-medium">แหล่งอ้างอิง</th><th className="w-[9%] px-2 font-medium">Passages</th><th className="w-[14%] px-2 font-medium">อัปเดตล่าสุด</th><th className="w-[15%] px-2 font-medium">สถานะ</th><th className="w-9"><span className="sr-only">แก้ไข</span></th></tr></thead>
           <tbody className="divide-y divide-slate-100">{data.items.map((item) => <tr key={item.id} className={selected?.id === item.id ? "bg-emerald-50/65" : "hover:bg-slate-50/70"}>
-            <td className="px-2"><input type="radio" name="knowledge-article" aria-label={`เลือก ${item.title}`} checked={selected?.id === item.id} onChange={() => open(item)} disabled={busy} className="h-3.5 w-3.5 accent-emerald-700" /></td>
+            <td className="px-2"><input type="checkbox" aria-label={`เลือก ${item.title}`} checked={checkedIds.has(item.id)} onChange={() => toggleChecked(item.id)} disabled={busy} className="h-3.5 w-3.5 accent-emerald-700" /></td>
             <td className="py-3 pr-2"><button disabled={busy} onClick={() => open(item)} aria-pressed={selected?.id === item.id} className="flex w-full items-start gap-2 text-left focus-visible:outline-emerald-600"><FileText aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" /><span className="min-w-0"><span className="block truncate font-semibold text-emerald-800" title={item.title}>{item.title}</span><span className="mt-1 block truncate text-[10px] text-slate-500">{item.content}</span></span></button></td>
             <td className="px-2"><span title={item.category} className={`inline-block max-w-full truncate rounded-full px-2 py-1 text-[10px] ${["bg-violet-50 text-violet-600", "bg-sky-50 text-sky-600", "bg-emerald-50 text-emerald-700", "bg-amber-50 text-amber-700"][data.categories.indexOf(item.category) % 4]}`}>• {item.category}</span></td>
             <td className="truncate px-2 text-slate-500" title={sourceName(item)}>{sourceName(item)}</td><td className="px-2 text-slate-500">{item.chunkCount}</td>

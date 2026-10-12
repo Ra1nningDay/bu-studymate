@@ -61,7 +61,7 @@ export class KnowledgeAdminService {
       if (input.action === "delete") return { count: await this.repo.deleteAdminDocuments(input.selection) };
       const records = await this.repo.findBulkDocuments(input.selection.map((item) => item.id));
       if (records.length !== input.selection.length || records.some((item) =>
-        input.selection.find((selected) => selected.id === item.id)?.updatedAt !== item.updatedAt.toISOString())) {
+        new Date(input.selection.find((selected) => selected.id === item.id)?.updatedAt ?? "").getTime() !== item.updatedAt.getTime())) {
         throw new Error("Selected documents changed; refresh before saving");
       }
       const updates: KnowledgeMetadataUpdate[] = [];
@@ -74,7 +74,7 @@ export class KnowledgeAdminService {
           previous.chunks.length > 0 && previous.chunks.length === parts.length && previous.chunks.every((chunk, index) =>
             chunk.documentHash === previous.contentHash && chunk.embeddingModel === knowledgeEmbeddingModel && chunk.content === parts[index]);
         const update: KnowledgeMetadataUpdate = { id: item.id, category: item.category, keywords: item.keywords,
-          contentHash: indexed ? knowledgeContentHash({ ...item, sourceUrl: item.sourceUrl! }) : previous.contentHash, chunks: [] };
+          contentHash: indexed ? knowledgeContentHash({ ...item, sourceUrl: item.sourceUrl! }) : null, chunks: [] };
         if (indexed) for (const original of previous.chunks) {
           const chunk: KnowledgeMetadataUpdate["chunks"][number] = { id: original.id,
             searchText: tokenizeKnowledge(`${item.title}\n${item.category}\n${item.keywords.join(" ")}\n${original.content}`) };
