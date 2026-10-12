@@ -8,34 +8,24 @@ import {
   type TicketStatusDto
 } from "@/src/dtos/ticket.dto";
 
-import { env } from "@/src/config/env";
-
-function isAdminAllowed(formData: FormData, request: Request) {
-  const expectedPassword = env.ADMIN_PASSWORD;
-  if (!expectedPassword) {
-    return true;
-  }
-
-  const submittedPassword =
-    String(formData.get("password") ?? "") || request.headers.get("x-admin-password");
-
-  return submittedPassword === expectedPassword;
-}
+import { adminAuthService } from "@/src/services/admin-auth.service";
+import { getPublicOrigin, isSameOrigin } from "@/src/controllers/admin-auth.controller";
 
 export class TicketController {
-  constructor(private ticketSvc: TicketService = ticketService) {}
+  constructor(private ticketSvc: TicketService = ticketService, private auth = adminAuthService) {}
 
   async handleUpdateStatus(request: Request, context: any): Promise<NextResponse> {
-    const formData = await request.formData();
-
-    if (!isAdminAllowed(formData, request)) {
+    if (!this.auth.isRequestAuthenticated(request)) {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
+    if (!isSameOrigin(request)) return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
+    let formData: FormData;
+    try { formData = await request.formData(); }
+    catch { return NextResponse.json({ ok: false, error: "Invalid form" }, { status: 400 }); }
 
     const rawStatus = String(formData.get("status") ?? "");
     const parseResult = UpdateTicketStatusSchema.safeParse({
-      status: rawStatus,
-      password: String(formData.get("password") ?? "")
+      status: rawStatus
     });
 
     if (!parseResult.success) {
@@ -46,15 +36,9 @@ export class TicketController {
     }
 
     const params = await Promise.resolve(context.params);
-    await this.ticketSvc.updateTicketStatus(params.id, parseResult.data.status as TicketStatusDto);
-
-    const redirectUrl = new URL("/admin/tickets", request.url);
-    const password = String(formData.get("password") ?? "");
-    if (password) {
-      redirectUrl.searchParams.set("password", password);
-    }
-
-    return NextResponse.redirect(redirectUrl, { status: 303 });
+    try { await this.ticketSvc.updateTicketStatus(params.id, parseResult.data.status as TicketStatusDto); }
+    catch { return NextResponse.json({ ok: false, error: "Unable to update ticket" }, { status: 503 }); }
+    return NextResponse.redirect(new URL("/admin/tickets", getPublicOrigin(request)), { status: 303 });
   }
 
   async listTickets() {

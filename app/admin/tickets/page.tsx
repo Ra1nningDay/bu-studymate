@@ -1,21 +1,10 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { requireAdmin } from "../require-admin";
 import { listTickets, ticketStatuses } from "@/lib/ticket";
 import type { TicketStatus } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
-
-type SearchParams = Record<string, string | string[] | undefined>;
-
-function asString(value: string | string[] | undefined) {
-  return Array.isArray(value) ? value[0] : value;
-}
-
-function isAdminAllowed(searchParams: SearchParams) {
-  if (!process.env.ADMIN_PASSWORD) {
-    return true;
-  }
-  return asString(searchParams.password) === process.env.ADMIN_PASSWORD;
-}
 
 function StatusBadge({ status }: { status: TicketStatus }) {
   const classes: Record<TicketStatus, string> = {
@@ -33,39 +22,11 @@ function StatusBadge({ status }: { status: TicketStatus }) {
   );
 }
 
-function LoginForm() {
-  return (
-    <main className="flex min-h-screen items-center justify-center bg-[#f7f7fb] px-6">
-      <form
-        method="GET"
-        className="w-full max-w-sm rounded-lg border border-slate-200 bg-white p-6 shadow-sm"
-      >
-        <h1 className="text-xl font-semibold text-bu-ink">BU StudyMate Admin</h1>
-        <p className="mt-2 text-sm text-slate-600">
-          Enter the admin password to view support tickets.
-        </p>
-        <label className="mt-5 block text-sm font-medium text-slate-700">
-          Password
-          <input
-            name="password"
-            type="password"
-            className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-bu-purple focus:ring-2 focus:ring-bu-purple/15"
-            autoComplete="current-password"
-          />
-        </label>
-        <button className="mt-5 w-full rounded-md bg-bu-purple px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#3a0f70]">
-          Open dashboard
-        </button>
-      </form>
-    </main>
-  );
-}
-
 function SetupNotice({ message }: { message: string }) {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#f7f7fb] px-6">
+    <main className="flex items-center justify-center py-8">
       <div className="w-full max-w-2xl rounded-lg border border-amber-200 bg-white p-6 shadow-sm">
-        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-bu-purple">
+        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-700">
           BU StudyMate
         </p>
         <h1 className="mt-3 text-2xl font-semibold text-bu-ink">
@@ -84,11 +45,9 @@ function SetupNotice({ message }: { message: string }) {
   );
 }
 
-export default async function TicketsPage({ searchParams }: any) {
-  const resolvedSearchParams = (await Promise.resolve(searchParams ?? {})) as SearchParams;
-  if (!isAdminAllowed(resolvedSearchParams)) {
-    return <LoginForm />;
-  }
+export default async function TicketsPage({ searchParams }: { searchParams: Promise<{ password?: string }> }) {
+  await requireAdmin();
+  if ((await searchParams).password !== undefined) redirect("/admin/tickets");
 
   let tickets;
   try {
@@ -98,14 +57,13 @@ export default async function TicketsPage({ searchParams }: any) {
     return <SetupNotice message={message} />;
   }
 
-  const password = asString(resolvedSearchParams.password);
 
   return (
-    <main className="min-h-screen bg-[#f7f7fb] px-6 py-8">
+    <main className="">
       <div className="mx-auto max-w-7xl">
         <header className="flex flex-col gap-3 border-b border-slate-200 pb-6 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-bu-purple">
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-700">
               BU StudyMate
             </p>
             <h1 className="mt-2 text-3xl font-semibold text-bu-ink">
@@ -117,13 +75,13 @@ export default async function TicketsPage({ searchParams }: any) {
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <Link
-              href="/"
+              href="/admin"
               className="inline-flex items-center justify-center rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
             >
               Home
             </Link>
             <Link
-              href={password ? `/admin/runs?password=${encodeURIComponent(password)}` : "/admin/runs"}
+              href="/admin/runs"
               className="inline-flex items-center justify-center rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-bu-cyan/40 hover:text-bu-cyan"
             >
               Open runs
@@ -159,7 +117,7 @@ export default async function TicketsPage({ searchParams }: any) {
                 ) : (
                   tickets.map((ticket) => (
                     <tr key={ticket.id} className="align-top hover:bg-slate-50/80">
-                      <td className="whitespace-nowrap px-4 py-4 font-semibold text-bu-purple">
+                      <td className="whitespace-nowrap px-4 py-4 font-semibold text-emerald-700">
                         {ticket.ticket_code}
                       </td>
                       <td className="px-4 py-4 text-slate-700">{ticket.location ?? "-"}</td>
@@ -186,13 +144,11 @@ export default async function TicketsPage({ searchParams }: any) {
                           method="POST"
                           className="flex min-w-56 items-center gap-2"
                         >
-                          {password ? (
-                            <input type="hidden" name="password" value={password} />
-                          ) : null}
                           <select
                             name="status"
+                            aria-label={`Status for ${ticket.ticket_code}`}
                             defaultValue={ticket.status}
-                            className="rounded-md border border-slate-300 bg-white px-2.5 py-2 text-xs font-medium text-slate-700 outline-none focus:border-bu-purple focus:ring-2 focus:ring-bu-purple/15"
+                            className="rounded-md border border-slate-300 bg-white px-2.5 py-2 text-xs font-medium text-slate-700 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/15"
                           >
                             {ticketStatuses.map((status) => (
                               <option key={status} value={status}>
@@ -200,7 +156,7 @@ export default async function TicketsPage({ searchParams }: any) {
                               </option>
                             ))}
                           </select>
-                          <button className="rounded-md bg-bu-ink px-3 py-2 text-xs font-semibold text-white transition hover:bg-bu-purple">
+                          <button className="rounded-md bg-bu-ink px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700">
                             Update
                           </button>
                         </form>

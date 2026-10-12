@@ -13,7 +13,6 @@ export type TicketDraftDto = z.infer<typeof TicketDraftSchema>;
 
 export const UpdateTicketStatusSchema = z.object({
   status: TicketStatusEnum,
-  password: z.string().optional()
 });
 
 export type UpdateTicketStatusDto = z.infer<typeof UpdateTicketStatusSchema>;
