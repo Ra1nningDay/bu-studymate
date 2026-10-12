@@ -116,6 +116,7 @@ export function KnowledgeWorkspace({ initialData }: { initialData: KnowledgeAdmi
   const allChecked = data.items.length > 0 && checkedItems.length === data.items.length;
 
   function toggleChecked(id: string) {
+    if (checkedIds.has(id) && checkedIds.size === 1) { clearChecked(); return; }
     setCheckedIds((previous) => {
       const next = new Set(previous);
       if (next.has(id)) next.delete(id); else next.add(id);
@@ -195,7 +196,7 @@ export function KnowledgeWorkspace({ initialData }: { initialData: KnowledgeAdmi
   }
 
   async function check() {
-    if (!selected) return;
+    if (!selected || !canLeave()) return;
     setBusy(true); setError(""); setNotice("");
     let checked = false;
     try {
@@ -258,7 +259,7 @@ export function KnowledgeWorkspace({ initialData }: { initialData: KnowledgeAdmi
         </form>
         {checkedItems.length > 0 && <div className="mb-4 rounded-lg border border-emerald-100 bg-emerald-50/60 p-3">
           <div className="flex flex-wrap items-center justify-between gap-3"><p role="status" className="text-xs font-semibold text-emerald-800">เลือก {checkedItems.length} บทความในหน้านี้</p><div className="flex flex-wrap gap-2">
-            <button disabled={busy} onClick={() => { setBulkEditing(true); setError(""); }} className={`${buttonClass} flex items-center gap-2`}><PencilLine aria-hidden="true" className="h-3.5 w-3.5" />แก้ไขที่เลือก</button>
+            <button disabled={busy} onClick={() => { if (!bulkEditing) { setBulkCategoryEnabled(false); setBulkKeywordsEnabled(false); setBulkCategory(""); setBulkKeywords(""); setBulkDirty(false); } setBulkEditing(true); setError(""); }} className={`${buttonClass} flex items-center gap-2`}><PencilLine aria-hidden="true" className="h-3.5 w-3.5" />แก้ไขที่เลือก</button>
             <button disabled={busy} onClick={() => void bulkAction("delete")} className={`${buttonClass} flex items-center gap-2 border-red-200 text-red-700 hover:bg-red-50`}><Trash2 aria-hidden="true" className="h-3.5 w-3.5" />ลบที่เลือก</button>
             <button disabled={busy} onClick={clearChecked} className={buttonClass}>ยกเลิกการเลือก</button>
           </div></div>
@@ -274,7 +275,7 @@ export function KnowledgeWorkspace({ initialData }: { initialData: KnowledgeAdmi
           </form>}
         </div>}
         <div className="max-h-[650px] overflow-auto"><table className="w-full min-w-[760px] table-fixed border-collapse text-left text-xs"><caption className="sr-only">บทความในคลังความรู้ เลือกชื่อเพื่อดูรายละเอียด</caption>
-          <thead className="sticky top-0 z-10 bg-slate-50 text-[11px] text-slate-500"><tr><th className="w-8 p-2"><input type="checkbox" aria-label="เลือกทั้งหมดในหน้านี้" aria-checked={checkedItems.length > 0 && !allChecked ? "mixed" : allChecked} ref={(node) => { if (node) node.indeterminate = checkedItems.length > 0 && !allChecked; }} checked={allChecked} disabled={busy || !data.items.length} onChange={() => setCheckedIds(allChecked ? new Set() : new Set(data.items.map((item) => item.id)))} className="h-3.5 w-3.5 accent-emerald-700" /></th><th className="w-[29%] py-3 font-medium">ชื่อบทความ</th><th className="w-[15%] px-2 font-medium">หมวดหมู่</th><th className="w-[14%] px-2 font-medium">แหล่งอ้างอิง</th><th className="w-[9%] px-2 font-medium">Passages</th><th className="w-[14%] px-2 font-medium">อัปเดตล่าสุด</th><th className="w-[15%] px-2 font-medium">สถานะ</th><th className="w-9"><span className="sr-only">แก้ไข</span></th></tr></thead>
+          <thead className="sticky top-0 z-10 bg-slate-50 text-[11px] text-slate-500"><tr><th className="w-8 p-2"><input type="checkbox" aria-label="เลือกทั้งหมดในหน้านี้" aria-checked={checkedItems.length > 0 && !allChecked ? "mixed" : allChecked} ref={(node) => { if (node) node.indeterminate = checkedItems.length > 0 && !allChecked; }} checked={allChecked} disabled={busy || !data.items.length} onChange={() => { if (allChecked) clearChecked(); else setCheckedIds(new Set(data.items.map((item) => item.id))); }} className="h-3.5 w-3.5 accent-emerald-700" /></th><th className="w-[29%] py-3 font-medium">ชื่อบทความ</th><th className="w-[15%] px-2 font-medium">หมวดหมู่</th><th className="w-[14%] px-2 font-medium">แหล่งอ้างอิง</th><th className="w-[9%] px-2 font-medium">Passages</th><th className="w-[14%] px-2 font-medium">อัปเดตล่าสุด</th><th className="w-[15%] px-2 font-medium">สถานะ</th><th className="w-9"><span className="sr-only">แก้ไข</span></th></tr></thead>
           <tbody className="divide-y divide-slate-100">{data.items.map((item) => <tr key={item.id} className={selected?.id === item.id ? "bg-emerald-50/65" : "hover:bg-slate-50/70"}>
             <td className="px-2"><input type="checkbox" aria-label={`เลือก ${item.title}`} checked={checkedIds.has(item.id)} onChange={() => toggleChecked(item.id)} disabled={busy} className="h-3.5 w-3.5 accent-emerald-700" /></td>
             <td className="py-3 pr-2"><button disabled={busy} onClick={() => open(item)} aria-pressed={selected?.id === item.id} className="flex w-full items-start gap-2 text-left focus-visible:outline-emerald-600"><FileText aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" /><span className="min-w-0"><span className="block truncate font-semibold text-emerald-800" title={item.title}>{item.title}</span><span className="mt-1 block truncate text-[10px] text-slate-500">{item.content}</span></span></button></td>

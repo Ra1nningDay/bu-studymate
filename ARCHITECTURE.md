@@ -170,6 +170,16 @@ fingerprint and compatible passage gates; no processing history is inferred.
 Detail tabs and article previews use stored text. Per-document usage/file metadata
 is unavailable; question testing reuses Web Chat and saved Knowledge Base runs.
 
+`POST /api/admin/knowledge/bulk` accepts 1–50 distinct, explicitly selected UUIDs
+and their loaded `updatedAt` versions. Strict DTOs allow deletion or category/
+keyword replacement only. Admin service prepares compatible passage embeddings
+in batches of at most 32 before mutation; keyword-only updates reuse vectors.
+Repository serializable transactions recheck selected versions, update metadata
+and lexical/fingerprint/vector fields together, or delete selected articles with
+cascading passages. Stale/missing records fail the whole batch. Stale/unindexed
+evidence keeps an invalid fingerprint and cannot be promoted by metadata edits.
+Text, sources and approval/validity dates are preserved; no schema was added.
+
 Overview counts/aggregates run in `AdminOverviewRepository`, including parameterized
 SQL for distinct message identities and daily Bangkok buckets. The service fills
 the seven-day series and derives run success/intent percentages. Successful run

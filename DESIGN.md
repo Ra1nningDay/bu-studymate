@@ -146,9 +146,21 @@ reviewer and explicit Bangkok dates. Source snapshots do not imply approval;
 an unchecked review confirmation prevents saving and resets after content edits.
 Pending operations disable competing actions; failed saves retain form values.
 Leaving a changed form inside this workspace requires discarding its edits.
-Single source checks refresh status without renewing approval. There is no delete,
+Single source checks refresh status without renewing approval. There is no
 bulk import or document extraction control. Columns stack below the wide desktop
 breakpoint, tables scroll within their panel and long content/URLs wrap.
+
+Row checkboxes support independent multi-select; title selection controls detail
+preview. The header checkbox selects the visible page with an indeterminate state
+for partial selection. A count/action bar offers bulk category/keyword edits,
+confirmed deletion and clear selection. Bulk fields require explicit enablement;
+keywords replace existing lists, and an enabled empty field clears keywords.
+Deletion identifies count/titles and removes passages with their articles.
+Filters/page changes clear selection; failed writes retain inputs/selection.
+Pending writes disable competing controls. Category changes may call embeddings;
+the edit form explains this and preserves text/source/approval dates. All bulk
+writes use selected record versions and atomic transactions. See
+[knowledge-admin-02](.scratch/knowledge-admin/issues/02-bulk-actions.md) for evidence.
 
 These are maintenance targets, not a claim that every existing screen satisfies
 them. Implement only through a task with acceptance criteria.

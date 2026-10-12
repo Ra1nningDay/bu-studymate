@@ -82,8 +82,25 @@ reviewer identity check. See [the RAG guide](knowledge-rag.md) for source limits
 
 **ตรวจแหล่งข้อมูล** checks only the selected reviewed article and refreshes
 its availability. It never advances review dates. Changed/unavailable sources need
-inspection and, when appropriate, a new review. No deletion, bulk import or file
-extraction is provided. Saves can use the configured embedding provider.
+inspection and, when appropriate, a new review. No bulk import or file extraction
+is provided. Saves can use the configured embedding provider.
+
+Use the row checkboxes for multi-select; clicking an article title still opens
+its independent detail preview. The header checkbox selects only the visible
+page (up to 50 articles); search/filter/page changes clear selection. Bulk actions
+appear with the selected count. **แก้ไขที่เลือก** optionally changes a common
+category and/or replaces keywords. Enable the keyword field and leave it empty
+to clear keywords. Disabled fields stay unchanged. Text, sources, reviewer and
+approval/validity dates remain unchanged.
+
+Category changes prepare embeddings for compatible existing passages before
+an atomic transaction; keyword-only edits reuse embeddings and refresh lexical
+tokens/fingerprints. Missing or stale indexing remains excluded and requires
+individual review. A stale selection, provider failure or transaction failure
+leaves the entire batch unchanged. **ลบที่เลือก** shows count/titles before deleting
+the selected articles and their passages together. This screen cannot restore
+deleted articles. Failed actions retain selection and the edit form; successful
+actions refresh rows and counts without automatic mutation retries.
 
 ## Web testing
 

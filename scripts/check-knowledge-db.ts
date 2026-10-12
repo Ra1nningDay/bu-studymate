@@ -119,7 +119,55 @@ async function main() {
     assert.equal(new Set(candidates.map((item) => item.id)).size, 40);
     assert.equal(candidates.filter((item) => item.keywordRank != null).length, 20);
     assert.equal(candidates.filter((item) => item.vectorRank != null).length, 20);
-    console.log("PASS: Thai keyword, semantic/RRF, 40 rerank candidates, similarity cutoff, validity/model filters, 120 legacy rows, atomic rollback and approval ordering");
+    console.log("DB check: atomic admin bulk metadata and deletion");
+    const { KnowledgeAdminService } = await import("../src/services/knowledge-admin.service");
+    let embedCalls = 0;
+    const admin = new KnowledgeAdminService(repo, undefined, undefined, async (input) => {
+      embedCalls++; return { vectors: input.map(() => vector), usage: { total_tokens: 1 }, model: "text-embedding-3-small" };
+    });
+    const bulkIds: string[] = [];
+    for (const title of ["Bulk A", "Bulk B", "Bulk unselected"]) {
+      bulkIds.push(await repo.saveReviewedDocument({ ...manifest, title }, [{ content: manifest.content, embedding: vector }]));
+    }
+    const snapshots = await repo.findBulkDocuments(bulkIds);
+    const selected = snapshots.filter((item) => item.id !== bulkIds[2]).map(({ id: selectedId, updatedAt }) => ({ id: selectedId, updatedAt: updatedAt.toISOString() }));
+    const unselected = snapshots.find((item) => item.id === bulkIds[2])!;
+    const untouchedDocument = await repo.findById(unselected.id);
+    const originalVectors = await db.$queryRaw<Array<{ id: string; vector: string }>>(Prisma.sql`SELECT id::text, embedding::text AS vector FROM ${identifier}.knowledge_chunks WHERE knowledge_item_id IN (${Prisma.join(bulkIds.map((value) => Prisma.sql`${value}::uuid`))}) ORDER BY id`);
+    await admin.bulk({ action: "update", selection: selected, changes: { keywords: ["bulklexicalunique"] } });
+    assert.equal(embedCalls, 0);
+    assert.equal((await repo.hybridSearch("bulklexicalunique", null)).length, 2);
+    const afterKeywords = await repo.findBulkDocuments(bulkIds);
+    for (const item of afterKeywords) {
+      const old = snapshots.find((row) => row.id === item.id)!;
+      assert.equal(item.content, old.content);
+      assert.equal(item.sourceHash, old.sourceHash);
+      assert.equal(item.sourceStatus, old.sourceStatus);
+      assert.deepEqual(item.verifiedAt, old.verifiedAt);
+      assert.deepEqual(item.reviewAfter, old.reviewAfter);
+      assert.deepEqual(item.validFrom, old.validFrom);
+      assert.deepEqual(item.validUntil, old.validUntil);
+    }
+    assert.deepEqual(await repo.findById(unselected.id), untouchedDocument);
+    assert.deepEqual(await db.$queryRaw(Prisma.sql`SELECT id::text, embedding::text AS vector FROM ${identifier}.knowledge_chunks WHERE knowledge_item_id IN (${Prisma.join(bulkIds.map((value) => Prisma.sql`${value}::uuid`))}) ORDER BY id`), originalVectors);
+    const currentSelection = afterKeywords.filter((item) => item.id !== unselected.id).map(({ id: selectedId, updatedAt }) => ({ id: selectedId, updatedAt: updatedAt.toISOString() }));
+    // The first update must roll back when a later chunk vector is invalid.
+    await assert.rejects(() => repo.updateAdminMetadata(currentSelection, afterKeywords.filter((item) => item.id !== unselected.id).map((item, index) => ({
+      id: item.id, category: "Rollback category", keywords: [], contentHash: item.contentHash,
+      chunks: item.chunks.map((chunk) => ({ id: chunk.id, searchText: "rollback", embedding: index ? [1, 2] : vector }))
+    }))));
+    assert.deepEqual(await repo.findBulkDocuments(bulkIds), afterKeywords);
+    await assert.rejects(() => admin.bulk({ action: "delete", selection: selected }), /เปลี่ยนแปลง/);
+    assert.equal((await repo.findBulkDocuments(bulkIds)).length, 3);
+    await admin.bulk({ action: "update", selection: currentSelection, changes: { category: "Bulk new category" } });
+    assert.equal(embedCalls, 1);
+    const afterCategory = await repo.findBulkDocuments(bulkIds);
+    const deleting = afterCategory.filter((item) => item.id !== unselected.id).map(({ id: selectedId, updatedAt }) => ({ id: selectedId, updatedAt: updatedAt.toISOString() }));
+    assert.deepEqual(await admin.bulk({ action: "delete", selection: deleting }), { count: 2 });
+    assert.equal(await db.knowledgeChunk.count({ where: { knowledgeItemId: { in: deleting.map((item) => item.id) } } }), 0);
+    assert.equal((await repo.readAdminDocument(unselected.id))?.chunks.length, 1);
+    assert.deepEqual(await repo.findById(unselected.id), untouchedDocument);
+    console.log("PASS: RAG retrieval and approval invariants; admin filters/counts; atomic bulk metadata, stale-selection refusal, cascade deletion and unselected preservation");
   } finally {
     await db.$executeRawUnsafe("SET search_path TO public");
     await db.$disconnect();

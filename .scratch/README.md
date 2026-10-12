@@ -7,8 +7,8 @@ This index owns local work status. Specs and tickets own scope and verification;
 
 ## Current Handoff
 
-- Latest completed effort: Knowledge execution trace,
-  ticket [knowledge-rag-04](knowledge-rag/issues/04-execution-trace.md), verified locally.
+- Latest completed effort: Knowledge multi-select and bulk actions,
+  ticket [knowledge-admin-02](knowledge-admin/issues/02-bulk-actions.md), verified locally.
   Hybrid knowledge's additive Supabase migration was applied in the prior effort.
   Real corpus import remains deferred by the user.
   Documentation workflow remains recorded below.
@@ -23,7 +23,7 @@ This index owns local work status. Specs and tickets own scope and verification;
 
 | Effort | Status | Record | Evidence boundary |
 |---|---|---|---|
-| Knowledge bulk actions | Claimed, 2026-10-13 | [knowledge-admin-02](knowledge-admin/issues/02-bulk-actions.md) | Visible-page multi-select, category/keyword edits and confirmed deletion in progress. |
+| Knowledge bulk actions | Resolved, 2026-10-13 | [knowledge-admin-02](knowledge-admin/issues/02-bulk-actions.md) | 94 tests, isolated DB rollback/cascade/preservation checks, synthetic desktop/mobile UI, auth/origin smoke, typecheck/lint and AST refresh passed. Commit/push authorized; no public mutations, real-provider save UAT or deployment. |
 | Knowledge execution trace | Resolved, 2026-10-13; uncommitted | [knowledge-rag-04](knowledge-rag/issues/04-execution-trace.md) | 78 tests, isolated SQL rank/count checks, synthetic desktop/mobile UI, typecheck/lint and AST refresh passed. No real model/corpus UAT or deployment. |
 | Knowledge admin tab | Resolved, 2026-10-13; uncommitted | [knowledge-admin-01](knowledge-admin/issues/01-knowledge-tab.md) | 82 regressions, isolated DB filters/counts, authenticated read/origin checks, reference desktop/mobile UI, typecheck/lint and AST refresh passed. No real-provider save UAT or deployment. |
 | Knowledge query rewrite | Resolved, 2026-10-13; uncommitted | [knowledge-rag-03](knowledge-rag/issues/03-query-rewrite.md) | 24 focused tests, 51 regressions, typecheck/lint and AST refresh passed. No new DB check, real model/corpus UAT or deployment. |
