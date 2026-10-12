@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
-import { House, MessageCircle, Play, ClipboardList, Menu } from "lucide-react";
+import { House, MessageCircle, Play, ClipboardList, Menu, BookOpen } from "lucide-react";
 
 const navigation = [
   { href: "/admin", label: "Overview", icon: House },
   { href: "/admin/chat", label: "Web Chat", icon: MessageCircle },
   { href: "/admin/runs", label: "Bot Runs", icon: Play },
+  { href: "/admin/knowledge", label: "Knowledge Base", icon: BookOpen },
   { href: "/admin/tickets", label: "Tickets", icon: ClipboardList }
 ];
 
@@ -44,7 +45,6 @@ export function AdminShell({ children }: { children: ReactNode }) {
             <span className="truncate text-sm font-semibold">Bangkok University LINE Chatbot</span>
           </div>
           <div className="flex shrink-0 items-center gap-3">
-            <span className="hidden rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800 sm:block">● MVP</span>
             <div className="hidden items-center gap-2 sm:flex"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#101b36] text-xs font-semibold text-white">A</span><span className="text-xs"><span className="block font-semibold">Admin</span><span className="text-slate-500">Administrator</span></span></div>
             <form action="/api/admin/auth/logout" method="POST"><button className="whitespace-nowrap rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium hover:bg-emerald-50 focus-visible:outline-emerald-600">ออกจากระบบ</button></form>
           </div>

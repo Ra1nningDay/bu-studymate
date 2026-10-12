@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "BU StudyMate",
-  description: "LINE chatbot MVP for Bangkok University students"
+  description: "LINE chatbot for Bangkok University students"
 };
 
 export default function RootLayout({
