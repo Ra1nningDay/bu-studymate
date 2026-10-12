@@ -41,6 +41,8 @@ export type BotRunReviewItem = {
   } | null;
   tokensUsed?: number | null;
   modelName?: string | null;
+  routerModel?: string | null;
+  responseModel?: string | null;
 };
 
 function asObject(value: Prisma.JsonValue): Record<string, unknown> {
@@ -192,7 +194,9 @@ export async function listBotRunReviews(filters: BotRunReviewFilters = {}, page:
             }
           : null,
         tokensUsed: readNumber(runMetadata, "tokensUsed"),
-        modelName: readString(runMetadata, "modelName")
+        modelName: readString(runMetadata, "modelName"),
+        routerModel: readString(runMetadata, "routerModel"),
+        responseModel: readString(runMetadata, "responseModel")
       };
     });
 

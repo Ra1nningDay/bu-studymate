@@ -1,4 +1,4 @@
-
+import { env } from "@/src/config/env";
 
 export async function generateStudyAnswer(question: string, context: string, isThai: boolean = true) {
   const trimmedContext = context.trim();
@@ -8,7 +8,7 @@ export async function generateStudyAnswer(question: string, context: string, isT
 
   const missingStudyInfoReply = isThai ? "ยังไม่พบข้อมูลนี้ในโน้ตที่บันทึกไว้ครับ" : "I couldn't find this information in your saved notes.";
 
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = env.OPENAI_API_KEY;
   if (!apiKey) {
     return trimmedContext.slice(0, 1000);
   }
@@ -21,7 +21,7 @@ export async function generateStudyAnswer(question: string, context: string, isT
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+        model: env.OPENAI_MODEL,
         temperature: 0,
         messages: [
           {

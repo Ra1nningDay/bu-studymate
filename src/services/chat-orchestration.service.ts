@@ -33,6 +33,7 @@ import {
   type TicketService
 } from "@/src/services/ticket.service";
 import type { ChatSession } from "@/lib/types";
+import { formatOutOfScopeReply } from "@/src/presenters/chat-policy.presenter";
 
 export type BotReplyInput = {
   channel?: ChatChannel;
@@ -46,6 +47,7 @@ export type ExecutionLogEntry = {
 };
 
 export type BotReply = {
+  runId?: string;
   sources?: AnswerSource[];
   text: string;
   flexMessage?: any;
@@ -70,6 +72,7 @@ type ResolvedRoute = {
   routerReason: string;
   routerType: RouterType;
   selectedTarget: RouteTarget;
+  safetyCritical?: boolean;
   usage?: { total_tokens: number };
   model?: string;
 };
@@ -162,7 +165,7 @@ function mightUseOpenAI(route: ResolvedRoute, usedWebSearch: boolean) {
     return false;
   }
 
-  if (route.routerType === "agent_router") {
+  if (route.routerType === "agent_router" || route.usage) {
     return true;
   }
 
@@ -170,7 +173,7 @@ function mightUseOpenAI(route: ResolvedRoute, usedWebSearch: boolean) {
     return true;
   }
 
-  return ["ADD_STUDY_NOTE", "ASK_BU_INFO", "ASK_STUDY_MEMORY", "GENERAL_CHAT"].includes(
+  return ["ADD_STUDY_NOTE", "ASK_BU_INFO", "ASK_STUDY_MEMORY", "GENERAL_CHAT", "UNKNOWN"].includes(
     route.intent
   );
 }
@@ -331,20 +334,28 @@ export class ChatOrchestrationService {
   }
 
   private async resolveRoute({
+    history,
     session,
     trimmedMessage
   }: {
+    history: Array<{ content: string; role: "assistant" | "user" }>;
     session: ChatSession;
     trimmedMessage: string;
   }): Promise<ResolvedRoute> {
     const guarded = this.hardGuardRoute({ session, trimmedMessage });
-    if (guarded) {
+    if (guarded && guarded.selectedTarget !== "ticket") {
       return guarded;
     }
 
     const decision = await classifyWithAgentRouter(trimmedMessage, {
-      sessionState: session.state
+      sessionState: session.state,
+      history: history.slice(-2)
     });
+
+    // Keep deterministic ticket behavior unless the response needs urgent safety guidance.
+    if (guarded && !decision.safetyCritical) {
+      return { ...guarded, usage: decision.usage, model: decision.model };
+    }
 
     return {
       intent: decision.intent,
@@ -353,6 +364,7 @@ export class ChatOrchestrationService {
       routerReason: decision.reason,
       routerType: decision.routerType,
       selectedTarget: decision.selectedTarget,
+      safetyCritical: decision.safetyCritical,
       usage: decision.usage,
       model: decision.model
     };
@@ -373,10 +385,11 @@ export class ChatOrchestrationService {
   }): Promise<BotReply> {
     const { intent } = route;
     let reply: BotReply;
+    const routerModel = route.model;
     const executionLog: ExecutionLogEntry[] = [
       {
         action: "Agent Router Decision",
-        details: `Intent: ${route.intent}, Target: ${route.selectedTarget}`
+        details: `Intent: ${route.intent}, Target: ${route.selectedTarget}${routerModel ? ` · Model: ${routerModel}` : ""}`
       }
     ];
 
@@ -525,21 +538,31 @@ export class ChatOrchestrationService {
         executionLog
       );
     } else if (intent === "ASK_FRESH_INFO") {
-      executionLog.push({ action: "Search Fresh Info (Web Search)" });
       reply = await answerFreshInfoFromVerifiedSources(trimmedMessage, history);
+      executionLog.push({
+        action: "Search Fresh Info (Web Search)",
+        details: reply.model ? `Model: ${reply.model}` : undefined
+      });
       reply.executionLog = executionLog;
     } else if (intent === "ASK_BU_INFO") {
-      executionLog.push({ action: "Search Knowledge Base" });
       const knowledgeAnswer = await this.knowledgeSvc.answerQuestion(trimmedMessage, history);
       if (knowledgeAnswer.isMiss) {
         executionLog.push({ action: "Knowledge Base Miss - Falling back to Web Search" });
         reply = await answerFreshInfoFromVerifiedSources(trimmedMessage, history);
+        executionLog.push({
+          action: "Search Fresh Info (Web Search)",
+          details: reply.model ? `Model: ${reply.model}` : undefined
+        });
         if (knowledgeAnswer.usage && reply.usage) {
           reply.usage.total_tokens += knowledgeAnswer.usage.total_tokens;
         } else if (knowledgeAnswer.usage) {
           reply.usage = knowledgeAnswer.usage;
         }
       } else {
+        executionLog.push({
+          action: "Search Knowledge Base",
+          details: knowledgeAnswer.model ? `Model: ${knowledgeAnswer.model}` : "Exact / Semantic match"
+        });
         reply = asReply(
           knowledgeAnswer.text,
           undefined,
@@ -590,9 +613,26 @@ export class ChatOrchestrationService {
           executionLog
         );
       }
+    } else if (intent === "OUT_OF_SCOPE") {
+      executionLog.push({ action: "Out-of-scope Boundary Reply" });
+      reply = asReply(
+        formatOutOfScopeReply(trimmedMessage),
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        executionLog
+      );
     } else {
-      executionLog.push({ action: "Generate General Chat Reply (OpenAI)" });
-      const aiResponse = await generateGeneralChatReply(trimmedMessage, history);
+      const actionName = intent === "UNKNOWN" ? "Generate Clarification Question (OpenAI)" : "Generate General Chat Reply (OpenAI)";
+      const aiResponse = await generateGeneralChatReply(trimmedMessage, history, {
+        policy: intent === "UNKNOWN" ? "clarification" : "general",
+        safetyCritical: route.safetyCritical
+      });
+      executionLog.push({
+        action: actionName,
+        details: aiResponse.model ? `Model: ${aiResponse.model}` : undefined
+      });
       reply = asReply(
         aiResponse.text,
         undefined,
@@ -624,8 +664,11 @@ export class ChatOrchestrationService {
 
     const startedAt = Date.now();
     const session = await this.ticketSvc.getOrCreateChatSession(lineUserId);
-    const route = await this.resolveRoute({ session, trimmedMessage });
-    const history = await this.chatLogRepo.getRecentChatHistory(lineUserId);
+    const completedHistory = await this.chatLogRepo.getRecentCompletedChatHistory(lineUserId, 4);
+    const route = await this.resolveRoute({ history: completedHistory, session, trimmedMessage });
+    const history = route.intent === "GENERAL_CHAT" || route.intent === "UNKNOWN" || route.intent === "OUT_OF_SCOPE"
+      ? completedHistory
+      : await this.chatLogRepo.getRecentChatHistory(lineUserId);
     const intent = route.intent;
 
     const userMessage = await this.chatLogRepo.createChatMessage({
@@ -640,6 +683,7 @@ export class ChatOrchestrationService {
         routerReason: route.routerReason,
         routerType: route.routerType,
         selectedTarget: route.selectedTarget,
+        safetyCritical: Boolean(route.safetyCritical),
         sessionState: session.state
       },
       role: "user",
@@ -656,6 +700,7 @@ export class ChatOrchestrationService {
         routerReason: route.routerReason,
         routerType: route.routerType,
         selectedTarget: route.selectedTarget,
+        safetyCritical: Boolean(route.safetyCritical),
         sessionState: session.state
       },
       userMessageId: userMessage?.id
@@ -697,10 +742,15 @@ export class ChatOrchestrationService {
           routerConfidence: route.routerConfidence,
           routerReason: route.routerReason,
           routerType: route.routerType,
+          routerModel: route.model,
+          responseModel: reply.model,
           selectedTarget: route.selectedTarget,
+          safetyCritical: Boolean(route.safetyCritical),
+          replyLength: reply.text.length,
           sourceCount: reply.sources?.length ?? 0,
           tokensUsed: totalTokens > 0 ? totalTokens : undefined,
           modelName: finalModel,
+          sessionState: session.state,
           executionLog: reply.executionLog
         },
         status: "success",
@@ -710,7 +760,7 @@ export class ChatOrchestrationService {
         usedWebSearch: Boolean(reply.usedWebSearch)
       });
 
-      return reply;
+      return { ...reply, runId: run!.id };
     } catch (error) {
       if (run?.id) {
         await this.chatLogRepo.updateBotRun(run.id, {
@@ -723,6 +773,7 @@ export class ChatOrchestrationService {
             routerReason: route.routerReason,
             routerType: route.routerType,
             selectedTarget: route.selectedTarget,
+            sessionState: session.state,
             executionLog: route.intent
               ? [
                   {

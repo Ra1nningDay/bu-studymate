@@ -1,7 +1,5 @@
 import { createWebSearchResponse, type AnswerSource } from "@/lib/ai";
-
-const safeFreshInfoFallback =
-  "ยังไม่พบแหล่งข้อมูลทางการที่ยืนยันได้ชัดเจนครับ กรุณาเช็กประกาศจากเว็บไซต์/หน่วยงานของมหาวิทยาลัยโดยตรงเพื่อความชัวร์ครับ";
+import { formatUnverifiedBuReply } from "@/src/presenters/chat-policy.presenter";
 
 const calendarQueryPattern =
   /(academic\s*calendar|calendar|holiday|ปฏิทิน|วันหยุด|วันหยุดมหาวิทยาลัย)/i;
@@ -95,7 +93,7 @@ export async function answerFreshInfoFromVerifiedSources(
   if (!response || !response.text || response.text.includes("VERIFIED_SOURCE_NOT_FOUND")) {
     return {
       sources: [],
-      text: safeFreshInfoFallback,
+      text: formatUnverifiedBuReply(message),
       usedWebSearch: true
     };
   }

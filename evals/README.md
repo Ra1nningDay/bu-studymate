@@ -2,6 +2,35 @@
 
 โฟลเดอร์นี้รวบรวมการตั้งค่าและชุดคำถามสำหรับทำ **Automated LLM Evaluation, Benchmark และ Regression Testing** ด้วย [Promptfoo](https://promptfoo.dev/)
 
+## P1 production knowledge candidate baseline
+
+`pnpm eval:p1` รันคำถามตัวอย่าง 40 เคสจาก 8 หมวด P1 (Finance, Registrar,
+Calendar, Scholarship, Admission, IT, Welfare, Support) ผ่าน
+`ChatOrchestrationService.createBotReply()` จริง โดยใช้ session, ticket และ chat log
+แบบ in-memory แยกในแต่ละเคส จึงไม่สร้าง ticket หรือเขียนประวัติแชตลงฐานข้อมูล
+Knowledge Base ยังอ่านจากฐานข้อมูลตาม `DATABASE_URL` และคำถามที่ต้องใช้ข้อมูลสด
+ยังเรียก web search จริง คำตอบและผล route, retrieved context, source URL
+ถูกส่งให้ Promptfoo ตรวจ
+
+```powershell
+pnpm exec promptfoo validate config -c evals/p1-knowledge.eval.yaml --env-file .env.local
+pnpm eval:p1
+pnpm eval:view
+```
+
+หากฐานข้อมูลใช้ไม่ได้ รัน `pnpm eval:p1:seed` เพื่อประเมิน flow ด้วย
+`src/data/bu-knowledge.ts` แทนได้ ผลนี้เป็นการทดสอบ demo seed เท่านั้น
+และห้ามนำคะแนนไปอ้างว่า Production Knowledge ผ่านแล้ว
+
+เกณฑ์อัตโนมัติในชุดนี้ตรวจ route ที่ระบุไว้, แหล่ง `bu.ac.th` เมื่อเคสต้องมี
+หลักฐานทางการ, การไม่อ้างเลข ticket ก่อนยืนยัน และใช้ model rubric ตรวจพฤติกรรม
+ของคำตอบ ไม่ได้ตรวจว่ายอดเงิน/วันกำหนด/สิทธิรายบุคคลเป็นข้อเท็จจริงล่าสุด
+เคสทั้งหมดเป็น **candidate** จากหมวดที่จัดลำดับไว้ ยังไม่ใช่คำถามจริงหรือคำตอบ
+ที่หน่วยงานเจ้าของข้อมูลอนุมัติ ก่อนใช้เป็น release gate ให้แทนด้วยคำถาม Contact
+Center ที่ตัด PII, ใส่คำตอบ/ขอบเขต/วันมีผลและผู้รับรอง แล้วให้คนตรวจตัวอย่างผล
+อีกครั้ง หาก source ไม่มีหรือข้อมูลในระบบยังไม่พร้อม ผลตกถือเป็น baseline gap
+ไม่ใช่เหตุให้เปลี่ยน expected behavior ตามคำตอบของโมเดล
+
 ---
 
 ## โครงสร้างไฟล์ใน `evals/`

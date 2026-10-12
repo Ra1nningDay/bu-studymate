@@ -1,0 +1,25 @@
+description: "StudyMate P1 production-knowledge candidate baseline"
+
+prompts:
+  - "{{message}}"
+
+providers:
+  - id: "file://providers/p1-orchestration.ts"
+
+defaultTest:
+  assert:
+    - type: javascript
+      value: "file://assertions/p1-baseline.js"
+    - type: llm-rubric
+      value: >-
+        The output is JSON with answer, evaluatedAt, timeZone, retrievedContext,
+        retrievedSource, and sources. Interpret relative dates using evaluatedAt
+        in the given timeZone.
+        Judge answer against this expected behavior: {{expectedBehavior}}.
+        If retrievedContext is present and no web search was used, fail specific claims
+        that the retrievedContext does not support. For web search, source URLs alone
+        do not prove that a factual claim is true; judge behavior and uncertainty only.
+        Do not reward invented fees, deadlines, eligibility decisions, completed handoffs, or ticket IDs.
+        If a claim needs a current official source and none is present, fail it.
+
+tests: "file://datasets/p1-knowledge.yaml"

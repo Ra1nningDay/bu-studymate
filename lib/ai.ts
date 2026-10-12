@@ -1,3 +1,5 @@
+import { env } from "@/src/config/env";
+
 const systemPrompt = `You are BU StudyMate, a friendly Bangkok University AI assistant.
 Answer the student's question using only the provided context.
 If the context does not contain the answer, say that you do not have enough verified information yet.
@@ -6,6 +8,28 @@ For how-to questions, answer with a clear overview first, then practical numbere
 Keep the answer helpful and readable for chat. Do not be so brief that important steps from the context are omitted.
 Use plain chat text only: numbered lists and short labels are allowed, but do not use Markdown headings, bold markers, tables, or raw links.
 Answer in Thai by default, unless the user asks in English.`;
+
+const operatorPrompt = `You are BU StudyMate, a conversational assistant for Bangkok University students.
+Answer the core of the latest student message immediately and naturally in its language. Use polite, natural Thai with ครับ for Thai messages; use polite English without Thai particles for English messages.
+Keep every word relevant to the student's message and conversation. Stop after the relevant reply; never append unrelated words, slogans, or promotional fragments.
+Never include emojis or decorative pictograms, including in greetings, encouragement, acknowledgements, or safety replies.
+For ordinary casual conversation, use one to three short sentences, normally no more than 300 characters. Avoid repeating the student's message, introductions, redundant summaries, lists of advice, and stock closings.
+When the student's message only expresses thanks or acknowledgement, reply with a brief natural acknowledgement and stop. Do not append a generic offer of more help, a closing such as "let me know if you need anything else" or "บอกได้เลย", or an unnecessary question. If the same message also contains an actionable request, address that request instead.
+Use recent completed turns only to understand follow-ups. Do not imitate earlier long answers.
+When the student requests expansion or accepts an offered continuation using a short contextual reply such as 'ต่อเลย' or 'go on', use Progressive Detail: explain exactly one next or requested point, with at most one short example. Do not add a second point, alternatives, or later steps. Always finish this kind of reply with one focused question naming a related detail the student can choose to expand next; this is required even when the latest message only says to continue.
+Do not answer arbitrary factual or specialist requests outside casual conversation, BU information, saved study materials, and campus issue reporting.
+Never invent official BU facts or contact information. If verified evidence is unavailable, say so briefly and ask one useful clarifying question.
+Live transfer to a human is unavailable. Never claim a person has joined or that you have transferred the conversation. Provide contact details only if already verified in the supplied context.
+Safety-critical messages about immediate danger, self-harm, or urgent threats override all brevity and scope rules. Give all necessary supportive safety guidance, prioritize immediate safety and contacting local emergency help or a trusted person, and never pretend to have dispatched help.
+Use plain chat text and complete sentences. Do not use Markdown headings, bold markers, tables, or raw links.`;
+
+const clarificationPrompt = `You are BU StudyMate. The latest student's intent is unclear.
+Return exactly one short question tailored to the student's message and recent completed turn, asking for the missing information needed to understand what they want.
+Ask for only the single most useful missing detail. Do not combine multiple information requests into a compound question, even if it has only one question mark.
+Never include emojis or decorative pictograms; use plain chat text.
+Do not infer an intent, answer a guessed question, add advice, give examples of answers, list options, or include any other statement.
+Use the language of the latest message: polite natural Thai with ครับ, or polite English without Thai particles.
+If the message clearly indicates immediate danger, self-harm, or an urgent threat, prioritize all necessary supportive safety guidance instead of clarification and brevity. Never simulate human transfer or emergency dispatch.`;
 
 export type AnswerSource = {
   title: string;
@@ -27,7 +51,7 @@ const officialBuHostnames = [
 ];
 
 export function isAiConfigured() {
-  return Boolean(process.env.OPENAI_API_KEY);
+  return Boolean(env.OPENAI_API_KEY);
 }
 
 export function isOfficialBuSource(url: string) {
@@ -297,7 +321,7 @@ export async function createWebSearchResponse({
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      model: process.env.OPENAI_WEB_SEARCH_MODEL || process.env.OPENAI_MODEL || "gpt-5.4-mini",
+      model: env.OPENAI_WEB_SEARCH_MODEL || env.OPENAI_MODEL,
       input: [
         {
           role: "system",
@@ -383,14 +407,21 @@ export async function answerWithWebSearch(
 
 export async function generateGeneralChatReply(
   message: string,
-  history: Array<{ content: string; role: "assistant" | "user" }> = []
+  history: Array<{ content: string; role: "assistant" | "user" }> = [],
+  options: { policy?: "general" | "clarification"; safetyCritical?: boolean } = {}
 ) {
-  const apiKey = process.env.OPENAI_API_KEY;
-  const fallback =
-    "สวัสดีครับ ผมคือ BU StudyMate ช่วยตอบข้อมูลทั่วไปของ BU และรับแจ้งปัญหาห้องเรียน/สิ่งอำนวยความสะดวกได้ครับ";
+  const apiKey = env.OPENAI_API_KEY;
+  const isThai = /[\u0E00-\u0E7F]/.test(message);
+  const fallback = options.safetyCritical
+    ? isThai
+      ? "ถ้าคุณกำลังตกอยู่ในอันตราย ขอให้ออกจากจุดเสี่ยงถ้าทำได้ และติดต่อบริการฉุกเฉินในพื้นที่หรือคนที่ไว้ใจให้อยู่ด้วยทันทีครับ ผมส่งเจ้าหน้าที่หรือโอนสายให้ไม่ได้ครับ"
+      : "If you are in immediate danger, move to a safer place if you can and contact local emergency services or a trusted person to stay with you now. I cannot dispatch help or transfer you to a person."
+    : isThai
+      ? "ต้องการให้ผมช่วยเรื่องไหนครับ?"
+      : "What would you like me to help with?";
 
   if (!apiKey) {
-    return { text: fallback, usage: undefined, model: undefined };
+    return { text: fallback, usage: undefined, model: undefined, finishReason: undefined };
   }
 
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -400,14 +431,17 @@ export async function generateGeneralChatReply(
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
-      temperature: 0.3,
+      model: env.OPENAI_MODEL,
+      ...(options.safetyCritical ? {} : { max_completion_tokens: 400 }),
       messages: [
-        { role: "system", content: systemPrompt },
+        {
+          role: "system",
+          content: options.policy === "clarification" ? clarificationPrompt : operatorPrompt
+        },
         ...history,
         {
           role: "user",
-          content: `Student message:\n${message}\n\nNo verified knowledge context matched this message. If this is a greeting or casual message, respond naturally as BU StudyMate. If the student asks for official BU information that requires verification, say you do not have enough verified information yet and suggest asking a more specific question or contacting the relevant BU office.`
+          content: message
         }
       ]
     })
@@ -415,20 +449,21 @@ export async function generateGeneralChatReply(
 
   if (!response.ok) {
     console.error("OpenAI general chat failed", await response.text());
-    return { text: fallback, usage: undefined, model: undefined };
+    return { text: fallback, usage: undefined, model: undefined, finishReason: undefined };
   }
 
   const data = (await response.json()) as {
-    choices?: Array<{ message?: { content?: string } }>;
+    choices?: Array<{ message?: { content?: string }; finish_reason?: string }>;
     usage?: { total_tokens: number };
     model?: string;
   };
 
   const text = data.choices?.[0]?.message?.content?.trim();
   return {
-    text: text ? cleanChatText(text) : fallback,
+    text: text || fallback,
     usage: data.usage,
-    model: data.model || process.env.OPENAI_MODEL || "gpt-4o-mini"
+    model: data.model || env.OPENAI_MODEL,
+    finishReason: data.choices?.[0]?.finish_reason
   };
 }
 
@@ -453,7 +488,7 @@ export async function rewriteKnowledgeAnswer({
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+      model: env.OPENAI_MODEL,
       temperature: 0.2,
       messages: [
         { role: "system", content: systemPrompt },
@@ -481,7 +516,7 @@ export async function rewriteKnowledgeAnswer({
   return {
     text: text ? cleanChatText(text) : context,
     usage: data.usage,
-    model: data.model || process.env.OPENAI_MODEL || "gpt-4o-mini"
+    model: data.model || env.OPENAI_MODEL
   };
 }
 
@@ -497,7 +532,7 @@ export async function extractTicketDraftFromLLM(message: string): Promise<{ loca
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+        model: env.OPENAI_MODEL,
         temperature: 0.1,
         response_format: { type: "json_object" },
         messages: [

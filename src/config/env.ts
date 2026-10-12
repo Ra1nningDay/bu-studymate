@@ -23,11 +23,19 @@ const envSchema = z.object({
 
   // AI & OpenRouter / OpenAI
   OPENAI_API_KEY: z.string().optional(),
-  OPENAI_MODEL: z.string().default("gpt-4o-mini"),
-  OPENAI_AGENT_ROUTER_MODEL: z.string().default("gpt-4.1-mini"),
-  OPENAI_WEB_SEARCH_MODEL: z.string().default("gpt-4.1-mini"),
+  OPENAI_MODEL: z.string().default("gpt-6-luna"),
+  OPENAI_AGENT_ROUTER_MODEL: z.string().default("gpt-6-luna"),
+  OPENAI_WEB_SEARCH_MODEL: z.string().default("gpt-6-luna"),
+  OPENROUTER_API_KEY: z.string().optional(),
+  AGENT_ROUTER_MODE: z.enum(["openai", "shadow", "jev"]).default("jev"),
+  JEV_ROUTER_MODEL: z.string().min(1).default("typesafe/jev-1.13"),
+  JEV_ROUTER_MIN_PROBABILITY: z.preprocess(
+    (value) => value === "" ? undefined : value,
+    z.coerce.number().min(0).max(1).default(0.8)
+  ),
 
   // Admin & App URL
+  ADMIN_USERNAME: z.string().default("admin"),
   ADMIN_PASSWORD: z.string().optional(),
   NEXT_PUBLIC_APP_URL: z.string().optional(),
   APP_URL: z.string().optional(),

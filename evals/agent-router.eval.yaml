@@ -27,6 +27,7 @@ providers:
                   - "CREATE_TICKET"
                   - "CHECK_TICKET_STATUS"
                   - "GENERAL_CHAT"
+                  - "OUT_OF_SCOPE"
                   - "UNKNOWN"
               confidence:
                 type: "number"
@@ -43,8 +44,11 @@ providers:
                   - "study_memory"
                   - "ticket"
                   - "general_chat"
+                  - "out_of_scope"
                   - "unknown"
               needsWebSearch:
+                type: "boolean"
+              safetyCritical:
                 type: "boolean"
             required:
               - "intent"
@@ -52,6 +56,7 @@ providers:
               - "reason"
               - "selectedTarget"
               - "needsWebSearch"
+              - "safetyCritical"
             additionalProperties: false
 
 tests: "file://datasets/agent-router.yaml"

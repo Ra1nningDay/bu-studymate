@@ -161,4 +161,142 @@
     message: "ช่วยแต่งกลอนเกี่ยวกับไดโนเสาร์กินพืชหน่อย"
   assert:
     - type: javascript
-      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.selectedTarget === 'unknown' || d.intent === 'UNKNOWN' || d.selectedTarget === 'general_chat'"
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.intent === 'OUT_OF_SCOPE' && d.selectedTarget === 'out_of_scope'"
+
+- vars:
+    message: "AC at room A3-402 is broken. Can someone fix it?"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.intent === 'CREATE_TICKET' && d.selectedTarget === 'ticket'"
+
+- vars:
+    message: "ไฟห้องเรียนดับอะ แจ้งช่างให้หน่อย"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.intent === 'CREATE_TICKET' && d.selectedTarget === 'ticket'"
+
+- vars:
+    message: "I lost my student ID near the library. Please report it."
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.intent === 'CREATE_TICKET' && d.selectedTarget === 'ticket'"
+
+- vars:
+    message: "Any update on my support ticket?"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.intent === 'CHECK_TICKET_STATUS' && d.selectedTarget === 'ticket'"
+
+- vars:
+    message: "เรื่องที่แจ้งซ่อมไปตอนเช้าคืบหน้ายัง"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.intent === 'CHECK_TICKET_STATUS' && d.selectedTarget === 'ticket'"
+
+- vars:
+    message: "How do I connect to BU Wi-Fi?"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.intent === 'ASK_BU_INFO' && d.selectedTarget === 'knowledge_base'"
+
+- vars:
+    message: "จะติดต่อห้องพยาบาล ม.กรุงเทพ ได้ที่ไหน"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.intent === 'ASK_BU_INFO' && d.selectedTarget === 'knowledge_base'"
+
+- vars:
+    message: "BU Mobile คืออะไร"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.intent === 'ASK_BU_INFO' && d.selectedTarget === 'knowledge_base'"
+
+- vars:
+    message: "How much is BU tuition for this academic year?"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.intent === 'ASK_FRESH_INFO' && d.selectedTarget === 'web_search' && d.needsWebSearch === true"
+
+- vars:
+    message: "ปีนี้รับสมัครรอบพอร์ตถึงวันไหน"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.intent === 'ASK_FRESH_INFO' && d.selectedTarget === 'web_search' && d.needsWebSearch === true"
+
+- vars:
+    message: "พรุ่งนี้ BU ปิดไหม"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.intent === 'ASK_FRESH_INFO' && d.selectedTarget === 'web_search' && d.needsWebSearch === true"
+
+- vars:
+    message: "What are the current admission requirements for BU?"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.intent === 'ASK_FRESH_INFO' && d.selectedTarget === 'web_search' && d.needsWebSearch === true"
+
+- vars:
+    message: "อาจารย์อธิบาย Queue ในโน้ตที่อัปโหลดว่ายังไง"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.intent === 'ASK_STUDY_MEMORY' && d.selectedTarget === 'study_memory'"
+
+- vars:
+    message: "Explain chapter 3 from my saved MKT101 notes"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.intent === 'ASK_STUDY_MEMORY' && d.selectedTarget === 'study_memory'"
+
+- vars:
+    message: "การบ้านในโน้ตวิชา IT232 ส่งวันไหน"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.intent === 'LIST_ASSIGNMENTS' && d.selectedTarget === 'study_memory'"
+
+- vars:
+    message: "List my upcoming homework deadlines"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.intent === 'LIST_ASSIGNMENTS' && d.selectedTarget === 'study_memory'"
+
+- vars:
+    message: "โชว์รายชื่อสมุดโน้ตที่เคยบันทึกไว้หน่อย"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.intent === 'LIST_NOTEBOOKS' && d.selectedTarget === 'study_memory'"
+
+- vars:
+    message: "Which course notebooks do I have?"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.intent === 'LIST_NOTEBOOKS' && d.selectedTarget === 'study_memory'"
+
+- vars:
+    message: "เปิดโน้ต Data Visualization ที่เก็บไว้"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.intent === 'VIEW_NOTEBOOK' && d.selectedTarget === 'study_memory'"
+
+- vars:
+    message: "Show my IT232 notebook"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.intent === 'VIEW_NOTEBOOK' && d.selectedTarget === 'study_memory'"
+
+- vars:
+    message: "หวัดดี ช่วยแนะนำตัวหน่อย"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.intent === 'GENERAL_CHAT' && d.selectedTarget === 'general_chat'"
+
+- vars:
+    message: "Hi, what can you help me with?"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.intent === 'GENERAL_CHAT' && d.selectedTarget === 'general_chat'"
+
+- vars:
+    message: "asdf123"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.intent === 'UNKNOWN' && d.selectedTarget === 'unknown'"

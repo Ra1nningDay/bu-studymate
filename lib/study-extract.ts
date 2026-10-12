@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { env } from "@/src/config/env";
 
 const assignmentSchema = z.object({
   title: z.string().trim().min(1).max(160),
@@ -87,7 +88,7 @@ export async function extractStudyNote(
   courseName: string,
   rawText: string
 ): Promise<ExtractedStudyNote> {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = env.OPENAI_API_KEY;
   if (!apiKey) {
     return createFallbackExtraction(rawText);
   }
@@ -100,7 +101,7 @@ export async function extractStudyNote(
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+        model: env.OPENAI_MODEL,
         response_format: { type: "json_object" },
         temperature: 0.1,
         messages: [

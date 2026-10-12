@@ -1,0 +1,9 @@
+description: "BU StudyMate - application router benchmark"
+
+prompts:
+  - "{{message}}"
+
+providers:
+  - id: "file://providers/app-router.ts"
+
+tests: "file://datasets/agent-router.yaml"

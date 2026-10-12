@@ -96,6 +96,33 @@ export class ChatLogRepository {
     }));
   }
 
+  async getRecentCompletedChatHistory(lineUserId: string, turnLimit = 4) {
+    const runs = await prisma.botRun.findMany({
+      where: {
+        lineUserId,
+        status: "success",
+        userMessageId: { not: null },
+        assistantMessageId: { not: null }
+      },
+      select: { userMessageId: true, assistantMessageId: true },
+      orderBy: { createdAt: "desc" },
+      take: turnLimit
+    });
+    const ids = runs.flatMap((run) => [run.userMessageId!, run.assistantMessageId!]);
+    const messages = await this.findMessagesByIds(ids);
+    const byId = new Map(messages.map((message) => [message.id, message]));
+
+    return runs.reverse().flatMap((run) => {
+      const user = byId.get(run.userMessageId!);
+      const assistant = byId.get(run.assistantMessageId!);
+      if (user?.role !== "user" || assistant?.role !== "assistant") return [];
+      return [
+        { content: user.content, role: "user" as const },
+        { content: assistant.content, role: "assistant" as const }
+      ];
+    });
+  }
+
   async findMessagesByIds(ids: string[]) {
     if (ids.length === 0) return [];
     return prisma.chatMessage.findMany({

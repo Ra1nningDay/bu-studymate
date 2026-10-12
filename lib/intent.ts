@@ -6,6 +6,7 @@ export type Intent =
   | "CREATE_TICKET"
   | "CHECK_TICKET_STATUS"
   | "GENERAL_CHAT"
+  | "OUT_OF_SCOPE"
   | "LIST_ASSIGNMENTS"
   | "LIST_NOTEBOOKS"
   | "VIEW_NOTEBOOK"
