@@ -7,15 +7,15 @@ import type { ChatLogRepository, CreateBotRunData, UpdateBotRunData } from "@/sr
 import type { ChatSessionRepository } from "@/src/repositories/chat-session.repository";
 import type { TicketRepository } from "@/src/repositories/ticket.repository";
 import type { KnowledgeRepository } from "@/src/repositories/knowledge.repository";
-import type { KnowledgeItem } from "@/lib/types";
-import { buKnowledgeRecords } from "@/src/data/bu-knowledge";
+import type { KnowledgeEvidence } from "@/src/repositories/knowledge.repository";
 
 class ObservedKnowledgeService extends KnowledgeService {
-  retrieved: KnowledgeItem | null = null;
+  retrieved: KnowledgeEvidence[] = [];
 
-  override async search(query: string) {
-    this.retrieved = await super.search(query);
-    return this.retrieved;
+  override async retrieve(...args: Parameters<KnowledgeService["retrieve"]>) {
+    const result = await super.retrieve(...args);
+    this.retrieved = result.items;
+    return result;
   }
 }
 
@@ -69,13 +69,10 @@ class P1OrchestrationProvider {
     } as unknown as ChatLogRepository;
 
     const seedRepo = {
-      listKnowledgeItems: async (take = 100) => buKnowledgeRecords.slice(0, take).map((item, index) => ({
-        ...item,
-        id: String(index),
-        createdAt: now,
-        updatedAt: now
-      }))
-    } as KnowledgeRepository;
+      // Demo seeds have no approval/source snapshot and must remain retrieval misses.
+      hasIndexedEvidence: async () => false,
+      hybridSearch: async () => []
+    } satisfies Pick<KnowledgeRepository, "hybridSearch" | "hasIndexedEvidence">;
     const knowledge = new ObservedKnowledgeService(knowledgeMode === "seed" ? seedRepo : undefined);
     const studyService = new Proxy({} as StudyMemoryService, {
       get: () => { throw new Error("Study memory is disabled in P1 evals"); }
@@ -105,8 +102,8 @@ class P1OrchestrationProvider {
         selectedTarget,
         usedWebSearch: Boolean(reply.usedWebSearch),
         sources: reply.sources ?? [],
-        retrievedContext: knowledge.retrieved?.content ?? null,
-        retrievedSource: knowledge.retrieved?.source ?? null,
+        retrievedContext: knowledge.retrieved.map((item) => item.content).join("\n\n") || null,
+        retrievedSource: knowledge.retrieved.map((item) => item.sourceUrl).join("\n") || null,
         executionLog: reply.executionLog ?? []
       };
       return {

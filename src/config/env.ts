@@ -39,6 +39,7 @@ const envSchema = z.object({
   ADMIN_PASSWORD: z.string().optional(),
   NEXT_PUBLIC_APP_URL: z.string().optional(),
   APP_URL: z.string().optional(),
+  CRON_SECRET: z.string().min(32).optional(),
 
   // Supabase
   NEXT_PUBLIC_SUPABASE_URL: z.string().optional(),

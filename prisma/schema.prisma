@@ -19,8 +19,36 @@ model KnowledgeItem {
   createdAt DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
 
+  sourceUrl       String?          @map("source_url")
+  sourceHash      String?          @map("source_hash")
+  contentHash     String?          @map("content_hash")
+  verifiedBy      String?          @map("verified_by")
+  verifiedAt      DateTime?        @map("verified_at") @db.Timestamptz(6)
+  reviewAfter     DateTime?        @map("review_after") @db.Timestamptz(6)
+  validFrom       DateTime?        @map("valid_from") @db.Timestamptz(6)
+  validUntil      DateTime?        @map("valid_until") @db.Timestamptz(6)
+  sourceStatus    String?          @map("source_status")
+  sourceCheckedAt DateTime?        @map("source_checked_at") @db.Timestamptz(6)
+  chunks          KnowledgeChunk[]
+
   @@index([category])
   @@map("knowledge_items")
+}
+
+model KnowledgeChunk {
+  id              String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  knowledgeItemId String                   @map("knowledge_item_id") @db.Uuid
+  ordinal         Int
+  content         String
+  documentHash    String                   @map("document_hash")
+  searchText      String                   @map("search_text")
+  searchVector    Unsupported("tsvector")? @default(dbgenerated()) @map("search_vector")
+  embedding       Unsupported("vector(1536)")
+  embeddingModel  String                   @map("embedding_model")
+  knowledgeItem   KnowledgeItem            @relation(fields: [knowledgeItemId], references: [id], onDelete: Cascade)
+
+  @@unique([knowledgeItemId, ordinal])
+  @@map("knowledge_chunks")
 }
 
 model Ticket {

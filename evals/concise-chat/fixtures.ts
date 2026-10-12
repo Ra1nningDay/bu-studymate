@@ -11,6 +11,7 @@ export async function createConciseChatFixture(options: {
   history?: ConversationMessage[];
   knowledgeMiss?: boolean;
   workflowReply?: string;
+  knowledgeService?: KnowledgeService;
 } = {}) {
   const { ChatOrchestrationService } = await import("@/src/services/chat-orchestration.service");
   const messages: CreateChatMessageData[] = [];
@@ -71,7 +72,7 @@ export async function createConciseChatFixture(options: {
     }
   } as unknown as KnowledgeService;
   return {
-    service: new ChatOrchestrationService(logRepository, tickets, study, knowledge),
+    service: new ChatOrchestrationService(logRepository, tickets, study, options.knowledgeService ?? knowledge),
     messages,
     runs,
     updates,

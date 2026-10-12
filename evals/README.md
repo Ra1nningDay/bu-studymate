@@ -19,8 +19,10 @@ pnpm eval:view
 ```
 
 หากฐานข้อมูลใช้ไม่ได้ รัน `pnpm eval:p1:seed` เพื่อประเมิน flow ด้วย
-`src/data/bu-knowledge.ts` แทนได้ ผลนี้เป็นการทดสอบ demo seed เท่านั้น
-และห้ามนำคะแนนไปอ้างว่า Production Knowledge ผ่านแล้ว
+โหมด seed จะไม่อ่านฐานข้อมูล แต่ demo seed เดิมไม่มีผู้รับรองและวันตรวจสอบ
+จึงเป็น knowledge miss และอาจใช้ web search จริง ห้ามนำคะแนนไปอ้างว่า
+Production Knowledge ผ่านแล้ว ดู [hybrid RAG](../docs/knowledge-rag.md) สำหรับ
+การนำเข้าข้อมูลที่ตรวจแล้วและการทดสอบ retrieval แบบสังเคราะห์
 
 เกณฑ์อัตโนมัติในชุดนี้ตรวจ route ที่ระบุไว้, แหล่ง `bu.ac.th` เมื่อเคสต้องมี
 หลักฐานทางการ, การไม่อ้างเลข ticket ก่อนยืนยัน และใช้ model rubric ตรวจพฤติกรรม
