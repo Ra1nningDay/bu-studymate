@@ -21,3 +21,21 @@ select,
 textarea {
   font: inherit;
 }
+
+.admin-workspace {
+  font-family: Inter, "Segoe UI", Tahoma, sans-serif;
+}
+
+/* Keep the chat composer visible while the history and trace scroll independently. */
+@media (min-width: 1280px) {
+  .chat-workspace {
+    height: calc(100dvh - 54px);
+    min-height: 640px;
+  }
+}
+
+@media (max-width: 1279px) {
+  .chat-messages {
+    max-height: 65dvh;
+  }
+}

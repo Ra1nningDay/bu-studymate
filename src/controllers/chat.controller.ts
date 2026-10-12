@@ -20,6 +20,9 @@ import {
 } from "@/src/presenters/chat-response.presenter";
 import { normalizeWebSessionId } from "@/lib/web-session";
 import { saveStudyFile } from "@/lib/study-file";
+import { adminAuthService } from "@/src/services/admin-auth.service";
+import { isSameOrigin } from "@/src/controllers/admin-auth.controller";
+import { ticketService, type TicketService } from "@/src/services/ticket.service";
 
 function getFormString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -30,10 +33,15 @@ export class ChatController {
   constructor(
     private chatSvc: ChatOrchestrationService = chatOrchestrationService,
     private rateLimitSvc: RateLimitService = rateLimitService,
-    private presenter: ChatResponsePresenter = chatResponsePresenter
+    private presenter: ChatResponsePresenter = chatResponsePresenter,
+    private auth = adminAuthService,
+    private ticketSvc: TicketService = ticketService,
+    private saveFile = saveStudyFile
   ) {}
 
   async handleWebChat(request: Request): Promise<NextResponse> {
+    if (!this.auth.isRequestAuthenticated(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!isSameOrigin(request)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     let bodyRaw: unknown;
 
     try {
@@ -81,6 +89,8 @@ export class ChatController {
   }
 
   async handleStudyUpload(request: Request): Promise<NextResponse> {
+    if (!this.auth.isRequestAuthenticated(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!isSameOrigin(request)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     let formData: FormData;
 
     try {
@@ -108,7 +118,8 @@ export class ChatController {
     }
 
     try {
-      const savedFile = await saveStudyFile({
+      await this.ticketSvc.getOrCreateChatSession(lineUserId);
+      const savedFile = await this.saveFile({
         buffer: Buffer.from(await file.arrayBuffer()),
         courseName: getFormString(formData, "courseName"),
         fileName: file.name,
