@@ -1,6 +1,6 @@
 # BU StudyMate Interface Design
 
-Source inspected: 2026-10-12, current working tree.
+Source inspected: 2026-10-13, current working tree.
 Status: source-inspected visual/interaction baseline with separately labeled
 maintenance targets. Admin Overview, shared login/navigation and Web Chat interactions
 were verified locally with synthetic persistence at desktop/mobile viewports;
@@ -32,6 +32,7 @@ runs. Keep student answers focused and place operational detail in admin views.
 | `/`, `/chat` | [root](app/page.tsx), [chat alias](app/chat/page.tsx) | Redirect to `/admin` and `/admin/chat`, respectively. |
 | `/admin/tickets` | [tickets page](app/admin/tickets/page.tsx) | Login/setup states, status badges and ticket management. |
 | `/admin/runs` | [runs page](app/admin/runs/page.tsx), [workspace](app/admin/runs/runs-workspace.tsx) | Emerald metric cards, 12-row paginated table and selected-run panel; desktop columns, mobile stacking. |
+| `/admin/knowledge` | [knowledge workspace](app/admin/knowledge/knowledge-workspace.tsx) | Reference table/filter layout, four corpus cards, 10/20/50-row paging and General/Content/Chunks/Usage panel; inline reviewed editor and mobile stacking. |
 | `/admin/playground` | [alias](app/admin/playground/page.tsx), [guide](docs/playground.md) | Redirect to `/admin/chat`; old report paths redirect to new report paths. |
 | LINE | [presenter](src/presenters/line-flex.presenter.ts), [templates](lib/flex-messages.ts) | Greeting, study packs, assignments, study answers and ticket confirmation. |
 
@@ -91,6 +92,8 @@ controls are keyboard-operable and source URLs only become links for HTTP(S).
   from a saved reply; inspect persisted state before retrying operational writes.
 - **Sources:** Preserve source URLs/titles when returned. A displayed source
   link does not independently validate answer freshness or correctness.
+  Campus RAG supplies citations from selected retrieved passage IDs; Web/LINE
+  reuse the existing source presentation. Admin knowledge management is described below.
 - **Ticket confirmation:** LINE presents confirm/cancel actions; retain the
   explicit draft review before creation. Status lookup is a separate workflow.
 - **Playground:** Selecting a saved reply exposes its saved run in Trace, Messages,
@@ -106,6 +109,13 @@ controls are keyboard-operable and source URLs only become links for HTTP(S).
   tab. Failed runs without a reply remain selectable. A missing admin password
   shows a setup state. The operational write notice was removed from the chat
   header at the user's request; environment guidance remains in the chat guide.
+  Knowledge/RAG steps retain this layout and expand into query changes, actual
+  keyword/vector counts, RRF/cosine values, candidate text and selected ranks.
+  Status and measured duration appear beside the step summary. RRF labels its
+  shared SQL timing; reranker labels rank changes without inventing a score.
+  Sources remain the final answer's citations. Old runs show only recorded data;
+  report chunk text opens by default. Long URLs truncate visually with the full
+  address on hover; long passage text wraps and renders literally.
 - **Admin access:** One login covers Overview, Web Chat, reports, Tickets, Runs and
   their private APIs. No password is passed through links or ticket forms. The
   shared header provides logout; mobile navigation opens as a dismissible drawer.
@@ -114,6 +124,31 @@ controls are keyboard-operable and source URLs only become links for HTTP(S).
   shows counts without an invented healthy/processing status or trend change.
 
 ## 5. Copy and Interaction Targets
+
+The Knowledge Base destination follows the supplied table/detail reference with
+the shared emerald shell and white panels. Four cards show actual corpus counts
+for total, ready, unapproved and needing review/index attention. Search and
+category/status/source filters cover all storage before 10/20/50-row pagination.
+Rows show title/content excerpt, category, source host, passages, updated date and
+status; category colors stay consistent across rows. A selected row opens the
+right panel with General, Content, Chunks and Usage tabs, keyboard arrow/Home/End
+support and a close control. Details preserve literal text and safe source links.
+Chunks show actual indexed passages and model labels. The article preview uses
+stored text; file size, PDF page count, processing/trend metrics and per-document
+usage are unavailable. Retrieval Playground opens Web Chat/Execution Trace.
+
+Verified locally at 1536×1024, 1024×768 and 390×844 with synthetic knowledge API
+mutations and actual Next rendering; see [knowledge-admin-01](.scratch/knowledge-admin/issues/01-knowledge-tab.md).
+
+Add/edit uses an inline labeled form, with fixed titles for existing documents,
+reviewed content, comma-separated keywords, official source URL/snapshot hash,
+reviewer and explicit Bangkok dates. Source snapshots do not imply approval;
+an unchecked review confirmation prevents saving and resets after content edits.
+Pending operations disable competing actions; failed saves retain form values.
+Leaving a changed form inside this workspace requires discarding its edits.
+Single source checks refresh status without renewing approval. There is no delete,
+bulk import or document extraction control. Columns stack below the wide desktop
+breakpoint, tables scroll within their panel and long content/URLs wrap.
 
 These are maintenance targets, not a claim that every existing screen satisfies
 them. Implement only through a task with acceptance criteria.

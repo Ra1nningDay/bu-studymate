@@ -1,6 +1,6 @@
 # BU StudyMate Architecture
 
-Source inspected: 2026-10-12, working tree based on `b3adabb`.
+Source inspected: 2026-10-13, current working tree.
 Status: source map of an existing application, including uncommitted changes.
 Playground local verification is recorded in [playground-01](.scratch/playground/issues/01-admin-playground.md).
 Real database/provider UAT and deployment remain unverified by this work.
@@ -29,8 +29,9 @@ PostgreSQL/Prisma, LINE integration and configured AI providers. Use
 | Request boundaries | [chat controller](src/controllers/chat.controller.ts), [LINE controller](src/controllers/line-webhook.controller.ts) | Parse/validate input, consume limits, handle channel delivery; LINE signature check. |
 | Chat orchestration | [ChatOrchestrationService](src/services/chat-orchestration.service.ts) | Workflow guards, route selection, execution and stored run/message linkage. |
 | AI routing and answers | [agent router](lib/agent-router.ts), [AI adapter](lib/ai.ts), [fresh information](lib/fresh-info.ts) | Configured model calls and answer generation/retrieval. |
-| Campus knowledge | [knowledge service](src/services/knowledge.service.ts) | Rank repository items and rewrite an answer from selected content; report misses. |
+| Campus knowledge | [knowledge service](src/services/knowledge.service.ts), [query rewrite](lib/knowledge-query.ts), [rerank adapter](lib/knowledge-rerank.ts), [hybrid guide](docs/knowledge-rag.md) | Rewrite follow-ups using recent history, retrieve approved current candidates with keyword/vector RRF, rerank into five passages, generate from cited evidence and report misses. |
 | Study memory | [study service](src/services/study-memory.service.ts), [file ingestion](lib/study-file.ts) | Saved notes/materials, assignments, tutoring, file extraction/OCR. |
+| Knowledge admin | [workspace](app/admin/knowledge/knowledge-workspace.tsx), [controller](src/controllers/knowledge-admin.controller.ts), [service](src/services/knowledge-admin.service.ts) | Authenticated search/pagination, evidence availability, reviewed add/edit and individual source checks through shared ingestion. |
 | Facility tickets | [ticket service](src/services/ticket.service.ts) | Draft/session workflow, confirmation, creation and status lookup. |
 | Presentation | [web presenter](src/presenters/chat-response.presenter.ts), [LINE presenter](src/presenters/line-flex.presenter.ts) | Channel response shaping; LINE presenter wraps [Flex templates](lib/flex-messages.ts). |
 | Persistence | `src/repositories/`, [schema](prisma/schema.prisma), [Prisma client](lib/prisma.ts) | Prisma-backed reads/writes and persisted contracts. |
@@ -89,8 +90,22 @@ typing indicator. File uploads use a separate controller path and
 
 [prisma/schema.prisma](prisma/schema.prisma) owns the persisted shape:
 
-- `KnowledgeItem`: campus content, keywords and source. An embedding field exists;
-  the inspected knowledge service uses lexical ranking, not vector retrieval.
+- `KnowledgeItem`: campus content, keywords, canonical source, snapshot hash,
+  reviewer and verification/review/validity dates. Legacy rows are unapproved.
+- `KnowledgeChunk`: bounded passages, Thai/English full-text index and compatible
+  pgvector embeddings. Repository filters evidence validity before keyword/vector
+  ranking; up to 40 fused candidates reach the LLM rerank adapter, which selects
+  at most five original passages and falls back to RRF order on failure. Service
+  supplies selected passages and validated source IDs to generation. With history,
+  the query rewrite adapter resolves follow-ups before embedding/retrieval/rerank,
+  falling back to the original query on failure. Generation retains the original
+  question/history. Service counts rewrite/rerank usage and reports their
+  status/models in the existing execution trace. New knowledge runs also retain
+  measured stage durations, query changes, bounded candidate snapshots and
+  before/selected ranks in existing run JSON. SQL supplies keyword/vector ranks;
+  RRF shares the retrieval SQL duration. Playground validates these optional
+  fields on read and Web Chat/report render expandable details. Old logs remain
+  readable. No eligible corpus skips these calls.
 - `ChatSession` and `Ticket`: workflow state/drafts and facility records.
 - `ChatMessage` and `BotRun`: conversation records and linked execution metadata.
 - `Notebook`, `UserMemory`, `StudyMaterial`, `MaterialChunk`, `Assignment`: saved learning context.
@@ -136,6 +151,25 @@ chat/Playground URLs redirect to the unified workspace. LINE signature checks re
 separate. See [admin-01](.scratch/admin-dashboard/issues/01-unified-workspace.md)
 for scope, checks and evidence boundaries.
 
+`/admin/knowledge` requires admin auth before loading its initial list. Its
+`/api/admin/knowledge` read/save, `/source` snapshot and `/{id}/check` endpoints
+use the same cookie, same-origin writes and strict DTO validation. Repository
+search/count reads page through all documents, including unapproved legacy rows.
+Availability explains current approval, validity, source and compatible-index
+gates; it does not claim factual correctness. Admin saves reuse reviewed ingestion
+and atomic document/chunk replacement. The repository verifies the selected
+identity inside the transaction: creates reject title collisions and edits keep
+the original title/ID. CLI manifests retain their existing upsert-by-title behavior.
+Individual checks reuse the scheduled checker with an optional ID filter; they
+do not renew review dates. No schema or retrieval-policy change was introduced.
+
+The reference UI adds repository-backed corpus counts and category/status/source
+filters before pagination. Counts use the approval, date, source, content
+fingerprint and compatible passage gates; no processing history is inferred.
+`GET /api/admin/knowledge/{id}` reads ordered indexed passages without vectors.
+Detail tabs and article previews use stored text. Per-document usage/file metadata
+is unavailable; question testing reuses Web Chat and saved Knowledge Base runs.
+
 Overview counts/aggregates run in `AdminOverviewRepository`, including parameterized
 SQL for distinct message identities and daily Bangkok buckets. The service fills
 the seven-day series and derives run success/intent percentages. Successful run
@@ -149,6 +183,7 @@ is needed for dashboard reads.
 |---|---|---|
 | Casual chat or ambiguous message | Orchestrator → router/AI → chat-policy presenter | `pnpm test:concise-chat`; inspect fixed boundaries and recorded history behavior. |
 | Official BU question | Router → knowledge service; miss may use fresh-info path | Inspect selected evidence and fallback; provider/UAT checks are separate from synthetic tests. |
+| Reviewed knowledge import / source check | CLI or authenticated check controller → ingestion service → repository / bounded source adapter | `pnpm test:knowledge`, isolated `pnpm test:knowledge:db`; real corpus approval and deployment remain separate. |
 | Facility issue and confirmation | Orchestrator → ticket service → repositories/presenter | Check draft/confirm/cancel/status sequence in the intended test environment. |
 | PDF/DOCX upload | Chat/LINE controller → study-file → study memory | Check parser/OCR errors and identity-scoped persistence with test files. |
 | Saved Playground report | Playground controller/service → repository → report UI | Verify auth, transcript linkage and report reads using the guide. |
