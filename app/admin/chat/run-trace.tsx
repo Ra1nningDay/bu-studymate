@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ChevronDown, CircleDot, Copy, Cpu, Database, ExternalLink, FileText, TriangleAlert } from "lucide-react";
 import type { PlaygroundConversation, PlaygroundRun } from "@/src/dtos/playground.dto";
 import { ChatSources } from "./chat-ui";
+import { KnowledgeTraceDetails } from "./knowledge-trace-details";
 
 export function RunTrace({ run, conversation, interactive = false }: { run: PlaygroundRun; conversation: PlaygroundConversation; interactive?: boolean }) {
   const [tab, setTab] = useState("trace");
@@ -31,8 +32,8 @@ export function RunTrace({ run, conversation, interactive = false }: { run: Play
           {run.executionLog.map((entry, index) => <li key={index} className="relative border-l border-emerald-300 pb-6 pl-5 last:border-transparent last:pb-0">
             <span className="absolute -left-1.5 top-3 flex h-3 w-3 items-center justify-center rounded-full bg-emerald-700 text-[8px] text-white">{index + 1}</span>
             <details className="group">
-              <summary className="flex cursor-pointer list-none items-start gap-3 rounded-lg focus-visible:outline-emerald-700"><span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${entry.action === "Error" ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700"}`}>{entry.action === "Error" ? <TriangleAlert aria-hidden="true" className="h-4 w-4" /> : <CircleDot aria-hidden="true" className="h-4 w-4" />}</span><span className="min-w-0 flex-1 pt-1"><span className="block break-words text-xs font-semibold">{index + 1}. {entry.action}</span><span className="mt-1 block truncate text-[11px] text-slate-500">{entry.details ?? "ขั้นตอนที่บันทึกไว้"}</span></span><ChevronDown aria-hidden="true" className="mt-2 h-3.5 w-3.5 shrink-0 text-slate-500 transition group-open:rotate-180" /></summary>
-              <p className="ml-[52px] mt-2 whitespace-pre-wrap break-words rounded-lg bg-slate-50 p-3 text-xs leading-6 text-slate-600">{entry.details ?? "ไม่ได้บันทึกรายละเอียดเพิ่มเติม"}</p>
+              <summary className="flex cursor-pointer list-none items-start gap-3 rounded-lg focus-visible:outline-emerald-700"><span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${entry.action === "Error" || entry.status === "error" ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700"}`}>{entry.action === "Error" || entry.status === "error" ? <TriangleAlert aria-hidden="true" className="h-4 w-4" /> : <CircleDot aria-hidden="true" className="h-4 w-4" />}</span><span className="min-w-0 flex-1 pt-1"><span className="block break-words text-xs font-semibold">{index + 1}. {entry.action}</span><span className="mt-1 block truncate text-[11px] text-slate-500">{entry.details ?? "ขั้นตอนที่บันทึกไว้"}</span>{entry.status && <span className={`mt-2 inline-block rounded px-2 py-0.5 text-[10px] ${entry.status === "applied" ? "bg-emerald-50 text-emerald-700" : entry.status === "error" ? "bg-rose-50 text-rose-700" : "bg-amber-50 text-amber-800"}`}>{{ applied: "สำเร็จ", fallback: "ใช้ fallback", skipped: "ข้าม", error: "ไม่สำเร็จ" }[entry.status]}</span>}</span>{entry.durationMs !== undefined && <span className="mt-2 shrink-0 text-[10px] tabular-nums text-slate-500">{entry.durationMs.toLocaleString()} ms</span>}<ChevronDown aria-hidden="true" className="mt-2 h-3.5 w-3.5 shrink-0 text-slate-500 transition group-open:rotate-180" /></summary>
+              <div className="ml-[52px] mt-2 min-w-0"><p className="whitespace-pre-wrap break-words rounded-lg bg-slate-50 p-3 text-xs leading-6 text-slate-600">{entry.details ?? "ไม่ได้บันทึกรายละเอียดเพิ่มเติม"}</p><KnowledgeTraceDetails data={entry.rag} /></div>
             </details>
           </li>)}
           {!run.executionLog.length && <li className="text-sm text-slate-500">ไม่ได้บันทึกรายขั้น</li>}
@@ -51,7 +52,7 @@ export function RunTrace({ run, conversation, interactive = false }: { run: Play
         <dl className="grid grid-cols-2 gap-3 text-xs">{[["Intent", run.intent], ["Target", run.selectedTarget], ["Router", run.routerType], ["Confidence", run.routerConfidence?.toFixed(2)], ["Session ก่อนตอบ", run.sessionState]].map(([label, value]) => <div key={label}><dt className="text-slate-500">{label}</dt><dd className="mt-1 break-words font-medium">{value ?? "ไม่ได้บันทึก"}</dd></div>)}</dl>
         <div className="rounded-lg bg-slate-50 p-3 text-xs leading-6"><h3 className="font-semibold">เหตุผลที่เลือกเส้นทาง</h3><p className="mt-1 whitespace-pre-wrap break-words text-slate-600">{run.routerReason ?? "ไม่ได้บันทึก"}</p><p className="mt-3 text-slate-500">Web search: {run.usedWebSearch ? "yes" : "no"} · Study memory: {run.usedStudyMemory ? "yes" : "no"} · Ticket flow: {run.usedTicketFlow ? "yes" : "no"}</p></div>
         {run.errorCode && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-xs text-rose-800">Error: {run.errorCode}</p>}
-        <p className="text-[11px] leading-5 text-slate-500">แสดงข้อมูลหลังจบเทิร์น ยังไม่ได้บันทึกเวลารายขั้น คะแนนแหล่งข้อมูล และ tokens แยก input/output</p>
+        <p className="text-[11px] leading-5 text-slate-500">{run.executionLog.some((entry) => entry.rag) ? "RRF ใช้เวลาร่วมกับ Hybrid Retrieval (SQL) · Reranker แสดงลำดับ ไม่มี relevance score · Tokens แสดงยอดรวมที่ provider รายงาน" : "แสดงข้อมูลหลังจบเทิร์น ยังไม่ได้บันทึกเวลารายขั้น คะแนนแหล่งข้อมูล และ tokens แยก input/output"}</p>
         <a href={`/admin/runs?run=${encodeURIComponent(run.id)}`} className="flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-3 text-xs font-medium hover:bg-emerald-50 focus-visible:outline-emerald-700"><ExternalLink aria-hidden="true" className="h-4 w-4" />ดูรายละเอียดในหน้า Bot Runs</a>
       </div>}
       {tab === "messages" && <div className="space-y-3">{messages.map((message) => <article key={message.id} className={`rounded-xl p-3 ${message.role === "user" ? "bg-emerald-50" : "bg-slate-50"}`}><h3 className="text-xs font-semibold">{message.role === "user" ? "ผู้ใช้" : "StudyMate"}</h3><p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 [overflow-wrap:anywhere]">{message.text}</p></article>)}{!messages.length && <p className="text-sm text-slate-500">ไม่มีข้อความที่เชื่อมกับเทิร์นนี้</p>}</div>}
@@ -100,6 +101,8 @@ function RunTraceReport({ run, conversation }: { run: PlaygroundRun; conversatio
               <li key={index} className="text-sm">
                 <p className="font-medium">{index + 1}. {entry.action}</p>
                 {entry.details && <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-5 text-slate-500">{entry.details}</p>}
+                {(entry.status || entry.durationMs !== undefined) && <p className="mt-1 text-xs text-slate-500">{entry.status}{entry.durationMs !== undefined && ` · ${entry.durationMs.toLocaleString()} ms`}</p>}
+                <KnowledgeTraceDetails data={entry.rag} expanded />
               </li>
             ))}
           </ol>
@@ -124,7 +127,7 @@ function RunTraceReport({ run, conversation }: { run: PlaygroundRun; conversatio
           </ul>
         ) : <p className="mt-2 text-sm text-slate-500">ไม่มีแหล่งข้อมูลที่บันทึก</p>}
       </section>
-      <p className="border-t border-slate-100 pt-3 text-xs leading-5 text-slate-500">Trace แสดงข้อมูลหลังจบเทิร์น เวลารายขั้นและ token แยกแต่ละ model call ยังไม่ได้บันทึก</p>
+      <p className="border-t border-slate-100 pt-3 text-xs leading-5 text-slate-500">{run.executionLog.some((entry) => entry.rag) ? "RRF ใช้เวลาร่วมกับ Hybrid Retrieval (SQL) · Reranker แสดงลำดับ ไม่มี relevance score · แสดง snapshot ของเทิร์นที่บันทึก" : "Trace แสดงข้อมูลหลังจบเทิร์น เวลารายขั้นและ token แยกแต่ละ model call ยังไม่ได้บันทึก"}</p>
     </div>
   );
 }

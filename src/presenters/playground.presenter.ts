@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import type { PlaygroundConversation, PlaygroundSession } from "@/src/dtos/playground.dto";
 import type { PlaygroundRepository } from "@/src/repositories/playground.repository";
+import { KnowledgeTraceDataSchema, TraceStatusSchema } from "@/src/dtos/playground.dto";
 
 function object(value: Prisma.JsonValue): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
@@ -67,7 +68,13 @@ export function presentPlaygroundConversation(
         executionLog: logs.flatMap((entry) => {
           if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [];
           const action = string(entry.action);
-          return action ? [{ action, ...(typeof entry.details === "string" ? { details: entry.details } : {}) }] : [];
+          const duration = number(entry.durationMs);
+          const status = TraceStatusSchema.safeParse(entry.status);
+          const rag = KnowledgeTraceDataSchema.safeParse(entry.rag);
+          return action ? [{ action, ...(typeof entry.details === "string" ? { details: entry.details } : {}),
+            ...(duration !== null && duration >= 0 ? { durationMs: duration } : {}),
+            ...(status.success ? { status: status.data } : {}),
+            ...(rag.success ? { rag: rag.data } : {}) }] : [];
         })
       };
     })

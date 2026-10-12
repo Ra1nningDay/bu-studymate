@@ -34,16 +34,13 @@ import {
 } from "@/src/services/ticket.service";
 import type { ChatSession } from "@/lib/types";
 import { formatOutOfScopeReply } from "@/src/presenters/chat-policy.presenter";
+import type { ExecutionLogEntry } from "@/src/dtos/playground.dto";
+export type { ExecutionLogEntry } from "@/src/dtos/playground.dto";
 
 export type BotReplyInput = {
   channel?: ChatChannel;
   lineUserId: string;
   message: string;
-};
-
-export type ExecutionLogEntry = {
-  action: string;
-  details?: string;
 };
 
 export type BotReply = {
@@ -546,6 +543,7 @@ export class ChatOrchestrationService {
       reply.executionLog = executionLog;
     } else if (intent === "ASK_BU_INFO") {
       const knowledgeAnswer = await this.knowledgeSvc.answerQuestion(trimmedMessage, history);
+      executionLog.push(...(knowledgeAnswer.trace ?? []));
       if (knowledgeAnswer.isMiss) {
         executionLog.push({ action: "Knowledge Base Miss - Falling back to Web Search" });
         reply = await answerFreshInfoFromVerifiedSources(trimmedMessage, history);
@@ -559,13 +557,9 @@ export class ChatOrchestrationService {
           reply.usage = knowledgeAnswer.usage;
         }
       } else {
-        executionLog.push({
-          action: "Search Knowledge Base",
-          details: knowledgeAnswer.model ? `Model: ${knowledgeAnswer.model}` : "Exact / Semantic match"
-        });
         reply = asReply(
           knowledgeAnswer.text,
-          undefined,
+          knowledgeAnswer.sources,
           knowledgeAnswer.usage,
           knowledgeAnswer.model,
           undefined,
@@ -643,10 +637,16 @@ export class ChatOrchestrationService {
       );
     }
 
+    const outputStarted = performance.now();
     if (reply.sources && reply.sources.length > 0) {
       const uniqueSources = Array.from(new Set(reply.sources.map((s) => s.url)));
       const sourcesList = uniqueSources.map((url) => `- ${url}`).join("\n");
       reply.text += "\n\nแหล่งข้อมูล:\n" + sourcesList;
+    }
+
+    if (intent === "ASK_BU_INFO") {
+      executionLog.push({ action: "Output", durationMs: Math.round(performance.now() - outputStarted),
+        status: "applied", details: `เตรียมคำตอบพร้อม ${reply.sources?.length ?? 0} citations` });
     }
 
     return reply;
@@ -749,6 +749,7 @@ export class ChatOrchestrationService {
           replyLength: reply.text.length,
           sourceCount: reply.sources?.length ?? 0,
           tokensUsed: totalTokens > 0 ? totalTokens : undefined,
+          sourceUrls: reply.sources?.map((source) => source.url) ?? [],
           modelName: finalModel,
           sessionState: session.state,
           executionLog: reply.executionLog

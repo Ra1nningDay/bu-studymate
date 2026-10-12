@@ -26,6 +26,33 @@ export type PlaygroundMessage = {
   sources: string[];
 };
 
+export const TraceStatusSchema = z.enum(["applied", "fallback", "skipped", "error"]);
+export const KnowledgeTraceDataSchema = z.object({
+  originalQuery: z.string().max(7500).optional(),
+  query: z.string().max(7500).optional(),
+  model: z.string().optional(),
+  tokens: z.number().int().nonnegative().optional(),
+  keywordCount: z.number().int().nonnegative().max(20).optional(),
+  vectorCount: z.number().int().nonnegative().max(20).optional(),
+  chunks: z.array(z.object({
+    id: z.string(), title: z.string(), sourceUrl: z.string(),
+    content: z.string().max(2400).optional(),
+    rank: z.number().int().positive(),
+    selectedRank: z.number().int().positive().optional(),
+    keywordRank: z.number().int().positive().nullable().optional(),
+    vectorRank: z.number().int().positive().nullable().optional(),
+    rrfScore: z.number().finite().nonnegative(),
+    similarity: z.number().finite().min(-1).max(1).nullable()
+  })).max(40).optional()
+});
+export type ExecutionLogEntry = {
+  action: string;
+  details?: string;
+  durationMs?: number;
+  status?: z.infer<typeof TraceStatusSchema>;
+  rag?: z.infer<typeof KnowledgeTraceDataSchema>;
+};
+
 export type PlaygroundRun = {
   id: string;
   userMessageId: string | null;
@@ -47,7 +74,7 @@ export type PlaygroundRun = {
   usedWebSearch: boolean;
   usedStudyMemory: boolean;
   usedTicketFlow: boolean;
-  executionLog: Array<{ action: string; details?: string }>;
+  executionLog: ExecutionLogEntry[];
 };
 
 export type PlaygroundConversation = PlaygroundSession & {

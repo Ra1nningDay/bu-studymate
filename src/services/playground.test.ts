@@ -234,3 +234,20 @@ test("shared orchestration returns the persisted run ID without changing reply b
     assert.equal((fixture.updates[0].metadata as Record<string, unknown>).routerType, "hard_guard");
   } finally { globalThis.fetch = originalFetch; }
 });
+
+test("presenter retains bounded RAG details and drops invalid telemetry without losing legacy actions", () => {
+  const chunk = { id: "chunk", title: "Wi-Fi", sourceUrl: "https://bu.ac.th/wifi", content: "<script>fixture</script>",
+    rank: 8, selectedRank: 1, rrfScore: 0.016, similarity: 0.8, keywordRank: null, vectorRank: 8 };
+  const logs = [
+    { action: "Query Rewrite", durationMs: 0, status: "skipped", rag: { originalQuery: "iPhone", query: "Wi-Fi iPhone", tokens: 0 } },
+    { action: "Reranker", durationMs: 12, status: "applied", rag: { chunks: [chunk] } },
+    { action: "Legacy", details: "Existing step" },
+    { action: "Malformed", durationMs: -1, status: "made-up", rag: { chunks: [{ ...chunk, rank: -2 }] } }
+  ];
+  const data = { session: { lineUserId: `web-chat-${sessionId}`, state: "IDLE", createdAt: new Date() }, messages: [],
+    runs: [{ id: "run", status: "success", createdAt: new Date(), metadata: { executionLog: logs } }]
+  } as unknown as NonNullable<Awaited<ReturnType<InstanceType<typeof Repository>["getConversation"]>>>;
+  const output = presenter(data).runs[0].executionLog;
+  assert.deepEqual(output.slice(0, 3), logs.slice(0, 3));
+  assert.deepEqual(output[3], { action: "Malformed" });
+});
