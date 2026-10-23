@@ -137,6 +137,15 @@ model RateLimitEvent {
   @@map("rate_limit_events")
 }
 
+model StudentAccount {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  lineUserId String   @unique @map("line_user_id")
+  email      String   @unique
+  verifiedAt DateTime @default(now()) @map("verified_at") @db.Timestamptz(6)
+
+  @@map("student_accounts")
+}
+
 model Notebook {
   id         String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   lineUserId String          @map("line_user_id")
