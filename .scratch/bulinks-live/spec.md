@@ -1,7 +1,7 @@
 # BU Links live lookup
 
 Updated: 2026-10-24
-Status: planned (nothing implemented); see [the plan](../../docs/superpowers/plans/2026-10-24-bulinks-live-lookup.md)
+Status: implemented locally, 2026-10-24 (not merged or deployed); see [the ticket](issues/01-live-lookup.md) and [the plan](../../docs/superpowers/plans/2026-10-24-bulinks-live-lookup.md)
 
 ## What the user asked for
 

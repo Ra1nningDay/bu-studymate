@@ -30,6 +30,7 @@ PostgreSQL/Prisma, LINE integration and configured AI providers. Use
 | Chat orchestration | [ChatOrchestrationService](src/services/chat-orchestration.service.ts) | Workflow guards, route selection, execution and stored run/message linkage. |
 | AI routing and answers | [agent router](lib/agent-router.ts), [AI adapter](lib/ai.ts), [fresh information](lib/fresh-info.ts) | Configured model calls and answer generation/retrieval. |
 | Campus knowledge | [knowledge service](src/services/knowledge.service.ts), [query rewrite](lib/knowledge-query.ts), [rerank adapter](lib/knowledge-rerank.ts), [hybrid guide](docs/knowledge-rag.md) | Rewrite follow-ups using recent history, retrieve approved current candidates with keyword/vector RRF, rerank into five passages, generate from cited evidence (appending cited FAQ action links) and report misses. |
+| BU Links live lookup | [client](lib/bulinks.ts), [service](src/services/bulinks.service.ts), [presenter](src/presenters/bulinks.presenter.ts), [guide](docs/bulinks-live-lookup.md) | Fresh-info and knowledge-miss questions try live BU Links announcements and service-page links first, with no LLM; a null result or error falls back to web search. |
 | Study memory | [study service](src/services/study-memory.service.ts), [file ingestion](lib/study-file.ts) | Saved notes/materials, assignments, tutoring, file extraction/OCR. |
 | Knowledge admin | [workspace](app/admin/knowledge/knowledge-workspace.tsx), [controller](src/controllers/knowledge-admin.controller.ts), [service](src/services/knowledge-admin.service.ts) | Authenticated search/pagination, evidence availability, reviewed add/edit and individual source checks through shared ingestion. |
 | Facility tickets | [ticket service](src/services/ticket.service.ts) | Draft/session workflow, confirmation, creation and status lookup. |
@@ -210,7 +211,7 @@ is needed for dashboard reads.
 | Request | Source path | Relevant verification |
 |---|---|---|
 | Casual chat or ambiguous message | Orchestrator → router/AI → chat-policy presenter | `pnpm test:concise-chat`; inspect fixed boundaries and recorded history behavior. |
-| Official BU question | Router → knowledge service; miss may use fresh-info path | Inspect selected evidence and fallback; provider/UAT checks are separate from synthetic tests. |
+| Official BU question | Router → knowledge service; miss may use fresh-info path (BU Links lookup first, then web search) | Inspect selected evidence and fallback; provider/UAT checks are separate from synthetic tests. |
 | Reviewed knowledge import / source check | CLI or authenticated check controller → ingestion service → repository / bounded source adapter | `pnpm test:knowledge`, isolated `pnpm test:knowledge:db`; real corpus approval and deployment remain separate. |
 | Facility issue and confirmation | Orchestrator → ticket service → repositories/presenter | Check draft/confirm/cancel/status sequence in the intended test environment. |
 | PDF/DOCX upload | Chat/LINE controller → study-file → study memory | Check parser/OCR errors and identity-scoped persistence with test files. |

@@ -1,13 +1,15 @@
 # StudyMate Work Status
 
-Updated: 2026-10-23
+Updated: 2026-10-24
 
 This index owns local work status. Specs and tickets own scope and verification;
 [AGENTS.md](../AGENTS.md) owns working rules. A plan is not implementation proof.
 
 ## Current Handoff
 
-- Latest effort: FAQ file import ([knowledge-rag-05](knowledge-rag/issues/05-faq-file-import.md)),
+- Latest effort: BU Links live lookup ([bulinks-live-01](bulinks-live/issues/01-live-lookup.md)),
+  implemented locally on branch `feat/bulinks-live-lookup`, 2026-10-24; not merged or deployed.
+  Previous effort: FAQ file import ([knowledge-rag-05](knowledge-rag/issues/05-faq-file-import.md)),
   migrated and imported on 2026-10-24; two retrieval gaps recorded in the ticket.
   Previous completed effort: Knowledge multi-select and bulk actions,
   ticket [knowledge-admin-02](knowledge-admin/issues/02-bulk-actions.md), verified locally.
@@ -25,6 +27,7 @@ This index owns local work status. Specs and tickets own scope and verification;
 
 | Effort | Status | Record | Evidence boundary |
 |---|---|---|---|
+| BU Links live lookup | Resolved locally, 2026-10-24; not merged or deployed | [bulinks-live-01](bulinks-live/issues/01-live-lookup.md) | 16 bulinks + 19 concise-chat + 46 knowledge tests (fake fetch), typecheck/lint passed. Live read-only GET smoke of bulinks.bu.ac.th and a six-question sample (real router and models, no DB writes) recorded; calendar and BU NEWS link-only; known limits in ticket. |
 | Student Google sign-in (bumail.net) | Implemented locally, 2026-10-23; manual Google/LINE check pending | [student-auth-01](student-auth/issues/01-google-signin.md) | 42 tests with fake Google/LINE/DB, typecheck/lint passed. Migration SQL written, not applied; no real OAuth client, bumail account, LINE or deployment check. |
 | FAQ file import + action links | Resolved, 2026-10-24; migrated and imported to the connected database | [knowledge-rag-05](knowledge-rag/issues/05-faq-file-import.md) | 45 knowledge tests + related, typecheck/lint passed. Isolated-schema DB check passed; 220 items imported, after keyword equivalents a 13-question sample answered 12 right/1 correct miss, links unchecked, no deployment. |
 | Knowledge bulk actions | Resolved, 2026-10-13 | [knowledge-admin-02](knowledge-admin/issues/02-bulk-actions.md) | 94 tests, isolated DB rollback/cascade/preservation checks, synthetic desktop/mobile UI, auth/origin smoke, typecheck/lint and AST refresh passed. Commit/push authorized; no public mutations, real-provider save UAT or deployment. |
