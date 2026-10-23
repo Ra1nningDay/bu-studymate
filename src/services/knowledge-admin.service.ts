@@ -3,7 +3,7 @@ import { knowledgeContentHash, knowledgeEmbeddingText, splitKnowledgeContent, to
 import { embedKnowledge, knowledgeEmbeddingModel } from "@/lib/knowledge-embedding";
 import { fetchKnowledgeSource } from "@/lib/knowledge-source";
 import type { KnowledgeSave, KnowledgeFilters, KnowledgeBulk } from "@/src/dtos/knowledge-admin.dto";
-import { officialKnowledgeUrlSchema } from "@/src/dtos/knowledge.dto";
+import { knowledgeActionLinkSchema, officialKnowledgeUrlSchema, type ActionLink } from "@/src/dtos/knowledge.dto";
 import { knowledgeRepository, type KnowledgeRepository, type KnowledgeMetadataUpdate } from "@/src/repositories/knowledge.repository";
 import { knowledgeIngestionService, type KnowledgeIngestionService } from "./knowledge-ingestion.service";
 
@@ -102,15 +102,19 @@ export class KnowledgeAdminService {
 
   async save({ id, document }: KnowledgeSave) {
     if (document.sourceKind !== "PAGE") throw new KnowledgeAdminError("ฟอร์มนี้บันทึกได้เฉพาะบทความที่มีแหล่งเป็นหน้าเว็บ BU", 400);
+    // The form has no action-link fields, so links are never taken from the request; an edit keeps what is stored.
+    let actionLinks: ActionLink[] = [];
     if (id) {
       const previous = await this.repo.findById(id);
       if (!previous) throw new KnowledgeAdminError("ไม่พบบทความ กรุณารีเฟรชรายการ", 404);
       if (previous.sourceKind !== "PAGE") throw new KnowledgeAdminError("บทความจากไฟล์ FAQ แก้ผ่านฟอร์มนี้ไม่ได้ ให้ import ใหม่", 409);
+      const stored = knowledgeActionLinkSchema.array().safeParse(previous.actionLinks);
+      if (stored.success) actionLinks = stored.data;
       if (previous.title !== document.title) throw new KnowledgeAdminError("การแก้ไขต้องคงชื่อบทความเดิม", 409);
     } else if (await this.repo.findIndexedDocument(document.title)) {
       throw new KnowledgeAdminError("ชื่อบทความนี้มีอยู่แล้ว กรุณาเลือกแก้ไขจากรายการ", 409);
     }
-    try { return await this.ingestion.importReviewedDocument(document, id ?? null); }
+    try { return await this.ingestion.importReviewedDocument({ ...document, actionLinks }, id ?? null); }
     catch (error) {
       const message = error instanceof Error ? error.message : "";
       if (/Document identity changed|older approval|newer approval|changed during import/.test(message)) {

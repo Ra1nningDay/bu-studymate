@@ -16,6 +16,13 @@ export class KnowledgeIngestionService {
     if (documents.some((item) => item.verifiedAt > now || item.reviewAfter <= now)) {
       throw new Error("Cannot import future approvals or overdue reviews");
     }
+    // Fail before any write: a title owned by another source kind would silently convert that document.
+    for (const item of documents) {
+      const previous = await this.repo.findIndexedDocument(item.title);
+      if (previous && previous.sourceKind !== item.sourceKind) {
+        throw new Error(`Title already belongs to a ${previous.sourceKind} document: ${item.title}`);
+      }
+    }
     const results: Array<{ id: string; chunks: number; embedded: boolean }> = [];
     for (const item of documents) {
       results.push(await this.importReviewedDocument(item, undefined, now));

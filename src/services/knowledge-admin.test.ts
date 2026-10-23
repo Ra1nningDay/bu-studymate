@@ -350,3 +350,15 @@ test("admin refuses to create, edit or check FILE-sourced documents through the 
   assert.equal(await status(() => service.check(id)), 400);
   assert.equal(f.calls.length, 0);
 });
+
+test("admin save keeps the stored action links and ignores client-supplied ones", async () => {
+  const stored = [{ label: "ยื่นคำร้อง", url: "https://bulinks.bu.ac.th/service-petition-new/" }];
+  const sent = [{ label: "อื่น", url: "https://bu.ac.th/other" }];
+  const f = fixture(true);
+  const edit = new Service({ ...f.repo, findById: async () => ({ ...item, actionLinks: stored }) } as typeof f.repo, f.ingestion);
+  await edit.save({ id, document: { ...document, actionLinks: sent } });
+  const created = new Service({ ...f.repo, findIndexedDocument: async () => null } as typeof f.repo, f.ingestion);
+  await created.save({ document: { ...document, actionLinks: sent } });
+  const saved = f.calls.map((call) => (call as { value?: { actionLinks: unknown } }).value?.actionLinks).filter((links) => links !== undefined);
+  assert.deepEqual(saved, [stored, []]);
+});

@@ -179,7 +179,11 @@ async function main() {
     assert.equal((await repo.listOverdueFileDocuments()).some((item) => item.id === fileId), false);
     await db.knowledgeItem.update({ where: { id: fileId }, data: { reviewAfter: new Date(now.getTime() - 1000) } });
     assert.equal((await repo.listOverdueFileDocuments()).some((item) => item.id === fileId), true);
-    console.log("PASS: RAG retrieval and approval invariants; admin filters/counts; atomic bulk metadata, stale-selection refusal, cascade deletion and unselected preservation");
+    await db.knowledgeItem.update({ where: { id: fileId }, data: { reviewAfter: new Date(now.getTime() + 86400000) } });
+    assert.deepEqual((await repo.hybridSearch("เอกสาร", vector, now))[0]?.actionLinks, []);
+    await assert.rejects(() => repo.saveReviewedDocument({ ...manifest, title: "File FAQ", sourceKind: "PAGE" }, null), /source kind|belongs to a FILE/);
+    assert.ok((await repo.listAdminDocuments("File FAQ", 1, 10, { category: "", status: "ready", source: "all", limit: 10 })).total >= 1);
+    console.log("PASS: FILE source kind, overdue FILE review, action links, kind-change refusal; RAG retrieval and approval invariants; admin filters/counts; atomic bulk metadata, stale-selection refusal, cascade deletion and unselected preservation");
   } finally {
     await db.$executeRawUnsafe("SET search_path TO public");
     await db.$disconnect();

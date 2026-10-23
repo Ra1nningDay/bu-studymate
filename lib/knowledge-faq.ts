@@ -10,8 +10,9 @@ export function buildFaqManifest(entries: FaqEntry[], file: { name: string; sha2
   reviewAfter.setUTCMonth(reviewAfter.getUTCMonth() + faqReviewMonths);
   const titles = new Set<string>();
   const documents = entries.map((entry) => {
-    if (titles.has(entry.title)) throw new Error(`Duplicate FAQ title: ${entry.title}`);
-    titles.add(entry.title);
+    const title = entry.title.trim();
+    if (titles.has(title)) throw new Error(`Duplicate FAQ title: ${title}`);
+    titles.add(title);
     // Links belong in actionLinks; a URL in content would make the answer generator reject its own answer.
     if (/https?:\/\/|www\./i.test(entry.content)) throw new Error(`FAQ content must not contain URLs: ${entry.title}`);
     const document = { ...entry, sourceKind: "FILE", sourceUrl: faqSourceUrl,

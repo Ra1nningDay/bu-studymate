@@ -206,6 +206,9 @@ export class KnowledgeRepository {
       if (expectedId !== undefined && (previous?.id ?? null) !== expectedId) {
         throw new Error("Document identity changed; refresh before saving");
       }
+      if (previous && previous.sourceKind !== item.sourceKind) {
+        throw new Error(`Title already belongs to a ${previous.sourceKind} document: ${item.title}`);
+      }
       if (previous?.verifiedAt && previous.verifiedAt > item.verifiedAt) {
         throw new Error("An older approval cannot replace a newer document");
       }

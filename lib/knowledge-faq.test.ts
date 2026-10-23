@@ -203,3 +203,33 @@ test("scheduled check reports overdue FILE documents without fetching, and a sin
   assert.deepEqual(await service.checkSources("only-this"), []);
   assert.deepEqual(calls, ["overdue"]);
 });
+
+test("import refuses a title that already belongs to a different source kind, before saving anything", async () => {
+  const saved: unknown[] = [];
+  const repo = {
+    findIndexedDocument: async (title: string) => title === "Collides" ? ({ title, sourceKind: "PAGE", contentHash: "x", chunks: [] }) : null,
+    saveReviewedDocument: async (item: unknown) => { saved.push(item); return "one"; },
+    listSourcesForCheck: async () => [], recordSourceCheck: async () => ({ count: 0 }), listOverdueFileDocuments: async () => []
+  } as unknown as ConstructorParameters<typeof KnowledgeIngestionService>[0];
+  const service = new KnowledgeIngestionService(repo, fakeEmbed, async () => { throw new Error("network must not be used"); });
+  await assert.rejects(() => service.importManifest([
+    { ...reviewed, title: "Fresh", sourceKind: "FILE" }, { ...reviewed, title: "Collides", sourceKind: "FILE" }
+  ], now), /Collides/);
+  assert.equal(saved.length, 0);
+});
+
+test("builder trims titles before the duplicate check and names the title", () => {
+  assert.throws(() => buildFaqManifest([faqEntry, { ...faqEntry, title: `${faqEntry.title} ` }], faqFile, now), /ขอ Transcript อย่างไร/);
+});
+
+test("a manifest of exactly 300 documents is accepted", () => {
+  const many = Array.from({ length: 300 }, (_, index) => ({ ...reviewed, title: `t${index}` }));
+  assert.equal(KnowledgeManifestSchema.safeParse(many).success, true);
+});
+
+test("answer links are de-duplicated across cited items and capped at five", async () => {
+  const links = Array.from({ length: 4 }, (_, index) => ({ label: `ลิงก์ ${index}`, url: `https://bu.ac.th/${index}` }));
+  answering("คำตอบทดสอบ", ["e0", "e1"]);
+  const result = await rewrite({ evidence: evidenceWith([links.slice(0, 3), [links[1], links[2], ...links.slice(3), { label: "ลิงก์ 4", url: "https://bu.ac.th/4" }, { label: "ลิงก์ 5", url: "https://bu.ac.th/5" }]]), question: "q" });
+  assert.deepEqual(result.actionLinks?.map((link) => link.url), [0, 1, 2, 3, 4].map((index) => `https://bu.ac.th/${index}`));
+});

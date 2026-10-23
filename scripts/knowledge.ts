@@ -10,7 +10,9 @@ async function main() {
   if (command === "faq" && argument && pdf) {
     const { buildFaqManifest } = await import("../lib/knowledge-faq");
     const sha256 = createHash("sha256").update(await readFile(pdf)).digest("hex");
-    console.log(JSON.stringify(buildFaqManifest(JSON.parse(await readFile(argument, "utf8")), { name: basename(pdf), sha256 }, new Date()), null, 2));
+    const source = await readFile(argument, "utf8");
+    if (Buffer.byteLength(source) > 3 * 1024 * 1024) throw new Error("FAQ source exceeds 3 MiB");
+    console.log(JSON.stringify(buildFaqManifest(JSON.parse(source), { name: basename(pdf), sha256 }, new Date()), null, 2));
     return;
   }
   if (!((command === "import" && argument) || (command === "source" && argument) || command === "check")) {
