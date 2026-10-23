@@ -3,6 +3,7 @@ import { embedKnowledge } from "@/lib/knowledge-embedding";
 import { rerankKnowledge } from "@/lib/knowledge-rerank";
 import { rewriteKnowledgeQuery } from "@/lib/knowledge-query";
 import { officialKnowledgeUrlSchema } from "@/src/dtos/knowledge.dto";
+import { appendActionLinks } from "@/src/presenters/knowledge-answer.presenter";
 import { knowledgeRepository, type KnowledgeRepository } from "@/src/repositories/knowledge.repository";
 import type { KnowledgeItem } from "@/lib/types";
 import type { ExecutionLogEntry } from "@/src/dtos/playground.dto";
@@ -108,7 +109,7 @@ export class KnowledgeService {
     if (result.text === "NO_VERIFIED_INFO_FOUND") {
       return { ...result, text: FALLBACK_NO_INFO, sources: [], ...metadata, isMiss: true };
     }
-    return { ...result, ...metadata, isMiss: false };
+    return { ...result, text: appendActionLinks(result.text, result.actionLinks ?? []), ...metadata, isMiss: false };
   }
 }
 

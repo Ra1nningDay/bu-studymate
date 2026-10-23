@@ -2,7 +2,7 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { knowledgeEmbeddingModel, knowledgeVectorSchema } from "@/lib/knowledge-embedding";
 import { knowledgeContentHash, tokenizeKnowledge } from "@/lib/knowledge-index";
-import type { KnowledgeDocument } from "@/src/dtos/knowledge.dto";
+import type { ActionLink, KnowledgeDocument } from "@/src/dtos/knowledge.dto";
 import type { KnowledgeFilters, KnowledgeSelection } from "@/src/dtos/knowledge-admin.dto";
 import type { KnowledgeItem } from "@/lib/types";
 
@@ -16,6 +16,7 @@ export type KnowledgeEvidence = KnowledgeItem & {
   similarity: number | null;
   keywordRank?: number | null;
   vectorRank?: number | null;
+  actionLinks?: ActionLink[];
 };
 
 export type KnowledgeMetadataUpdate = {
@@ -151,7 +152,7 @@ export class KnowledgeRepository {
     return this.db.$queryRaw<KnowledgeEvidence[]>(Prisma.sql`
       WITH eligible AS MATERIALIZED (
         SELECT c.*, k.title, k.category, k.keywords, k.source_url, k.verified_at,
-          k.valid_from, k.valid_until, k.created_at, k.updated_at
+          k.valid_from, k.valid_until, k.created_at, k.updated_at, k.action_links
         FROM ${this.chunks} c JOIN ${this.items} k ON k.id = c.knowledge_item_id
         WHERE k.verified_by IS NOT NULL AND k.verified_at <= ${now}
           AND k.review_after > ${now}
@@ -183,7 +184,7 @@ export class KnowledgeRepository {
       SELECT e.id::text, e.knowledge_item_id::text AS "documentId", e.title, e.category,
         e.content, e.keywords, e.source_url AS source, e.source_url AS "sourceUrl",
         e.verified_at AS "verifiedAt", e.valid_from AS "validFrom", e.valid_until AS "validUntil",
-        e.created_at::text AS created_at, e.updated_at::text AS updated_at,
+        e.action_links AS "actionLinks", e.created_at::text AS created_at, e.updated_at::text AS updated_at,
         f.score::float8, f.similarity::float8,
         f.keyword_rank::int AS "keywordRank", f.vector_rank::int AS "vectorRank"
       FROM fused f JOIN eligible e ON e.id = f.id

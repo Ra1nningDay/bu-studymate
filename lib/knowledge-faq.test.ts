@@ -1,16 +1,28 @@
 import assert from "node:assert/strict";
-import { before, test } from "node:test";
+import { afterEach, before, test } from "node:test";
+import type { KnowledgeEvidence } from "@/src/repositories/knowledge.repository";
 import { KnowledgeDocumentSchema, KnowledgeManifestSchema, knowledgeActionLinkSchema } from "@/src/dtos/knowledge.dto";
 
 let KnowledgeIngestionService: typeof import("@/src/services/knowledge-ingestion.service").KnowledgeIngestionService;
+let KnowledgeService: typeof import("@/src/services/knowledge.service").KnowledgeService;
+let rewrite: typeof import("@/lib/ai").rewriteKnowledgeAnswer;
+let appendActionLinks: typeof import("@/src/presenters/knowledge-answer.presenter").appendActionLinks;
+let env: typeof import("@/src/config/env").env;
+const originalFetch = globalThis.fetch;
 const now = new Date("2026-10-13T00:00:00Z");
 const vector = [1, ...Array<number>(1535).fill(0)];
 const fakeEmbed = async () => ({ vectors: [vector], usage: { total_tokens: 1 }, model: "text-embedding-3-small" as const });
 
 before(async () => {
   process.env.DATABASE_URL ??= "postgresql://fixture:fixture@localhost:5432/fixture_unused";
+  ({ env } = await import("@/src/config/env"));
+  env.OPENAI_API_KEY = "synthetic-key";
   ({ KnowledgeIngestionService } = await import("@/src/services/knowledge-ingestion.service"));
+  ({ KnowledgeService } = await import("@/src/services/knowledge.service"));
+  ({ rewriteKnowledgeAnswer: rewrite } = await import("@/lib/ai"));
+  ({ appendActionLinks } = await import("@/src/presenters/knowledge-answer.presenter"));
 });
+afterEach(() => { globalThis.fetch = originalFetch; });
 
 const reviewed = {
   title: "Synthetic Registrar", category: "Synthetic test", content: "ขอเอกสารผ่านระบบทดสอบ",
@@ -73,4 +85,65 @@ test("PAGE import still fails when the source hash differs", async () => {
   const { service, saved } = ingestion(async () => ({ sourceHash: "b".repeat(64), finalUrl: reviewed.sourceUrl }));
   await assert.rejects(() => service.importManifest([reviewed], now), /Source changed/);
   assert.equal(saved.length, 0);
+});
+
+const linkA = { label: "ลิงก์ A", url: "https://bulinks.bu.ac.th/a/" };
+const linkB = { label: "ยื่นคำร้องออนไลน์", url: "https://bulinks.bu.ac.th/service-petition-new/" };
+const evidenceWith = (links: Array<typeof linkA[]>): KnowledgeEvidence[] => links.map((actionLinks, index) => ({
+  id: `e${index}`, documentId: `e${index}`, title: `FAQ ${index}`, category: "FAQ", content: "ขั้นตอนทดสอบ",
+  keywords: [], source: "https://faq.bu.ac.th/wordpress/", sourceUrl: "https://faq.bu.ac.th/wordpress/",
+  created_at: now.toISOString(), updated_at: now.toISOString(), verifiedAt: now,
+  validFrom: null, validUntil: null, score: 0.02, similarity: 0.8, keywordRank: 1, vectorRank: 1, actionLinks
+}));
+const answering = (answer: string, evidenceIds: string[], bodies: string[] = []) => {
+  globalThis.fetch = async (_url, init) => {
+    bodies.push(String(init?.body));
+    return Response.json({ choices: [{ message: { content: JSON.stringify({ answer, evidenceIds }) } }], usage: { total_tokens: 1 }, model: "synthetic" });
+  };
+};
+
+test("answer returns links only for cited evidence, de-duplicated", async () => {
+  answering("คำตอบทดสอบ", ["e1"]);
+  const result = await rewrite({ evidence: evidenceWith([[linkA], [linkB, linkB]]), question: "ขอ transcript" });
+  assert.deepEqual(result.actionLinks, [linkB]);
+});
+
+test("no links when cited evidence has none, and none on a miss", async () => {
+  answering("คำตอบทดสอบ", ["e0"]);
+  assert.deepEqual((await rewrite({ evidence: evidenceWith([[], [linkB]]), question: "q" })).actionLinks ?? [], []);
+  answering("คำตอบ", ["invented"]);
+  const miss = await rewrite({ evidence: evidenceWith([[linkA]]), question: "q" });
+  assert.equal(miss.text, "NO_VERIFIED_INFO_FOUND");
+  assert.deepEqual(miss.actionLinks ?? [], []);
+});
+
+test("evidence payload sent to the model lists link labels but no link URLs", async () => {
+  const bodies: string[] = [];
+  answering("คำตอบทดสอบ", ["e0"], bodies);
+  await rewrite({ evidence: evidenceWith([[linkB]]), question: "q" });
+  assert.ok(bodies[0].includes(linkB.label));
+  assert.ok(!bodies[0].includes(linkB.url));
+});
+
+test("appendActionLinks leaves text alone without links and lists label: url lines", () => {
+  assert.equal(appendActionLinks("คำตอบ", []), "คำตอบ");
+  assert.equal(appendActionLinks("คำตอบ", [linkA, linkB]),
+    `คำตอบ
+
+ลิงก์สำหรับทำรายการ:
+- ${linkA.label}: ${linkA.url}
+- ${linkB.label}: ${linkB.url}`);
+});
+
+test("knowledge answer text carries the link block; a miss carries none", async () => {
+  const evidence = evidenceWith([[linkB]]);
+  const repo = { hasIndexedEvidence: async () => true, hybridSearch: async () => evidence };
+  const hit = await new KnowledgeService(repo, fakeEmbed, async () => ({ text: "คำตอบ", sources: [], actionLinks: [linkB],
+    usage: { total_tokens: 1 }, model: "synthetic" })).answerQuestion("ขอ transcript");
+  assert.ok(hit.text.endsWith(`ลิงก์สำหรับทำรายการ:
+- ${linkB.label}: ${linkB.url}`));
+  const miss = await new KnowledgeService(repo, fakeEmbed, async () => ({ text: "NO_VERIFIED_INFO_FOUND", sources: [],
+    usage: undefined, model: undefined })).answerQuestion("ขอ transcript");
+  assert.equal(miss.isMiss, true);
+  assert.ok(!miss.text.includes("ลิงก์สำหรับทำรายการ"));
 });

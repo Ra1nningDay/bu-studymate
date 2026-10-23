@@ -174,7 +174,7 @@ async function main() {
       sourceKind: "FILE", actionLinks: [{ label: "ยื่นคำร้อง", url: "https://bulinks.bu.ac.th/service-petition-new/" }] },
     [{ content: "ไฟล์faqเฉพาะ", embedding: vector }]);
     const fileHit = (await repo.hybridSearch("ไฟล์faqเฉพาะ", null)).find((item) => item.documentId === fileId);
-    assert.ok(fileHit);
+    assert.deepEqual(fileHit?.actionLinks, [{ label: "ยื่นคำร้อง", url: "https://bulinks.bu.ac.th/service-petition-new/" }]);
     assert.equal((await repo.listSourcesForCheck()).some((item) => item.id === fileId), false);
     console.log("PASS: RAG retrieval and approval invariants; admin filters/counts; atomic bulk metadata, stale-selection refusal, cascade deletion and unselected preservation");
   } finally {
