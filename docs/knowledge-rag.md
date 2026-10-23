@@ -160,6 +160,36 @@ whole corpus every day; increase scheduling frequency or batch coverage when
 operational requirements demonstrate the need. No notification integration is
 included; review CLI output or cron response/logs for `attentionRequired`.
 
+## FAQ file corpus and action links
+
+Implemented locally, 2026-10-23. [Ticket](../.scratch/knowledge-rag/issues/05-faq-file-import.md)
+records checks and limits. The BU FAQ PDF (`FAQ x Website links.pdf`: 205 Q&As and a
+15-site website list, 220 items) is imported as `sourceKind = "FILE"` items; no
+crawler, LightRAG or RAG-Anything is involved. A FILE item keeps an official
+`sourceUrl` (`https://faq.bu.ac.th/wordpress/`) and a `sourceHash` that is the SHA-256 of
+the PDF, but import does not fetch a page and `knowledge:check` skips it, so it is never
+marked `CHANGED` by a page it does not depend on. Approval is an operator assertion:
+`verifiedBy` names the file and `reviewAfter` is six months out; nobody reviews each
+item. The `/admin/knowledge` form refuses to create, edit or source-check FILE items;
+change them by re-importing.
+
+Transaction links live in `actionLinks` (at most five `{label, url}` per item, HTTPS, no
+credentials/port/fragment, hosts: `bu.ac.th` family plus `th-th.facebook.com`,
+`login.microsoftonline.com`, `line.me`, `www.youtube.com`). They are not citations and are
+not hash-checked. FAQ text refers to them as `ลิงก์ “label”` and contains no URL, because an
+answer containing a URL is rejected as a miss. The model sees only the labels; the server
+appends a "ลิงก์สำหรับทำรายการ" block built from the links of the evidence the model cited.
+
+Build a manifest from a transcribed source file and the PDF, then import as usual:
+
+```powershell
+pnpm knowledge:faq .scratch/faq-import/faq-source.json "C:\path\FAQ x Website links.pdf" > manifest.json
+pnpm knowledge:import manifest.json
+```
+
+The manifest cap is 300 items. The PDF's text layer drops some Thai marks; the repairs applied
+(sara am, `ซ้ำ`, `น้ำ`, `ดาวน์โหลด`) are listed in the ticket. Link reachability was not checked.
+
 ## Verification and rollout
 
 ```powershell

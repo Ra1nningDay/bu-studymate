@@ -28,6 +28,10 @@ diagnostic detail in existing run JSON, with expandable Web Chat/report views.
 RRF retains shared SQL timing; no new retrieval behavior/model call is added.
 See [knowledge-rag-04](issues/04-execution-trace.md).
 
+FAQ file import adds `sourceKind` FILE (no page fetch or source check) and per-item
+`actionLinks` appended to cited answers, so the BU FAQ PDF can be imported without a
+crawler. See [knowledge-rag-05](issues/05-faq-file-import.md).
+
 Verification: deterministic regression tests, isolated PostgreSQL retrieval and
 ingestion checks when reachable, typecheck/lint, graph refresh. Provider quality,
 approved real FAQ corpus, scheduling environment and deployment are separate

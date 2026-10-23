@@ -29,7 +29,7 @@ PostgreSQL/Prisma, LINE integration and configured AI providers. Use
 | Request boundaries | [chat controller](src/controllers/chat.controller.ts), [LINE controller](src/controllers/line-webhook.controller.ts) | Parse/validate input, consume limits, handle channel delivery; LINE signature check. |
 | Chat orchestration | [ChatOrchestrationService](src/services/chat-orchestration.service.ts) | Workflow guards, route selection, execution and stored run/message linkage. |
 | AI routing and answers | [agent router](lib/agent-router.ts), [AI adapter](lib/ai.ts), [fresh information](lib/fresh-info.ts) | Configured model calls and answer generation/retrieval. |
-| Campus knowledge | [knowledge service](src/services/knowledge.service.ts), [query rewrite](lib/knowledge-query.ts), [rerank adapter](lib/knowledge-rerank.ts), [hybrid guide](docs/knowledge-rag.md) | Rewrite follow-ups using recent history, retrieve approved current candidates with keyword/vector RRF, rerank into five passages, generate from cited evidence and report misses. |
+| Campus knowledge | [knowledge service](src/services/knowledge.service.ts), [query rewrite](lib/knowledge-query.ts), [rerank adapter](lib/knowledge-rerank.ts), [hybrid guide](docs/knowledge-rag.md) | Rewrite follow-ups using recent history, retrieve approved current candidates with keyword/vector RRF, rerank into five passages, generate from cited evidence (appending cited FAQ action links) and report misses. |
 | Study memory | [study service](src/services/study-memory.service.ts), [file ingestion](lib/study-file.ts) | Saved notes/materials, assignments, tutoring, file extraction/OCR. |
 | Knowledge admin | [workspace](app/admin/knowledge/knowledge-workspace.tsx), [controller](src/controllers/knowledge-admin.controller.ts), [service](src/services/knowledge-admin.service.ts) | Authenticated search/pagination, evidence availability, reviewed add/edit and individual source checks through shared ingestion. |
 | Facility tickets | [ticket service](src/services/ticket.service.ts) | Draft/session workflow, confirmation, creation and status lookup. |
@@ -91,7 +91,9 @@ typing indicator. File uploads use a separate controller path and
 [prisma/schema.prisma](prisma/schema.prisma) owns the persisted shape:
 
 - `KnowledgeItem`: campus content, keywords, canonical source, snapshot hash,
-  reviewer and verification/review/validity dates. Legacy rows are unapproved.
+  reviewer and verification/review/validity dates; `sourceKind` PAGE (fetched and
+  hash-checked) or FILE (imported file, never fetched) and per-item `actionLinks`.
+  Legacy rows are unapproved.
 - `KnowledgeChunk`: bounded passages, Thai/English full-text index and compatible
   pgvector embeddings. Repository filters evidence validity before keyword/vector
   ranking; up to 40 fused candidates reach the LLM rerank adapter, which selects
