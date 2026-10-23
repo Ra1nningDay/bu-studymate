@@ -9,6 +9,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "test:bulinks": "tsx --test lib/bulinks.test.ts",
     "test:concise-chat": "tsx --test lib/concise-chat.test.ts",
     "eval:concise-chat": "tsx evals/concise-chat/run.ts",
     "prepare": "husky",
