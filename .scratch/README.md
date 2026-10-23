@@ -8,7 +8,7 @@ This index owns local work status. Specs and tickets own scope and verification;
 ## Current Handoff
 
 - Latest effort: FAQ file import ([knowledge-rag-05](knowledge-rag/issues/05-faq-file-import.md)),
-  code verified locally on branch `feat/faq-file-import`; the migration and import need user approval.
+  migrated and imported on 2026-10-24; two retrieval gaps recorded in the ticket.
   Previous completed effort: Knowledge multi-select and bulk actions,
   ticket [knowledge-admin-02](knowledge-admin/issues/02-bulk-actions.md), verified locally.
   Hybrid knowledge's additive Supabase migration was applied in the prior effort.
@@ -26,7 +26,7 @@ This index owns local work status. Specs and tickets own scope and verification;
 | Effort | Status | Record | Evidence boundary |
 |---|---|---|---|
 | Student Google sign-in (bumail.net) | Implemented locally, 2026-10-23; manual Google/LINE check pending | [student-auth-01](student-auth/issues/01-google-signin.md) | 42 tests with fake Google/LINE/DB, typecheck/lint passed. Migration SQL written, not applied; no real OAuth client, bumail account, LINE or deployment check. |
-| FAQ file import + action links | In progress, 2026-10-23; local code verified, DB import pending | [knowledge-rag-05](knowledge-rag/issues/05-faq-file-import.md) | 45 knowledge tests + related, typecheck/lint passed. Isolated-schema DB check passed; migration/import not applied to the public database, links unchecked. |
+| FAQ file import + action links | Resolved, 2026-10-24; migrated and imported to the connected database | [knowledge-rag-05](knowledge-rag/issues/05-faq-file-import.md) | 45 knowledge tests + related, typecheck/lint passed. Isolated-schema DB check passed; 220 items imported, 10-question sample answered 7 right/1 correct miss/2 misses, links unchecked, no deployment. |
 | Knowledge bulk actions | Resolved, 2026-10-13 | [knowledge-admin-02](knowledge-admin/issues/02-bulk-actions.md) | 94 tests, isolated DB rollback/cascade/preservation checks, synthetic desktop/mobile UI, auth/origin smoke, typecheck/lint and AST refresh passed. Commit/push authorized; no public mutations, real-provider save UAT or deployment. |
 | Knowledge execution trace | Resolved, 2026-10-13; uncommitted | [knowledge-rag-04](knowledge-rag/issues/04-execution-trace.md) | 78 tests, isolated SQL rank/count checks, synthetic desktop/mobile UI, typecheck/lint and AST refresh passed. No real model/corpus UAT or deployment. |
 | Knowledge admin tab | Resolved, 2026-10-13; uncommitted | [knowledge-admin-01](knowledge-admin/issues/01-knowledge-tab.md) | 82 regressions, isolated DB filters/counts, authenticated read/origin checks, reference desktop/mobile UI, typecheck/lint and AST refresh passed. No real-provider save UAT or deployment. |

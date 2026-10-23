@@ -1,9 +1,9 @@
 # knowledge-rag-05: FAQ file import and action links
 
 Type: feature
-Status: in-progress (local implementation verified; database migration and import await user approval)
-Updated: 2026-10-23
-Blocked by: user go-ahead to apply the migration to, and import into, the connected Supabase database
+Status: resolved, 2026-10-24 (two retrieval gaps recorded below)
+Updated: 2026-10-24
+Blocked by: none
 
 ## Scope
 
@@ -19,7 +19,7 @@ service or admin UI. Plan: [2026-10-23-faq-file-import.md](../../../docs/superpo
   de-duplicated, never on a miss; the model sees labels, never URLs.
 - A manifest of 220 FAQ items builds from the PDF text and validates; manifest cap is 300.
 - Migration applied, corpus imported and sample questions answered with the right steps and links.
-  **Not done.**
+  Done 2026-10-24, see UAT below.
 
 ## Verification
 
@@ -42,6 +42,26 @@ service or admin UI. Plan: [2026-10-23-faq-file-import.md](../../../docs/superpo
   client-supplied ones; an import whose title belongs to a different source kind is refused before any write;
   the builder trims titles before its duplicate check and `knowledge:faq` caps its input at 3 MiB.
 - No real model/corpus UAT, no commit of imported content, no deployment.
+
+## Real-database rollout and UAT (2026-10-24)
+
+- `pnpm db:migrate:deploy` applied two pending migrations to the connected Supabase: `20261023000000_student_accounts`
+  (the OAuth table, approved by the user) and `20261023120000_knowledge_faq_file`. Before: 12 legacy PAGE items,
+  0 chunks. After: 12 PAGE (unapproved, untouched) + 220 FILE (all approved, 72 with links, 220 chunks, one embedding
+  model, content hashes consistent). `pnpm knowledge:import` embedded 220/220; a second run embedded 0/220;
+  `pnpm knowledge:check` exited 0. Earliest FILE review date 2027-04-23.
+- **Found by the UAT:** the answer call sent `temperature: 0.2`, which the default model `gpt-6-luna` rejects with
+  HTTP 400, so every internal answer was a miss. Removed it (test added). `lib/ai.ts` ticket extraction,
+  `lib/study-answer.ts` and `lib/study-extract.ts` also send a temperature; not tested here and probably affected.
+- 10 real questions through `knowledgeService.answerQuestion` (real embedding, rewrite, rerank and answer calls, 6–7k
+  tokens each): 7 answered with the right steps, fees and link block (transcript fees and steps, <1.75 GPA path,
+  lost student card, installments, receipt, registrar contact, a follow-up "แล้วค่าธรรมเนียมเท่าไหร่" after a
+  leave-of-absence turn rewritten correctly); 1 correct miss (campus restaurants are not in the corpus);
+  **2 misses:** "ลืมรหัสผ่าน BU account" (the FAQ says "Password"; neither retrieval leg ranked it) and the English
+  transcript question (Thai corpus; the fee item ranked first but the how-to item did not). A small Thai-synonym
+  keyword map (รหัสผ่าน, ใบเกรด, ลดวิชา…) would likely fix the first; not applied because it needs a re-import.
+- This is a ten-question sample, not a recall or accuracy measurement. Links were not opened (no network).
+  Results are in `.scratch/faq-import/uat.json`, not committed.
 
 ## Comments
 

@@ -233,3 +233,10 @@ test("answer links are de-duplicated across cited items and capped at five", asy
   const result = await rewrite({ evidence: evidenceWith([links.slice(0, 3), [links[1], links[2], ...links.slice(3), { label: "ลิงก์ 4", url: "https://bu.ac.th/4" }, { label: "ลิงก์ 5", url: "https://bu.ac.th/5" }]]), question: "q" });
   assert.deepEqual(result.actionLinks?.map((link) => link.url), [0, 1, 2, 3, 4].map((index) => `https://bu.ac.th/${index}`));
 });
+
+test("knowledge answer request omits temperature, which the default model rejects with HTTP 400", async () => {
+  const bodies: string[] = [];
+  answering("คำตอบทดสอบ", ["e0"], bodies);
+  await rewrite({ evidence: evidenceWith([[]]), question: "q" });
+  assert.equal("temperature" in JSON.parse(bodies[0]), false);
+});

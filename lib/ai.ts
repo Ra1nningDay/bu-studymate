@@ -502,7 +502,6 @@ export async function rewriteKnowledgeAnswer({
     },
     body: JSON.stringify({
       model: env.OPENAI_MODEL,
-      temperature: 0.2,
       response_format: { type: "json_schema", json_schema: {
         name: "knowledge_answer", strict: true,
         schema: { type: "object", properties: {
