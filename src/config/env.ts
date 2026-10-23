@@ -41,6 +41,12 @@ const envSchema = z.object({
   APP_URL: z.string().optional(),
   CRON_SECRET: z.string().min(32).optional(),
 
+  // Student sign-in (Google OAuth, bumail.net)
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  STUDENT_AUTH_SECRET: z.string().min(32).optional(),
+  STUDENT_EMAIL_DOMAIN: z.string().default("bumail.net"),
+
   // Supabase
   NEXT_PUBLIC_SUPABASE_URL: z.string().optional(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
