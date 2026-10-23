@@ -6,6 +6,7 @@ import { KnowledgeDocumentSchema, KnowledgeManifestSchema, knowledgeActionLinkSc
 let KnowledgeIngestionService: typeof import("@/src/services/knowledge-ingestion.service").KnowledgeIngestionService;
 let KnowledgeService: typeof import("@/src/services/knowledge.service").KnowledgeService;
 let rewrite: typeof import("@/lib/ai").rewriteKnowledgeAnswer;
+let buildFaqManifest: typeof import("@/lib/knowledge-faq").buildFaqManifest;
 let appendActionLinks: typeof import("@/src/presenters/knowledge-answer.presenter").appendActionLinks;
 let env: typeof import("@/src/config/env").env;
 const originalFetch = globalThis.fetch;
@@ -20,6 +21,7 @@ before(async () => {
   ({ KnowledgeIngestionService } = await import("@/src/services/knowledge-ingestion.service"));
   ({ KnowledgeService } = await import("@/src/services/knowledge.service"));
   ({ rewriteKnowledgeAnswer: rewrite } = await import("@/lib/ai"));
+  ({ buildFaqManifest } = await import("@/lib/knowledge-faq"));
   ({ appendActionLinks } = await import("@/src/presenters/knowledge-answer.presenter"));
 });
 afterEach(() => { globalThis.fetch = originalFetch; });
@@ -146,4 +148,34 @@ test("knowledge answer text carries the link block; a miss carries none", async 
     usage: undefined, model: undefined })).answerQuestion("ขอ transcript");
   assert.equal(miss.isMiss, true);
   assert.ok(!miss.text.includes("ลิงก์สำหรับทำรายการ"));
+});
+
+const faqFile = { name: "FAQ x Website links.pdf", sha256: "c".repeat(64) };
+const faqEntry = { title: "ขอ Transcript อย่างไร", category: "ทะเบียน", content: "ยื่นคำร้องออนไลน์ แล้วรับเอกสารที่ A8 ชั้น 2",
+  keywords: ["transcript"], actionLinks: [linkB] };
+
+test("builder fills FILE metadata and a 6-month review date", () => {
+  const [item] = buildFaqManifest([faqEntry], faqFile, new Date("2026-10-23T03:00:00Z"));
+  assert.equal(item.sourceKind, "FILE");
+  assert.equal(item.sourceUrl, "https://faq.bu.ac.th/wordpress/");
+  assert.equal(item.sourceHash, faqFile.sha256);
+  assert.equal(item.verifiedBy, "BU FAQ file: FAQ x Website links.pdf");
+  assert.equal(new Date(item.verifiedAt).toISOString(), "2026-10-23T03:00:00.000Z");
+  assert.equal(new Date(item.reviewAfter).toISOString(), "2027-04-23T03:00:00.000Z");
+  assert.deepEqual(item.actionLinks, [linkB]);
+});
+
+test("builder throws on duplicate titles, naming the title", () => {
+  assert.throws(() => buildFaqManifest([faqEntry, { ...faqEntry }], faqFile, now), /ขอ Transcript อย่างไร/);
+});
+
+test("builder throws when content contains a URL", () => {
+  for (const content of ["ไปที่ http://bu.ac.th", "ไปที่ https://bu.ac.th", "ไปที่ www.bu.ac.th"]) {
+    assert.throws(() => buildFaqManifest([{ ...faqEntry, content }], faqFile, now), /ขอ Transcript อย่างไร/);
+  }
+});
+
+test("builder output round-trips through KnowledgeManifestSchema", () => {
+  const manifest = buildFaqManifest([faqEntry, { ...faqEntry, title: "อีกข้อ", actionLinks: [] }], faqFile, now);
+  assert.equal(KnowledgeManifestSchema.parse(JSON.parse(JSON.stringify(manifest))).length, 2);
 });

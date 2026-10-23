@@ -22,6 +22,7 @@
     "knowledge:import": "tsx scripts/knowledge.ts import",
     "knowledge:source": "tsx scripts/knowledge.ts source",
     "knowledge:check": "tsx scripts/knowledge.ts check",
+    "knowledge:faq": "tsx scripts/knowledge.ts faq",
     "test:student-auth": "tsx --test src/services/student-auth.test.ts lib/google-oidc.test.ts",
     "test:knowledge": "tsx --test lib/knowledge-rag.test.ts lib/knowledge-faq.test.ts",
     "test:knowledge:db": "tsx scripts/check-knowledge-db.ts",

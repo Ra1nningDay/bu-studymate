@@ -1,12 +1,20 @@
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
+import { basename } from "node:path";
 import { loadEnvConfig } from "@next/env";
 
 loadEnvConfig(process.cwd());
 
 async function main() {
-  const [command, argument] = process.argv.slice(2);
+  const [command, argument, pdf] = process.argv.slice(2);
+  if (command === "faq" && argument && pdf) {
+    const { buildFaqManifest } = await import("../lib/knowledge-faq");
+    const sha256 = createHash("sha256").update(await readFile(pdf)).digest("hex");
+    console.log(JSON.stringify(buildFaqManifest(JSON.parse(await readFile(argument, "utf8")), { name: basename(pdf), sha256 }, new Date()), null, 2));
+    return;
+  }
   if (!((command === "import" && argument) || (command === "source" && argument) || command === "check")) {
-    throw new Error("Usage: pnpm knowledge:import <manifest.json> | pnpm knowledge:source <official-url> | pnpm knowledge:check");
+    throw new Error("Usage: pnpm knowledge:import <manifest.json> | pnpm knowledge:source <official-url> | pnpm knowledge:check | pnpm knowledge:faq <faq-source.json> <faq.pdf>");
   }
   const { prisma } = await import("../lib/prisma");
   try {
