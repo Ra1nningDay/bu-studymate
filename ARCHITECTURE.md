@@ -110,6 +110,22 @@ typing indicator. File uploads use a separate controller path and
 - `ChatMessage` and `BotRun`: conversation records and linked execution metadata.
 - `Notebook`, `UserMemory`, `StudyMaterial`, `MaterialChunk`, `Assignment`: saved learning context.
 - `RateLimitEvent`: request-limit persistence.
+- `StudentAccount`: one verified `@bumail.net` email bound to one `lineUserId`
+  (both unique). Written only by the Google sign-in callback; see
+  [student-auth spec](.scratch/student-auth/spec.md).
+
+Student sign-in: the LINE text `ยืนยันนักศึกษา` makes
+[the webhook controller](src/controllers/line-webhook.controller.ts) reply with a
+`/login?link=<signed token>` button (10 minutes, holds the `lineUserId`).
+[student-auth.controller](src/controllers/student-auth.controller.ts) starts the Google
+OpenID Connect flow and, in the callback, accepts only a Google ID token with
+`email_verified`, `hd` and the email domain equal to `STUDENT_EMAIL_DOMAIN`
+(default `bumail.net`) before binding and setting the `studymate-student` cookie
+(lax, 8 hours). Tokens are HMAC-signed with `STUDENT_AUTH_SECRET`
+([signed-token.ts](src/services/signed-token.ts)); Google calls live in
+[lib/google-oidc.ts](lib/google-oidc.ts). Google Cloud setup: OAuth client type Web,
+redirect URI `<APP_URL>/api/student/auth/google/callback`, env `GOOGLE_CLIENT_ID`,
+`GOOGLE_CLIENT_SECRET`, `STUDENT_AUTH_SECRET`. No feature is yet gated on the session.
 
 Web session identifiers are normalized by [lib/web-session.ts](lib/web-session.ts).
 They identify conversation context, not an authenticated BU student account.

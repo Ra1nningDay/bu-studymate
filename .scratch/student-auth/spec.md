@@ -1,6 +1,6 @@
 # Student Google Sign-in (bumail.net) Spec
 
-Status: planned, not implemented. Plan: [../../docs/superpowers/plans/2026-10-23-student-google-login.md](../../docs/superpowers/plans/2026-10-23-student-google-login.md)
+Status: implemented locally, manual Google/LINE check pending ([ticket](issues/01-google-signin.md)). Plan: [../../docs/superpowers/plans/2026-10-23-student-google-login.md](../../docs/superpowers/plans/2026-10-23-student-google-login.md)
 
 ## Goal
 
