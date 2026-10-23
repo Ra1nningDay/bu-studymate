@@ -23,8 +23,8 @@ service or admin UI. Plan: [2026-10-23-faq-file-import.md](../../../docs/superpo
 
 ## Verification
 
-- `pnpm test:knowledge`: 39 tests (24 existing + 15 new); related admin/trace/Playground/report/
-  concise-chat suites 65 tests passed; `pnpm typecheck`, `pnpm lint` passed; `graphify update .` AST refresh.
+- `pnpm test:knowledge`: 41 tests (24 existing + 17 new); related admin/trace/Playground/
+  suites 43 tests passed; `pnpm typecheck`, `pnpm lint` passed; `graphify update .` AST refresh.
 - `pnpm test:knowledge:db` was **not run**: the configured Supabase returned "tenant/user not found"
   and Docker is not running. Its new FILE-source assertions and the new migration are unexecuted.
 - `.scratch/faq-import/manifest.json` (220 items, 72 with links, not committed) built with
