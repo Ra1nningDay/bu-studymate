@@ -247,6 +247,11 @@ export class KnowledgeRepository {
       select: { id: true, sourceUrl: true, sourceHash: true, reviewAfter: true } });
   }
 
+  async listOverdueFileDocuments(now = new Date()) {
+    return this.db.knowledgeItem.findMany({ where: { sourceKind: "FILE", verifiedAt: { not: null }, reviewAfter: { lte: now } },
+      take: 20, orderBy: { reviewAfter: "asc" }, select: { id: true } });
+  }
+
   async recordSourceCheck(id: string, expectedHash: string, status: string) {
     return this.db.knowledgeItem.updateMany({
       where: { id, sourceHash: expectedHash },

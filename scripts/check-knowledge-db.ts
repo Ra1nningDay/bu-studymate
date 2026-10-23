@@ -176,6 +176,9 @@ async function main() {
     const fileHit = (await repo.hybridSearch("ไฟล์faqเฉพาะ", null)).find((item) => item.documentId === fileId);
     assert.deepEqual(fileHit?.actionLinks, [{ label: "ยื่นคำร้อง", url: "https://bulinks.bu.ac.th/service-petition-new/" }]);
     assert.equal((await repo.listSourcesForCheck()).some((item) => item.id === fileId), false);
+    assert.equal((await repo.listOverdueFileDocuments()).some((item) => item.id === fileId), false);
+    await db.knowledgeItem.update({ where: { id: fileId }, data: { reviewAfter: new Date(now.getTime() - 1000) } });
+    assert.equal((await repo.listOverdueFileDocuments()).some((item) => item.id === fileId), true);
     console.log("PASS: RAG retrieval and approval invariants; admin filters/counts; atomic bulk metadata, stale-selection refusal, cascade deletion and unselected preservation");
   } finally {
     await db.$executeRawUnsafe("SET search_path TO public");

@@ -116,7 +116,8 @@ test("unchanged import reuses embeddings; approval cannot be renewed by a failed
       chunks: [{ content: item.content, embeddingModel: "text-embedding-3-small" }] }) as unknown as Awaited<ReturnType<KnowledgeRepository["findIndexedDocument"]>>,
     saveReviewedDocument: async (_item: unknown, passages: unknown) => { assert.equal(passages, null); saved++; return "one"; },
     listSourcesForCheck: async () => [{ id: "one", sourceUrl: item.sourceUrl, sourceHash: item.sourceHash, reviewAfter: item.reviewAfter }],
-    recordSourceCheck: async (_id: string, hash: string, status: string) => { assert.equal(hash, item.sourceHash); records.push(status); return { count: 1 }; }
+    recordSourceCheck: async (_id: string, hash: string, status: string) => { assert.equal(hash, item.sourceHash); records.push(status); return { count: 1 }; },
+    listOverdueFileDocuments: async () => []
   };
   const service = new KnowledgeIngestionService(repo, async () => { embedded++; return fakeEmbed(); },
     async () => ({ sourceHash: item.sourceHash, finalUrl: item.sourceUrl }));
@@ -134,7 +135,7 @@ test("changed source, failed embeddings and future approval cannot replace previ
   const repo = {
     findIndexedDocument: async () => null,
     saveReviewedDocument: async () => { saved++; return "one"; },
-    listSourcesForCheck: async () => [], recordSourceCheck: async () => ({ count: 0 })
+    listSourcesForCheck: async () => [], recordSourceCheck: async () => ({ count: 0 }), listOverdueFileDocuments: async () => []
   };
   const changed = new KnowledgeIngestionService(repo, fakeEmbed, async () => ({ sourceHash: "b".repeat(64), finalUrl: reviewed.sourceUrl }));
   await assert.rejects(() => changed.importManifest([reviewed], now), /Source changed/);

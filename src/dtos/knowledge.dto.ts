@@ -10,12 +10,16 @@ export const officialKnowledgeUrlSchema = z.string().url().refine((value) => {
 const externalActionHosts = ["th-th.facebook.com", "login.microsoftonline.com", "line.me", "www.youtube.com"];
 
 export const knowledgeActionLinkSchema = z.object({
-  label: z.string().trim().min(1).max(100),
+  // Labels and URLs are rendered verbatim into chat text, so no extra URL or line break may hide in either.
+  label: z.string().trim().min(1).max(100).refine((value) => !/https?:|www\.|[\r\n\t]/i.test(value), "Labels must not contain URLs or line breaks"),
   url: z.string().url().refine((value) => {
-    const url = new URL(value);
-    return url.protocol === "https:" && !url.username && !url.password && !url.port && !url.hash &&
-      (url.hostname === "bu.ac.th" || url.hostname.endsWith(".bu.ac.th") || externalActionHosts.includes(url.hostname));
-  }, "Use an HTTPS Bangkok University or approved external URL without credentials, port or fragment")
+    if (!/^[\x21-\x7e]+$/.test(value)) return false;
+    try {
+      const url = new URL(value);
+      return url.protocol === "https:" && !url.username && !url.password && !url.port && !url.hash &&
+        (url.hostname === "bu.ac.th" || url.hostname.endsWith(".bu.ac.th") || externalActionHosts.includes(url.hostname));
+    } catch { return false; }
+  }, "Use an HTTPS Bangkok University or approved external URL without whitespace, credentials, port or fragment")
 }).strict();
 
 export type ActionLink = z.infer<typeof knowledgeActionLinkSchema>;

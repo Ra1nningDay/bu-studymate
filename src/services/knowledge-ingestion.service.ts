@@ -6,7 +6,7 @@ import { fetchKnowledgeSource } from "@/lib/knowledge-source";
 
 export class KnowledgeIngestionService {
   constructor(
-    private repo: Pick<KnowledgeRepository, "findIndexedDocument" | "saveReviewedDocument" | "listSourcesForCheck" | "recordSourceCheck"> = knowledgeRepository,
+    private repo: Pick<KnowledgeRepository, "findIndexedDocument" | "saveReviewedDocument" | "listSourcesForCheck" | "recordSourceCheck" | "listOverdueFileDocuments"> = knowledgeRepository,
     private embed = embedKnowledge,
     private fetchSource = fetchKnowledgeSource
   ) {}
@@ -53,6 +53,10 @@ export class KnowledgeIngestionService {
       } catch { /* Failed source checks must not renew or imply approval. */ }
       if (item.sourceHash) await this.repo.recordSourceCheck(item.id, item.sourceHash, status);
       results.push({ id: item.id, status, reviewOverdue: !item.reviewAfter || item.reviewAfter <= new Date() });
+    }
+    // FILE documents have no page to fetch, but their review dates still expire; report them without recording a check.
+    if (!id) for (const item of await this.repo.listOverdueFileDocuments()) {
+      results.push({ id: item.id, status: "UNCHANGED", reviewOverdue: true });
     }
     return results;
   }

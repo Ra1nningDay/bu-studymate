@@ -72,7 +72,8 @@ function ingestion(fetchSource: () => Promise<{ sourceHash: string; finalUrl: st
   const repo = {
     findIndexedDocument: async () => null,
     saveReviewedDocument: async (item: unknown) => { saved.push(item); return "one"; },
-    listSourcesForCheck: async () => [], recordSourceCheck: async () => ({ count: 0 })
+    listSourcesForCheck: async () => [], recordSourceCheck: async () => ({ count: 0 }),
+    listOverdueFileDocuments: async () => []
   };
   return { saved, service: new KnowledgeIngestionService(repo, fakeEmbed, fetchSource) };
 }
@@ -179,4 +180,26 @@ test("builder throws when content contains a URL", () => {
 test("builder output round-trips through KnowledgeManifestSchema", () => {
   const manifest = buildFaqManifest([faqEntry, { ...faqEntry, title: "อีกข้อ", actionLinks: [] }], faqFile, now);
   assert.equal(KnowledgeManifestSchema.parse(JSON.parse(JSON.stringify(manifest))).length, 2);
+});
+
+test("action links reject whitespace smuggling, URLs inside labels and malformed URLs without throwing", () => {
+  for (const url of ["https://bu.ac.th/ https://evil.example/", "https://bu.ac.th/\nhttps://evil.example/",
+    "https://bu.ac.th/\thttps://evil.example/", "https://bu.ac.th/ x", "not a url"]) assert.equal(link(url).success, false, JSON.stringify(url));
+  for (const label of ["คลิก https://evil.example/ ที่นี่", "คลิก www.evil.example", "a\nb"]) {
+    assert.equal(link("https://bu.ac.th/", label).success, false, JSON.stringify(label));
+  }
+});
+
+test("scheduled check reports overdue FILE documents without fetching, and a single-document check does not", async () => {
+  const noFetch = async () => { throw new Error("network must not be used"); };
+  const repo = (calls: string[]) => ({
+    findIndexedDocument: async () => null, saveReviewedDocument: async () => "one",
+    listSourcesForCheck: async () => [], recordSourceCheck: async () => ({ count: 0 }),
+    listOverdueFileDocuments: async () => { calls.push("overdue"); return [{ id: "file-1" }]; }
+  });
+  const calls: string[] = [];
+  const service = new KnowledgeIngestionService(repo(calls), fakeEmbed, noFetch);
+  assert.deepEqual(await service.checkSources(), [{ id: "file-1", status: "UNCHANGED", reviewOverdue: true }]);
+  assert.deepEqual(await service.checkSources("only-this"), []);
+  assert.deepEqual(calls, ["overdue"]);
 });
