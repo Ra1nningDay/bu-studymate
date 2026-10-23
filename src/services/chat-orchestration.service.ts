@@ -13,7 +13,7 @@ import {
   type ChatLogRepository,
   type ChatChannel
 } from "@/src/repositories/chat-log.repository";
-import { answerFreshInfoFromVerifiedSources } from "@/lib/fresh-info";
+import { answerFreshInfoFromVerifiedSources, type BuLinksLookupFn, type FreshInfoAnswer } from "@/lib/fresh-info";
 import {
   knowledgeService,
   type KnowledgeService
@@ -200,8 +200,15 @@ export class ChatOrchestrationService {
     private ticketSvc: TicketService = ticketService,
     private studySvc: StudyMemoryService = studyMemoryService,
     private knowledgeSvc: KnowledgeService = knowledgeService,
-    private flexPresenter: LineFlexPresenter = lineFlexPresenter
+    private flexPresenter: LineFlexPresenter = lineFlexPresenter,
+    private buLinksLookup?: BuLinksLookupFn
   ) {}
+
+  private freshInfoLogEntry(reply: FreshInfoAnswer): ExecutionLogEntry {
+    return reply.origin === "bulinks"
+      ? { action: "BU Links Lookup", details: reply.links?.map((link) => link.url).join(", ") }
+      : { action: "Search Fresh Info (Web Search)", details: reply.model ? `Model: ${reply.model}` : undefined };
+  }
 
   private hardGuardRoute({
     session,
@@ -535,22 +542,18 @@ export class ChatOrchestrationService {
         executionLog
       );
     } else if (intent === "ASK_FRESH_INFO") {
-      reply = await answerFreshInfoFromVerifiedSources(trimmedMessage, history);
-      executionLog.push({
-        action: "Search Fresh Info (Web Search)",
-        details: reply.model ? `Model: ${reply.model}` : undefined
-      });
+      const fresh = await answerFreshInfoFromVerifiedSources(trimmedMessage, history, this.buLinksLookup);
+      reply = fresh;
+      executionLog.push(this.freshInfoLogEntry(fresh));
       reply.executionLog = executionLog;
     } else if (intent === "ASK_BU_INFO") {
       const knowledgeAnswer = await this.knowledgeSvc.answerQuestion(trimmedMessage, history);
       executionLog.push(...(knowledgeAnswer.trace ?? []));
       if (knowledgeAnswer.isMiss) {
         executionLog.push({ action: "Knowledge Base Miss - Falling back to Web Search" });
-        reply = await answerFreshInfoFromVerifiedSources(trimmedMessage, history);
-        executionLog.push({
-          action: "Search Fresh Info (Web Search)",
-          details: reply.model ? `Model: ${reply.model}` : undefined
-        });
+        const fresh = await answerFreshInfoFromVerifiedSources(trimmedMessage, history, this.buLinksLookup);
+        reply = fresh;
+        executionLog.push(this.freshInfoLogEntry(fresh));
         if (knowledgeAnswer.usage && reply.usage) {
           reply.usage.total_tokens += knowledgeAnswer.usage.total_tokens;
         } else if (knowledgeAnswer.usage) {

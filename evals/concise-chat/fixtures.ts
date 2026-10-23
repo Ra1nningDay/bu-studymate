@@ -4,6 +4,8 @@ import type { TicketService } from "@/src/services/ticket.service";
 import type { StudyMemoryService } from "@/src/services/study-memory.service";
 import type { KnowledgeService } from "@/src/services/knowledge.service";
 
+import type { BuLinksLookupFn } from "@/lib/fresh-info";
+
 export type ConversationMessage = { content: string; role: "assistant" | "user" };
 
 // Synthetic fixtures isolate persistence and operational writes; routing and AI generation stay real.
@@ -12,6 +14,7 @@ export async function createConciseChatFixture(options: {
   knowledgeMiss?: boolean;
   workflowReply?: string;
   knowledgeService?: KnowledgeService;
+  buLinksLookup?: BuLinksLookupFn;
 } = {}) {
   const { ChatOrchestrationService } = await import("@/src/services/chat-orchestration.service");
   const messages: CreateChatMessageData[] = [];
@@ -72,7 +75,7 @@ export async function createConciseChatFixture(options: {
     }
   } as unknown as KnowledgeService;
   return {
-    service: new ChatOrchestrationService(logRepository, tickets, study, options.knowledgeService ?? knowledge),
+    service: new ChatOrchestrationService(logRepository, tickets, study, options.knowledgeService ?? knowledge, undefined, options.buLinksLookup ?? (async () => null)),
     messages,
     runs,
     updates,

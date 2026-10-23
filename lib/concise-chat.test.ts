@@ -142,6 +142,22 @@ test("Unverified BU requests retain the verified-information route, abstain, and
   assert.equal(requests.filter((request) => request.url.endsWith("/chat/completions")).length, 0);
 });
 
+test("an expired knowledge item produces BU Links service links instead of a bare miss", async () => {
+  const requests = controlledOpenAi("ASK_BU_INFO", "Invented answer.");
+  const url = "https://bulinks.bu.ac.th/tuition-fees/";
+  const fixture = await createConciseChatFixture({
+    knowledgeMiss: true,
+    buLinksLookup: async () => ({ kind: "services", text: `Related pages:
+- Tuition: ${url}`, links: [{ title: "Tuition", url }] })
+  });
+  const reply = await fixture.service.createBotReply({ lineUserId: "synthetic-eval-user", message: "How much is tuition?" });
+  assert.ok(reply.text.includes(url));
+  const log = reply.executionLog ?? [];
+  assert.deepEqual(log.find((entry) => entry.action === "BU Links Lookup"), { action: "BU Links Lookup", details: url });
+  assert.ok(!log.some((entry) => entry.action === "Search Fresh Info (Web Search)"));
+  assert.equal(requests.filter((request) => request.body.tools?.length).length, 0);
+});
+
 test("Static Guide returns complete instructions without routing or answer generation", async () => {
   globalThis.fetch = async () => { throw new Error("Static Guide must not call an AI boundary."); };
   const fixture = await createConciseChatFixture();

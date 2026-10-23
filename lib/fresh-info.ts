@@ -1,5 +1,6 @@
 import { createWebSearchResponse, type AnswerSource } from "@/lib/ai";
 import { formatUnverifiedBuReply } from "@/src/presenters/chat-policy.presenter";
+import { buLinksService, type BuLinksLookup } from "@/src/services/bulinks.service";
 
 const calendarQueryPattern =
   /(academic\s*calendar|calendar|holiday|ปฏิทิน|วันหยุด|วันหยุดมหาวิทยาลัย)/i;
@@ -13,7 +14,11 @@ export type FreshInfoAnswer = {
   usedWebSearch: boolean;
   usage?: { total_tokens: number };
   model?: string;
+  origin?: "bulinks" | "web_search";
+  links?: Array<{ title: string; url: string }>;
 };
+
+export type BuLinksLookupFn = (message: string) => Promise<BuLinksLookup | null>;
 
 function extractYears(text: string) {
   return Array.from(text.matchAll(/\b(20\d{2})\b/g), (match) => Number(match[1]));
@@ -81,8 +86,15 @@ export function compactFreshInfoSources(message: string, sources: AnswerSource[]
 
 export async function answerFreshInfoFromVerifiedSources(
   message: string,
-  history?: Array<{ content: string; role: "assistant" | "user" }>
+  history?: Array<{ content: string; role: "assistant" | "user" }>,
+  lookup: BuLinksLookupFn = (text) => buLinksService.lookup(text)
 ): Promise<FreshInfoAnswer> {
+  // A lookup failure must never block the web-search fallback.
+  const bulinks = await lookup(message).catch(() => null);
+  if (bulinks) {
+    return { sources: [], text: bulinks.text, usedWebSearch: false, origin: "bulinks", links: bulinks.links };
+  }
+
   const response = await createWebSearchResponse({
     history,
     message,
@@ -94,7 +106,8 @@ export async function answerFreshInfoFromVerifiedSources(
     return {
       sources: [],
       text: formatUnverifiedBuReply(message),
-      usedWebSearch: true
+      usedWebSearch: true,
+      origin: "web_search"
     };
   }
 
@@ -102,6 +115,7 @@ export async function answerFreshInfoFromVerifiedSources(
     sources: compactFreshInfoSources(message, response.sources),
     text: response.text,
     usedWebSearch: true,
+    origin: "web_search",
     usage: response.usage,
     model: response.model
   };
