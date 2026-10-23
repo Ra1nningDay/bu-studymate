@@ -7,7 +7,7 @@ export const officialKnowledgeUrlSchema = z.string().url().refine((value) => {
     (url.hostname === "bu.ac.th" || url.hostname.endsWith(".bu.ac.th"));
 }, "Use an HTTPS Bangkok University source URL without credentials, port or fragment");
 
-const externalActionHosts = ["th-th.facebook.com", "login.microsoftonline.com"];
+const externalActionHosts = ["th-th.facebook.com", "login.microsoftonline.com", "line.me", "www.youtube.com"];
 
 export const knowledgeActionLinkSchema = z.object({
   label: z.string().trim().min(1).max(100),

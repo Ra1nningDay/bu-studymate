@@ -13,13 +13,13 @@
 ## Decisions
 
 Agreed with the user:
-- Import **all 195** FAQ items; links in the FAQ are *transaction links* the bot hands to students, not pages to crawl. No crawler, LightRAG or RAG-Anything in this work.
+- Import **all** FAQ items (the user said 195; the PDF actually holds 205 Q&As plus a 15-site website list); links in the FAQ are *transaction links* the bot hands to students, not pages to crawl. No crawler, LightRAG or RAG-Anything in this work.
 - Action links are separate from citation sources and are not hash-checked.
 
 My calls (the user has not confirmed these; flag them in the final report):
 - The PDF is treated as BU-approved content. `verifiedBy = "BU FAQ file: FAQ x Website links.pdf"`, `reviewAfter = verifiedAt + 6 months`. Nobody reviews each of the 195 items before import.
 - Citation `sourceUrl` for every FILE item is `https://faq.bu.ac.th/wordpress/` (the only FAQ home URL in the PDF).
-- Non-`bu.ac.th` action-link hosts allowed: exactly `th-th.facebook.com` and `login.microsoftonline.com` (both appear in the PDF). Anything else is rejected.
+- Non-`bu.ac.th` action-link hosts allowed: exactly `th-th.facebook.com`, `login.microsoftonline.com`, `line.me` (the @BU1STOP LINE contact) and `www.youtube.com` (one explainer video) — all appear in the PDF. Anything else is rejected.
 - Manifest cap rises from 100 to 300 items.
 - Admin-form editing of FILE items is refused; edit by re-importing.
 

@@ -34,17 +34,18 @@ const reviewed = {
 };
 const link = (url: string, label = "ลิงก์ทดสอบ") => knowledgeActionLinkSchema.safeParse({ label, url });
 
-test("action links accept bu.ac.th, subdomains and the two allowed external hosts", () => {
+test("action links accept bu.ac.th, subdomains and the allowed external hosts", () => {
   for (const url of [
     "https://bulinks.bu.ac.th/service-petition-new/", "https://bu.ac.th/",
-    "https://th-th.facebook.com/scholarship.bu/", "https://login.microsoftonline.com/"
+    "https://th-th.facebook.com/scholarship.bu/", "https://login.microsoftonline.com/",
+    "https://line.me/R/ti/p/@bu1stop", "https://www.youtube.com/watch?v=OvpeHb3wthc"
   ]) assert.equal(link(url).success, true, url);
 });
 
 test("action links reject hostile URLs, empty labels and overlong labels", () => {
   for (const url of [
     "http://bu.ac.th/", "javascript:alert(1)", "https://user:pw@bu.ac.th/",
-    "https://bu.ac.th.evil.com/", "https://evilfacebook.com/", "https://bu.ac.th:8443/",
+    "https://bu.ac.th.evil.com/", "https://evilfacebook.com/", "https://evilline.me/", "https://youtube.com.evil.test/", "https://bu.ac.th:8443/",
     "https://bu.ac.th/#frag"
   ]) assert.equal(link(url).success, false, url);
   assert.equal(link("https://bu.ac.th/", "").success, false);
