@@ -52,7 +52,7 @@ service or admin UI. Plan: [2026-10-23-faq-file-import.md](../../../docs/superpo
   `pnpm knowledge:check` exited 0. Earliest FILE review date 2027-04-23.
 - **Found by the UAT:** the answer call sent `temperature: 0.2`, which the default model `gpt-6-luna` rejects with
   HTTP 400, so every internal answer was a miss. Removed it (test added). `lib/ai.ts` ticket extraction,
-  `lib/study-answer.ts` and `lib/study-extract.ts` also send a temperature; not tested here and probably affected.
+  `lib/study-answer.ts` and `lib/study-extract.ts` also sent one. Follow-up 2026-10-24: confirmed against the real model (`temperature` 0 and 0.1 both return 400; omitting it returns 200), removed from all three, `pnpm test:openai-params` pins it, and each function now succeeds against the real model (ticket draft, study answer, study note extraction). Before the fix each swallowed the 400 into its fallback, so the failure was silent.
 - 10 real questions through `knowledgeService.answerQuestion` (real embedding, rewrite, rerank and answer calls, 6–7k
   tokens each): 7 answered with the right steps, fees and link block (transcript fees and steps, <1.75 GPA path,
   lost student card, installments, receipt, registrar contact, a follow-up "แล้วค่าธรรมเนียมเท่าไหร่" after a

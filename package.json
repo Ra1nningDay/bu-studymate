@@ -26,6 +26,7 @@
     "test:student-auth": "tsx --test src/services/student-auth.test.ts lib/google-oidc.test.ts",
     "test:knowledge": "tsx --test lib/knowledge-rag.test.ts lib/knowledge-faq.test.ts",
     "test:knowledge:db": "tsx scripts/check-knowledge-db.ts",
+    "test:openai-params": "tsx --test lib/openai-params.test.ts",
     "eval:router": "promptfoo eval -c evals/agent-router.eval.yaml --env-file .env.local",
     "eval:p1": "promptfoo eval -c evals/p1-knowledge.eval.yaml --env-file .env.local --max-concurrency 2",
     "eval:p1:seed": "promptfoo eval -c evals/p1-knowledge.eval.yaml --env-file .env.local --max-concurrency 2 --var knowledgeMode=seed",

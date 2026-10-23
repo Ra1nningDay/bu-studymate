@@ -22,7 +22,6 @@ export async function generateStudyAnswer(question: string, context: string, isT
       },
       body: JSON.stringify({
         model: env.OPENAI_MODEL,
-        temperature: 0,
         messages: [
           {
             role: "system",

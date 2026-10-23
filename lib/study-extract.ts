@@ -103,7 +103,6 @@ export async function extractStudyNote(
       body: JSON.stringify({
         model: env.OPENAI_MODEL,
         response_format: { type: "json_object" },
-        temperature: 0.1,
         messages: [
           {
             role: "system",
