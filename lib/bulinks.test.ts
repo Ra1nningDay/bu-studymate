@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { BuLinksClient, decodeWpText } from "@/lib/bulinks";
+import { BuLinksClient, decodeWpText, type BuLinksPage, type BuLinksPost } from "@/lib/bulinks";
+import { formatAnnouncements, formatServiceLinks } from "@/src/presenters/bulinks.presenter";
+import { BuLinksService, detectBuLinksTopics, rankServicePages } from "@/src/services/bulinks.service";
 
 const page = (id: number, link: string, title: string, slug = `p${id}`) => ({ id, link, slug, title: { rendered: title } });
 const minute = 60_000;
@@ -93,4 +95,126 @@ test("clients reject on HTTP errors, timeouts and non-JSON 200 responses", async
     await assert.rejects(setup(handler).client.listPages());
     await assert.rejects(setup(handler).client.latestPosts([1], 3));
   }
+});
+
+// ---- Topics, ranking, formatting, lookup ----
+const site = "https://bulinks.bu.ac.th";
+const fixturePages: BuLinksPage[] = [
+  { id: 1, title: "ค่าเทอม ระดับปริญญาตรี ปี 2026", url: `${site}/tuition-fees-2026/`, slug: "tuition-fees-2026" },
+  { id: 2, title: "ค่าเทอม ระดับปริญญาตรี ปี 2025", url: `${site}/tuition-fees-2025/`, slug: "tuition-fees-2025" },
+  { id: 3, title: "ค่าเทอม ระดับบัณฑิตศึกษา ปี 2026", url: `${site}/tuition-fees-graduate-2026/`, slug: "tuition-fees-graduate-2026" },
+  { id: 4, title: "ค่าเทอม ระดับบัณฑิตศึกษา ปี 2025", url: `${site}/tuition-fees-graduate-2025/`, slug: "tuition-fees-graduate-2025" },
+  { id: 5, title: "Tuition Fees Bachelor 2026", url: `${site}/en/tuition-fees-2026/`, slug: "tuition-fees-2026" },
+  { id: 6, title: "Tuition Fees Bachelor 2025", url: `${site}/en/tuition-fees-2025/`, slug: "tuition-fees-2025" },
+  { id: 7, title: "Tuition Fees Graduate 2026", url: `${site}/en/tuition-fees-graduate-2026/`, slug: "tuition-fees-graduate-2026" },
+  { id: 8, title: "BU MotoSpace", url: `${site}/bu-motospace/`, slug: "bu-motospace" },
+  { id: 9, title: "ประกันอุบัติเหตุ", url: `${site}/accident-insurance/`, slug: "accident-insurance" },
+  { id: 10, title: "ห้องพยาบาล", url: `${site}/nurse-room/`, slug: "nurse-room" },
+  { id: 11, title: "Lost & Found แจ้งของหาย", url: `${site}/lost-and-found/`, slug: "lost-and-found" },
+  { id: 12, title: "Lost & Found", url: `${site}/en/lost-and-found/`, slug: "lost-and-found" },
+  { id: 13, title: "ลงทะเบียนยานพาหนะ", url: `${site}/vehicle-registration/`, slug: "vehicle-registration" },
+  { id: 14, title: "ทุนการศึกษา", url: `${site}/scholarships/`, slug: "scholarships" },
+  { id: 15, title: "Health Room", url: `${site}/en/health-room/`, slug: "health-room" }
+];
+const urlsOf = (pages: BuLinksPage[]) => pages.map((p) => p.url);
+
+test("detectBuLinksTopics maps words to topics", () => {
+  assert.deepEqual(detectBuLinksTopics("มีประกาศอะไรใหม่ไหม"), ["announcement"]);
+  for (const message of ["พรุ่งนี้เรียนออนไลน์หรือ onsite", "หยุดเพราะน้ำท่วมไหม", "is class suspended"]) {
+    assert.ok(detectBuLinksTopics(message).includes("announcement"), message);
+  }
+  assert.ok(detectBuLinksTopics("ข่าวสายกิจการนักศึกษา").includes("student_affairs"));
+  assert.ok(detectBuLinksTopics("โครงการแลกเปลี่ยน study abroad").includes("study_abroad"));
+  assert.ok(detectBuLinksTopics("มีข่าว BU อะไรบ้าง").includes("news"));
+  assert.ok(detectBuLinksTopics("ปฏิทินกิจกรรมเดือนนี้").includes("calendar"));
+  assert.ok(detectBuLinksTopics("events this week").includes("calendar"));
+  assert.deepEqual(detectBuLinksTopics("ค่าเทอมเท่าไร"), []);
+});
+
+test("rankServicePages returns only the newest year of a duplicated page, or the year the student named", () => {
+  assert.deepEqual(urlsOf(rankServicePages("ค่าเทอมปริญญาตรี", fixturePages)), [`${site}/tuition-fees-2026/`]);
+  assert.deepEqual(urlsOf(rankServicePages("ค่าเทอมปริญญาตรี 2025", fixturePages)), [`${site}/tuition-fees-2025/`]);
+  assert.deepEqual(urlsOf(rankServicePages("ค่าเทอมปริญญาตรี 2568", fixturePages)), [`${site}/tuition-fees-2025/`]);
+});
+
+test("rankServicePages respects language", () => {
+  for (const message of ["ค่าเทอมปริญญาตรี", "ห้องพยาบาล", "lost and found ของหาย"]) {
+    assert.ok(rankServicePages(message, fixturePages).every((p) => !p.url.includes("/en/")), message);
+  }
+  assert.deepEqual(urlsOf(rankServicePages("tuition fees bachelor", fixturePages)), [`${site}/en/tuition-fees-2026/`]);
+  assert.deepEqual(urlsOf(rankServicePages("lost and found", fixturePages)), [`${site}/en/lost-and-found/`]);
+  assert.deepEqual(urlsOf(rankServicePages("ห้องพยาบาล", fixturePages)), [`${site}/nurse-room/`]);
+  assert.deepEqual(rankServicePages("สูตรอาหารไทย", fixturePages), []);
+  assert.deepEqual(rankServicePages("pizza recipe", fixturePages), []);
+});
+
+test("formatAnnouncements lists dated titles with links and a check-time header; formatServiceLinks lists title: url", () => {
+  const now = new Date("2026-10-24T03:05:00Z");
+  const posts: BuLinksPost[] = [
+    { id: 1, title: "ประกาศหยุดเรียน", url: `${site}/a/`, publishedAt: new Date("2026-10-23T18:00:00Z"), categoryIds: [1] },
+    { id: 2, title: "Exchange call", url: `${site}/b/`, publishedAt: new Date("2026-10-20T05:00:00Z"), categoryIds: [564] }
+  ];
+  assert.equal(formatAnnouncements(posts, [{ title: "BU NEWS", url: "https://www.bu.ac.th/th/featured-stories/type/5" }], now), [
+    "ประกาศและข่าวล่าสุดจาก BU Links (ตรวจสอบเมื่อ 10:05 น. เวลาไทย):",
+    `1. ประกาศหยุดเรียน (24 ต.ค. 2569)\n   ${site}/a/`,
+    `2. Exchange call (20 ต.ค. 2569)\n   ${site}/b/`,
+    "ดูเพิ่มเติม:\n- BU NEWS: https://www.bu.ac.th/th/featured-stories/type/5",
+    "นี่เป็นเพียงหัวข้อล่าสุด กรุณาเปิดลิงก์เพื่ออ่านรายละเอียดก่อนตัดสินใจ"
+  ].join("\n"));
+  assert.equal(formatAnnouncements([], [{ title: "ปฏิทิน", url: `${site}/events-calendar/` }], now), `ดูเพิ่มเติม:\n- ปฏิทิน: ${site}/events-calendar/`);
+  assert.equal(formatServiceLinks([{ title: "ห้องพยาบาล", url: `${site}/nurse-room/` }]),
+    `StudyMate ยังไม่มีข้อมูลที่ยืนยันได้ในคลังสำหรับเรื่องนี้ แต่พบหน้าบริการที่เกี่ยวข้องบน BU Links:\n- ห้องพยาบาล: ${site}/nurse-room/`);
+});
+
+function fakeClient(overrides: { posts?: BuLinksPost[]; postsError?: Error; pagesError?: Error } = {}) {
+  const calls: Array<[number[], number]> = [];
+  return {
+    calls,
+    client: {
+      listPages: async () => { if (overrides.pagesError) throw overrides.pagesError; return fixturePages; },
+      latestPosts: async (ids: number[], limit: number) => {
+        calls.push([ids, limit]);
+        if (overrides.postsError) throw overrides.postsError;
+        return overrides.posts ?? [];
+      }
+    }
+  };
+}
+const lookupNow = () => new Date("2026-10-24T03:05:00Z");
+const livePost: BuLinksPost = { id: 9, title: "ประกาศ", url: `${site}/p/`, publishedAt: new Date("2026-10-23T18:00:00Z"), categoryIds: [1] };
+
+test("lookup returns live announcements with date_gmt-based Bangkok dates and the right categories", async () => {
+  const th = fakeClient({ posts: [livePost] });
+  const result = await new BuLinksService(th.client, lookupNow).lookup("ประกาศล่าสุด");
+  assert.deepEqual(th.calls, [[[1, 564], 5]]);
+  assert.equal(result?.kind, "announcements");
+  assert.ok(result?.text.includes("24 ต.ค. 2569"));
+  assert.deepEqual(result?.links, [{ title: "ประกาศ", url: `${site}/p/` }]);
+  const en = fakeClient({ posts: [livePost] });
+  await new BuLinksService(en.client, lookupNow).lookup("latest announcements");
+  assert.deepEqual(en.calls, [[[24, 566], 5]]);
+  const abroad = fakeClient({ posts: [livePost] });
+  await new BuLinksService(abroad.client, lookupNow).lookup("โครงการแลกเปลี่ยน");
+  assert.deepEqual(abroad.calls, [[[284], 5]]);
+});
+
+test("lookup returns the calendar and BU NEWS links without fetching posts", async () => {
+  const fake = fakeClient();
+  const calendar = await new BuLinksService(fake.client, lookupNow).lookup("ปฏิทินกิจกรรม");
+  assert.equal(calendar?.kind, "announcements");
+  assert.ok(calendar?.links.some((l) => l.url === "https://bulinks.bu.ac.th/events-calendar/"));
+  assert.ok(!calendar?.text.includes("ประกาศและข่าวล่าสุดจาก BU Links"));
+  const news = await new BuLinksService(fake.client, lookupNow).lookup("ข่าว BU");
+  assert.ok(news?.links.some((l) => l.url === "https://www.bu.ac.th/th/featured-stories/type/5"));
+  assert.equal(fake.calls.length, 0);
+});
+
+test("lookup returns service pages when no topic matches, and null when nothing matched or the client fails", async () => {
+  const services = await new BuLinksService(fakeClient().client, lookupNow).lookup("ห้องพยาบาลอยู่ไหน");
+  assert.equal(services?.kind, "services");
+  assert.deepEqual(services?.links, [{ title: "ห้องพยาบาล", url: `${site}/nurse-room/` }]);
+  assert.equal(await new BuLinksService(fakeClient().client, lookupNow).lookup("สูตรอาหารไทย"), null);
+  assert.equal(await new BuLinksService(fakeClient({ postsError: new Error("down") }).client, lookupNow).lookup("ประกาศล่าสุด"), null);
+  assert.equal(await new BuLinksService(fakeClient({ pagesError: new Error("down") }).client, lookupNow).lookup("ห้องพยาบาล"), null);
+  assert.equal(await new BuLinksService(fakeClient({ posts: [] }).client, lookupNow).lookup("ประกาศล่าสุด"), null);
 });
