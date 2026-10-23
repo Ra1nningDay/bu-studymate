@@ -3,7 +3,7 @@
 Type: feature
 Status: in-progress (local implementation verified; database migration and import await user approval)
 Updated: 2026-10-23
-Blocked by: user go-ahead to migrate/import the connected database; the configured Supabase was unreachable ("tenant/user not found") and Docker was not running
+Blocked by: user go-ahead to apply the migration to, and import into, the connected Supabase database
 
 ## Scope
 
@@ -23,10 +23,12 @@ service or admin UI. Plan: [2026-10-23-faq-file-import.md](../../../docs/superpo
 
 ## Verification
 
-- `pnpm test:knowledge`: 41 tests (24 existing + 17 new); related admin/trace/Playground/
-  suites 43 tests passed; `pnpm typecheck`, `pnpm lint` passed; `graphify update .` AST refresh.
-- `pnpm test:knowledge:db` was **not run**: the configured Supabase returned "tenant/user not found"
-  and Docker is not running. Its new FILE-source assertions and the new migration are unexecuted.
+- `pnpm test:knowledge`: 45 knowledge tests (24 existing + 21 new); related admin/trace/Playground/
+  suites 44 tests passed; `pnpm typecheck`, `pnpm lint` passed; `graphify update .` AST refresh.
+- `pnpm test:knowledge:db` passed on 2026-10-23 against the reconnected Supabase using its isolated
+  schema (public knowledge checksum unchanged): FILE retrieval with `actionLinks`, `listSourcesForCheck`
+  omission, overdue FILE listing, PAGE hits returning `[]`, PAGE/FILE kind-change refusal, FILE counted as
+  ready, plus all existing checks. The migration was applied only to that temporary schema.
 - `.scratch/faq-import/manifest.json` (220 items, 72 with links, not committed) built with
   `pnpm knowledge:faq`. Every number in the PDF text appears in the source; pages 23 and 34 were
   compared with rendered images. 205 Q&As (not 195) plus 15 website-list entries.
@@ -35,6 +37,10 @@ service or admin UI. Plan: [2026-10-23-faq-file-import.md](../../../docs/superpo
   in particular may not serve HTTPS.
 - Text repairs for dropped marks: lost sara am (`ส านัก` → `สำนัก`), `ซ้า`→`ซ้ำ`, `น้าตาล`/`น้าเงิน`→`น้ำ…`,
   `ดาวนโหลด`→`ดาวน์โหลด`. Keywords are auto-derived Latin terms (max 6).
+- Edge cases fixed after review: admin panel shows FILE items as "ไฟล์ FAQ · ไม่มีการตรวจหน้าเว็บ" with edit/check
+  disabled (verified by typecheck/lint only, no browser run); admin edits keep stored action links and ignore
+  client-supplied ones; an import whose title belongs to a different source kind is refused before any write;
+  the builder trims titles before its duplicate check and `knowledge:faq` caps its input at 3 MiB.
 - No real model/corpus UAT, no commit of imported content, no deployment.
 
 ## Comments

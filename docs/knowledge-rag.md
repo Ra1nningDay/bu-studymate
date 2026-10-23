@@ -171,7 +171,8 @@ the PDF, but import does not fetch a page and `knowledge:check` skips it, so it 
 marked `CHANGED` by a page it does not depend on. Approval is an operator assertion:
 `verifiedBy` names the file and `reviewAfter` is six months out; nobody reviews each
 item. The `/admin/knowledge` form refuses to create, edit or source-check FILE items;
-change them by re-importing. `knowledge:check` and the cron endpoint still report FILE items whose review date has passed
+change them by re-importing. An import whose title already belongs to a document of the other source kind is
+refused before anything is written, and the admin panel labels FILE items as file-sourced with edit/check disabled. `knowledge:check` and the cron endpoint still report FILE items whose review date has passed
 (`reviewOverdue`, up to 20 per run) without fetching anything; expired items drop out of retrieval, so re-import before then.
 
 Transaction links live in `actionLinks` (at most five `{label, url}` per item, HTTPS, no
