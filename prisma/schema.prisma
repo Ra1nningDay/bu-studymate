@@ -29,7 +29,9 @@ model KnowledgeItem {
   validUntil      DateTime?        @map("valid_until") @db.Timestamptz(6)
   sourceStatus    String?          @map("source_status")
   sourceCheckedAt DateTime?        @map("source_checked_at") @db.Timestamptz(6)
-  chunks          KnowledgeChunk[]
+  sourceKind      String           @default("PAGE") @map("source_kind")
+  actionLinks     Json             @default("[]") @map("action_links")
+  chunks         KnowledgeChunk[]
 
   @@index([category])
   @@map("knowledge_items")

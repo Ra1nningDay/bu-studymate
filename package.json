@@ -23,7 +23,7 @@
     "knowledge:source": "tsx scripts/knowledge.ts source",
     "knowledge:check": "tsx scripts/knowledge.ts check",
     "test:student-auth": "tsx --test src/services/student-auth.test.ts lib/google-oidc.test.ts",
-    "test:knowledge": "tsx --test lib/knowledge-rag.test.ts",
+    "test:knowledge": "tsx --test lib/knowledge-rag.test.ts lib/knowledge-faq.test.ts",
     "test:knowledge:db": "tsx scripts/check-knowledge-db.ts",
     "eval:router": "promptfoo eval -c evals/agent-router.eval.yaml --env-file .env.local",
     "eval:p1": "promptfoo eval -c evals/p1-knowledge.eval.yaml --env-file .env.local --max-concurrency 2",

@@ -113,7 +113,7 @@ test("unchanged import reuses embeddings; approval cannot be renewed by a failed
   const records: string[] = [];
   const repo = {
     findIndexedDocument: async () => ({ ...item, contentHash: knowledgeContentHash(item),
-      chunks: [{ content: item.content, embeddingModel: "text-embedding-3-small" }] }) as Awaited<ReturnType<KnowledgeRepository["findIndexedDocument"]>>,
+      chunks: [{ content: item.content, embeddingModel: "text-embedding-3-small" }] }) as unknown as Awaited<ReturnType<KnowledgeRepository["findIndexedDocument"]>>,
     saveReviewedDocument: async (_item: unknown, passages: unknown) => { assert.equal(passages, null); saved++; return "one"; },
     listSourcesForCheck: async () => [{ id: "one", sourceUrl: item.sourceUrl, sourceHash: item.sourceHash, reviewAfter: item.reviewAfter }],
     recordSourceCheck: async (_id: string, hash: string, status: string) => { assert.equal(hash, item.sourceHash); records.push(status); return { count: 1 }; }
