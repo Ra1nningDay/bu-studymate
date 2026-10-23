@@ -57,6 +57,10 @@ describe("signed token", () => {
     assert.equal(verifyToken(token, `${secret}-other`, "link", now), null);
   });
 
+  test("rejects a repeated query value (string array)", () => {
+    assert.equal(verifyToken(["a", "b"] as unknown as string, secret, "link", now), null);
+  });
+
   test("rejects undefined and malformed input", () => {
     for (const input of [undefined, "", "abc", "a.b.c", ".", "!!!.???"]) {
       assert.equal(verifyToken(input, secret, "link", now), null);
@@ -149,6 +153,11 @@ describe("student auth service", () => {
     assert.equal(service.isValidLink(link), true);
     assert.equal(service.isValidLink(`${link}x`), false);
     assert.equal(service.isValidLink(undefined), false);
+  });
+
+  test("createLinkUrl asks LINE to open the system browser", () => {
+    const { service } = flow();
+    assert.equal(new URL(service.createLinkUrl("U1")).searchParams.get("openExternalBrowser"), "1");
   });
 
   test("startGoogleSignIn sends the Google redirect URI and bumail hd", () => {

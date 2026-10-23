@@ -12,7 +12,8 @@ export function signToken(payload: Typed & Record<string, unknown>, secret: stri
 }
 
 export function verifyToken<T extends Typed>(token: string | undefined, secret: string, typ: T["typ"], now = Date.now()): T | null {
-  const parts = token?.split(".");
+  // A repeated query key reaches here as string[] from Next searchParams.
+  const parts = typeof token === "string" ? token.split(".") : undefined;
   if (parts?.length !== 2) return null;
   const [body, signature] = parts;
   const expected = mac(body, secret);

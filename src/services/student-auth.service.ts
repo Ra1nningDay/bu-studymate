@@ -49,7 +49,8 @@ export class StudentAuthService {
 
   createLinkUrl(lineUserId: string, now?: number) {
     const token = signToken({ typ: "link", lineUserId }, this.deps.secret!, linkSeconds, now);
-    return `${this.deps.appUrl}/login?link=${token}`;
+    // openExternalBrowser makes LINE leave its in-app WebView; Google rejects OAuth there (disallowed_useragent).
+    return `${this.deps.appUrl}/login?link=${token}&openExternalBrowser=1`;
   }
 
   isValidLink(token: string | undefined, now?: number) {

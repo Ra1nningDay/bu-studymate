@@ -35,5 +35,11 @@ LINE user (`lineUserId`) belongs to that `@bumail.net` email.
 - A forwarded, unused link lets its holder bind a bumail email to the original
   LINE user. Mitigations: 10-minute expiry, one binding per LINE user and per email.
   Adding LINE Login would close this; deferred.
+- Reverse link attack: someone sends `ยืนยันนักศึกษา` from their own LINE and passes the
+  link to a real student; the student's bumail email then binds to the attacker's
+  `lineUserId`, and the student is locked out (`email_taken`). There is no unbind and no
+  LINE notification yet. Add an admin unbind and/or a LINE push naming the email before any
+  feature trusts the binding; LINE Login closes it fully.
+- Failures all redirect to the same `/login?student=failed` message and are not logged.
 - Which app features require a verified student is not decided; this work only
   creates the binding and the session.
