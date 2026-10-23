@@ -23,6 +23,18 @@ export class LineFlexPresenter {
     return createStudyAnswerFlex(courseName, title, answer);
   }
 
+  createStudentLinkTemplate(url: string) {
+    return {
+      type: "template",
+      altText: "ยืนยันนักศึกษา BU",
+      template: {
+        type: "buttons",
+        text: "ยืนยันว่าเป็นนักศึกษา BU ด้วยบัญชี Google @bumail.net (ลิงก์ใช้ได้ 10 นาที)",
+        actions: [{ type: "uri", label: "เข้าสู่ระบบด้วย Google", uri: url }]
+      }
+    };
+  }
+
   createTicketConfirmTemplate(draft: TicketDraftDto) {
     return {
       type: "template",

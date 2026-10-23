@@ -7,13 +7,18 @@ let signToken: typeof import("./signed-token").signToken;
 let verifyToken: typeof import("./signed-token").verifyToken;
 let Service: typeof import("./student-auth.service").StudentAuthService;
 let Controller: typeof import("@/src/controllers/student-auth.controller").StudentAuthController;
+let LineController: typeof import("@/src/controllers/line-webhook.controller").LineWebhookController;
+let LinePresenter: typeof import("@/src/presenters/line-flex.presenter").LineFlexPresenter;
 let Repository: typeof import("@/src/repositories/student-account.repository").StudentAccountRepository;
 
 before(async () => {
   process.env.DATABASE_URL ??= "postgresql://fixture:fixture@localhost:5432/fixture_unused";
+  process.env.LINE_CHANNEL_ACCESS_TOKEN ??= "fixture-line-token";
   ({ signToken, verifyToken } = await import("./signed-token"));
   ({ StudentAuthService: Service } = await import("./student-auth.service"));
   ({ StudentAuthController: Controller } = await import("@/src/controllers/student-auth.controller"));
+  ({ LineWebhookController: LineController } = await import("@/src/controllers/line-webhook.controller"));
+  ({ LineFlexPresenter: LinePresenter } = await import("@/src/presenters/line-flex.presenter"));
   ({ StudentAccountRepository: Repository } = await import("@/src/repositories/student-account.repository"));
 });
 
@@ -262,6 +267,52 @@ describe("student auth controller", () => {
       }));
       assert.equal(response.headers.get("location"), `${origin}/login?student=failed`);
       assert.doesNotMatch(response.headers.get("set-cookie") ?? "", /studymate-student=[^;]/);
+    }
+  });
+});
+
+describe("LINE student link trigger", () => {
+  function lineFixture() {
+    const sent: { messages: { template?: { actions: { uri: string }[] }; text?: string }[] }[] = [];
+    const botCalls: string[] = [];
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async (_url: string, init: { body: string }) => {
+      sent.push(JSON.parse(init.body));
+      return { ok: true, text: async () => "" };
+    }) as unknown as typeof fetch;
+    const { service } = flow();
+    const controller = new LineController(
+      { createBotReply: async ({ message }: { message: string }) => { botCalls.push(message); return { text: "bot" }; } } as never,
+      new LinePresenter(),
+      { consume: async () => ({ allowed: true }) } as never,
+      service
+    );
+    const send = (text: string) =>
+      controller["handleTextMessage"]({ replyToken: "r1", source: { userId: "U1" }, message: { text } } as never);
+    return { sent, botCalls, send, restore: () => { globalThis.fetch = realFetch; } };
+  }
+
+  test("ยืนยันนักศึกษา replies with a login link button and skips the chat bot", async () => {
+    const f = lineFixture();
+    try {
+      await f.send("  ยืนยันนักศึกษา ");
+      assert.deepEqual(f.botCalls, []);
+      const message = f.sent[0].messages[0] as { altText?: string; template?: { actions: { type: string; uri: string }[] } };
+      assert.equal(message.altText, "ยืนยันนักศึกษา BU");
+      assert.equal(message.template?.actions[0].type, "uri");
+      assert.ok(message.template?.actions[0].uri.startsWith(`${appUrl}/login?link=`));
+    } finally {
+      f.restore();
+    }
+  });
+
+  test("other text still reaches the chat bot", async () => {
+    const f = lineFixture();
+    try {
+      await f.send("สวัสดี");
+      assert.deepEqual(f.botCalls, ["สวัสดี"]);
+    } finally {
+      f.restore();
     }
   });
 });

@@ -22,6 +22,10 @@ import {
   fileUploadRateLimitConfig,
   type RateLimitService
 } from "@/src/services/rate-limit.service";
+import {
+  studentAuthService,
+  type StudentAuthService
+} from "@/src/services/student-auth.service";
 import type { SavedStudyFile } from "@/lib/study-file";
 
 function formatSavedStudyFileReply(file: SavedStudyFile) {
@@ -68,7 +72,8 @@ export class LineWebhookController {
   constructor(
     private chatSvc: ChatOrchestrationService = chatOrchestrationService,
     private flexPresenter: LineFlexPresenter = lineFlexPresenter,
-    private rateLimitSvc: RateLimitService = rateLimitService
+    private rateLimitSvc: RateLimitService = rateLimitService,
+    private studentAuth: StudentAuthService = studentAuthService
   ) {}
 
   private async handleTextMessage(event: LineWebhookEvent) {
@@ -91,6 +96,15 @@ export class LineWebhookController {
     });
     if (!rateLimit.allowed) {
       await replyLineText(replyToken, this.rateLimitSvc.formatMessage(rateLimit));
+      return;
+    }
+
+    if (message === "ยืนยันนักศึกษา") {
+      await replyLineMessage(replyToken, [
+        this.studentAuth.configured
+          ? this.flexPresenter.createStudentLinkTemplate(this.studentAuth.createLinkUrl(lineUserId))
+          : { type: "text", text: "ระบบยืนยันนักศึกษายังไม่เปิดใช้งานครับ" }
+      ]);
       return;
     }
 

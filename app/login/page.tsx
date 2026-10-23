@@ -2,19 +2,23 @@ import Image from "next/image";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { adminAuthService, adminCookieName } from "@/src/services/admin-auth.service";
+import { studentAuthService } from "@/src/services/student-auth.service";
 
 export const dynamic = "force-dynamic";
 
 export default async function LoginPage({
   searchParams
 }: {
-  searchParams: Promise<{ login?: string }>;
+  searchParams: Promise<{ login?: string; link?: string; student?: string }>;
 }) {
   if (adminAuthService.isAuthenticated((await cookies()).get(adminCookieName)?.value)) {
     redirect("/admin");
   }
 
-  const failed = (await searchParams).login === "failed";
+  const query = await searchParams;
+  const failed = query.login === "failed";
+  const studentFailed = query.student === "failed";
+  const studentLink = studentAuthService.isValidLink(query.link) ? query.link : undefined;
 
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#070b0e] p-4 sm:p-6 md:p-10 font-sans">
@@ -48,6 +52,26 @@ export default async function LoginPage({
                 Sign in to your admin workspace
               </p>
             </div>
+
+            {studentFailed && (
+              <p role="alert" className="mt-6 rounded-xl border border-rose-900/60 bg-rose-950/40 px-3.5 py-2.5 text-xs text-rose-300 sm:text-sm">
+                ต้องใช้อีเมล @bumail.net และเปิดลิงก์จากแชท LINE อีกครั้ง
+              </p>
+            )}
+
+            {studentLink && (
+              <div className="mt-6 space-y-2 rounded-xl border border-emerald-900/40 bg-emerald-950/20 p-4">
+                <p className="text-xs text-slate-300 sm:text-sm">
+                  นักศึกษา BU: เข้าสู่ระบบด้วยบัญชี Google @bumail.net เพื่อเชื่อมกับ LINE ของคุณ
+                </p>
+                <a
+                  href={`/api/student/auth/google/start?t=${encodeURIComponent(studentLink)}`}
+                  className="flex w-full items-center justify-center rounded-xl bg-white py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                >
+                  Sign in with Google
+                </a>
+              </div>
+            )}
 
             {adminAuthService.configured ? (
               <form action="/api/admin/auth/login" method="POST" className="mt-6 space-y-4 sm:mt-7">
