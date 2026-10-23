@@ -29,7 +29,9 @@ async function main() {
     console.log("DB check: create isolated schema");
     await base.$executeRaw(Prisma.sql`CREATE SCHEMA ${identifier}`);
     const init = await readFile("prisma/migrations/20260629000000_init/migration.sql", "utf8");
-    const migration = await readFile("prisma/migrations/20261013000000_hybrid_knowledge/migration.sql", "utf8");
+    const migrations = await Promise.all(["20261013000000_hybrid_knowledge", "20261023120000_knowledge_faq_file"]
+      .map((name) => readFile(`prisma/migrations/${name}/migration.sql`, "utf8")));
+    const migration = migrations.join("\n");
     const initialTable = init.slice(init.indexOf('CREATE TABLE "knowledge_items"'), init.indexOf('CREATE TABLE "tickets"'));
     await db.$transaction(async (tx) => {
       await tx.$executeRaw(Prisma.sql`SET LOCAL search_path TO ${identifier}, public`);
@@ -167,6 +169,13 @@ async function main() {
     assert.equal(await db.knowledgeChunk.count({ where: { knowledgeItemId: { in: deleting.map((item) => item.id) } } }), 0);
     assert.equal((await repo.readAdminDocument(unselected.id))?.chunks.length, 1);
     assert.deepEqual(await repo.findById(unselected.id), untouchedDocument);
+    console.log("DB check: FILE source kind");
+    const fileId = await repo.saveReviewedDocument({ ...manifest, title: "File FAQ", content: "ไฟล์faqเฉพาะ", keywords: ["ไฟล์faqเฉพาะ"],
+      sourceKind: "FILE", actionLinks: [{ label: "ยื่นคำร้อง", url: "https://bulinks.bu.ac.th/service-petition-new/" }] },
+    [{ content: "ไฟล์faqเฉพาะ", embedding: vector }]);
+    const fileHit = (await repo.hybridSearch("ไฟล์faqเฉพาะ", null)).find((item) => item.documentId === fileId);
+    assert.ok(fileHit);
+    assert.equal((await repo.listSourcesForCheck()).some((item) => item.id === fileId), false);
     console.log("PASS: RAG retrieval and approval invariants; admin filters/counts; atomic bulk metadata, stale-selection refusal, cascade deletion and unselected preservation");
   } finally {
     await db.$executeRawUnsafe("SET search_path TO public");

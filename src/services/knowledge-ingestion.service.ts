@@ -27,8 +27,10 @@ export class KnowledgeIngestionService {
     if (item.verifiedAt > now || item.reviewAfter <= now) {
       throw new Error("Cannot import future approvals or overdue reviews");
     }
-    const snapshot = await this.fetchSource(item.sourceUrl);
-    if (snapshot.sourceHash !== item.sourceHash) throw new Error(`Source changed since review: ${item.title}`);
+    if (item.sourceKind === "PAGE") {
+      const snapshot = await this.fetchSource(item.sourceUrl);
+      if (snapshot.sourceHash !== item.sourceHash) throw new Error(`Source changed since review: ${item.title}`);
+    }
     const content = splitKnowledgeContent(item.content);
     const previous = await this.repo.findIndexedDocument(item.title);
     const reusable = previous?.contentHash === knowledgeContentHash(item) &&

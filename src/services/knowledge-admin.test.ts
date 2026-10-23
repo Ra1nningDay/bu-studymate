@@ -336,3 +336,17 @@ test("a transaction conflict after embedding preparation remains an actionable f
   assert.deepEqual(f.calls, []);
   assert.equal(f.embedded.length, 1);
 });
+
+test("admin refuses to create, edit or check FILE-sourced documents through the page flow", async () => {
+  const f = fixture(true);
+  const fileItem = { ...item, sourceKind: "FILE" };
+  const service = new Service({ ...f.repo, findById: async () => fileItem } as typeof f.repo, f.ingestion);
+  const status = async (run: () => Promise<unknown>) => {
+    try { await run(); } catch (error) { return error instanceof ErrorClass ? error.status : -1; }
+    return 0;
+  };
+  assert.equal(await status(() => service.save({ document: { ...document, sourceKind: "FILE" } })), 400);
+  assert.equal(await status(() => service.save({ id, document })), 409);
+  assert.equal(await status(() => service.check(id)), 400);
+  assert.equal(f.calls.length, 0);
+});

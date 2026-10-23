@@ -241,7 +241,7 @@ export class KnowledgeRepository {
   }
 
   async listSourcesForCheck(id?: string) {
-    return this.db.knowledgeItem.findMany({ where: { id, verifiedAt: { not: null }, sourceUrl: { not: null } },
+    return this.db.knowledgeItem.findMany({ where: { id, sourceKind: "PAGE", verifiedAt: { not: null }, sourceUrl: { not: null } },
       take: 20, orderBy: { sourceCheckedAt: { sort: "asc", nulls: "first" } },
       select: { id: true, sourceUrl: true, sourceHash: true, reviewAfter: true } });
   }

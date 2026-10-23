@@ -1,6 +1,16 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { before, test } from "node:test";
 import { KnowledgeDocumentSchema, KnowledgeManifestSchema, knowledgeActionLinkSchema } from "@/src/dtos/knowledge.dto";
+
+let KnowledgeIngestionService: typeof import("@/src/services/knowledge-ingestion.service").KnowledgeIngestionService;
+const now = new Date("2026-10-13T00:00:00Z");
+const vector = [1, ...Array<number>(1535).fill(0)];
+const fakeEmbed = async () => ({ vectors: [vector], usage: { total_tokens: 1 }, model: "text-embedding-3-small" as const });
+
+before(async () => {
+  process.env.DATABASE_URL ??= "postgresql://fixture:fixture@localhost:5432/fixture_unused";
+  ({ KnowledgeIngestionService } = await import("@/src/services/knowledge-ingestion.service"));
+});
 
 const reviewed = {
   title: "Synthetic Registrar", category: "Synthetic test", content: "ขอเอกสารผ่านระบบทดสอบ",
@@ -40,4 +50,27 @@ test("manifest accepts 195 unique documents and rejects 301", () => {
   const many = (count: number) => Array.from({ length: count }, (_, index) => ({ ...reviewed, title: `t${index}` }));
   assert.equal(KnowledgeManifestSchema.safeParse(many(195)).success, true);
   assert.equal(KnowledgeManifestSchema.safeParse(many(301)).success, false);
+});
+
+function ingestion(fetchSource: () => Promise<{ sourceHash: string; finalUrl: string }>) {
+  const saved: unknown[] = [];
+  const repo = {
+    findIndexedDocument: async () => null,
+    saveReviewedDocument: async (item: unknown) => { saved.push(item); return "one"; },
+    listSourcesForCheck: async () => [], recordSourceCheck: async () => ({ count: 0 })
+  };
+  return { saved, service: new KnowledgeIngestionService(repo, fakeEmbed, fetchSource) };
+}
+
+test("FILE import never fetches the source", async () => {
+  const { service, saved } = ingestion(async () => { throw new Error("network must not be used"); });
+  const [result] = await service.importManifest([{ ...reviewed, sourceKind: "FILE" }], now);
+  assert.equal(result.embedded, true);
+  assert.equal(saved.length, 1);
+});
+
+test("PAGE import still fails when the source hash differs", async () => {
+  const { service, saved } = ingestion(async () => ({ sourceHash: "b".repeat(64), finalUrl: reviewed.sourceUrl }));
+  await assert.rejects(() => service.importManifest([reviewed], now), /Source changed/);
+  assert.equal(saved.length, 0);
 });

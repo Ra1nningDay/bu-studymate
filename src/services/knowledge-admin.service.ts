@@ -101,9 +101,11 @@ export class KnowledgeAdminService {
   }
 
   async save({ id, document }: KnowledgeSave) {
+    if (document.sourceKind !== "PAGE") throw new KnowledgeAdminError("ฟอร์มนี้บันทึกได้เฉพาะบทความที่มีแหล่งเป็นหน้าเว็บ BU", 400);
     if (id) {
       const previous = await this.repo.findById(id);
       if (!previous) throw new KnowledgeAdminError("ไม่พบบทความ กรุณารีเฟรชรายการ", 404);
+      if (previous.sourceKind !== "PAGE") throw new KnowledgeAdminError("บทความจากไฟล์ FAQ แก้ผ่านฟอร์มนี้ไม่ได้ ให้ import ใหม่", 409);
       if (previous.title !== document.title) throw new KnowledgeAdminError("การแก้ไขต้องคงชื่อบทความเดิม", 409);
     } else if (await this.repo.findIndexedDocument(document.title)) {
       throw new KnowledgeAdminError("ชื่อบทความนี้มีอยู่แล้ว กรุณาเลือกแก้ไขจากรายการ", 409);
@@ -129,6 +131,7 @@ export class KnowledgeAdminService {
   async check(id: string) {
     const item = await this.repo.findById(id);
     if (!item) throw new KnowledgeAdminError("ไม่พบบทความ", 404);
+    if (item.sourceKind !== "PAGE") throw new KnowledgeAdminError("บทความจากไฟล์ FAQ ไม่มีแหล่งออนไลน์ให้ตรวจ", 400);
     if (!item.verifiedAt || !item.sourceUrl || !item.sourceHash) {
       throw new KnowledgeAdminError("เพิ่มแหล่งอ้างอิงและตรวจทานบทความก่อนตรวจแหล่งข้อมูล", 400);
     }
