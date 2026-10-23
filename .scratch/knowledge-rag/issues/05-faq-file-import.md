@@ -1,7 +1,7 @@
 # knowledge-rag-05: FAQ file import and action links
 
 Type: feature
-Status: resolved, 2026-10-24 (two retrieval gaps recorded below)
+Status: resolved, 2026-10-24 (retrieval gaps from the first UAT fixed by keyword equivalents; see round 2)
 Updated: 2026-10-24
 Blocked by: none
 
@@ -62,6 +62,22 @@ service or admin UI. Plan: [2026-10-23-faq-file-import.md](../../../docs/superpo
   keyword map (รหัสผ่าน, ใบเกรด, ลดวิชา…) would likely fix the first; not applied because it needs a re-import.
 - This is a ten-question sample, not a recall or accuracy measurement. Links were not opened (no network).
   Results are in `.scratch/faq-import/uat.json`, not committed.
+
+### Round 2: Thai/English keyword equivalents (2026-10-24)
+
+- Added 475 keywords across the 220 items (script `.scratch/faq-import/add-keywords.py`, uncommitted): Latin→Thai
+  (Password→รหัสผ่าน/พาสเวิร์ด, Transcript→ใบเกรด/ทรานสคริป, Drop→ลดวิชา, Wi-Fi→ไวไฟ, Resume→เรซูเม่ …) and Thai→English
+  (ค่าธรรมเนียม→fee, ลาพักการศึกษา→leave of absence, ใบเสร็จรับเงิน→receipt …). Keywords reach only the full-text leg:
+  `knowledgeEmbeddingText` embeds title, category and passage, not keywords.
+- Re-imported into the real database (same titles, newer approval): 220 items, 164 re-embedded, 56 reused, 220 chunks,
+  keywords/links equal to the manifest for all 220, content hash and chunk hash consistent for all 220, 12 legacy PAGE
+  items untouched, `knowledge:check` exit 0. Rollback: `.scratch/faq-import/manifest-v1.json` (previous keywords).
+- Same 10 questions plus 3 variants: 12 of 13 answered with the right steps and link block; the one miss is the
+  correct one (restaurants). Previously failing: "ลืมรหัสผ่าน BU account" now finds the Password FAQs and returns the
+  three reset links; the English transcript question now returns steps, fees and the form link. Variants "ลืมพาสเวิร์ด…",
+  "อยากได้ใบเกรด…" and "ลดวิชากับถอนวิชา…" all answered. In one of the 13 runs the reranker fell back to RRF order
+  (provider variability); that answer was still correct. Still a 13-question sample, not a recall measurement.
+  Results: `.scratch/faq-import/uat-2.json` (uncommitted).
 
 ## Comments
 

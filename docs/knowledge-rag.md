@@ -189,7 +189,8 @@ pnpm knowledge:faq .scratch/faq-import/faq-source.json "C:\path\FAQ x Website li
 pnpm knowledge:import manifest.json
 ```
 
-The manifest cap is 300 items. The PDF's text layer drops some Thai marks; the repairs applied
+The manifest cap is 300 items. Keywords reach only the full-text leg (the embedding text is title, category and passage),
+so FAQ items carry Thai equivalents of English terms (รหัสผ่าน for Password) and English equivalents of Thai terms. The PDF's text layer drops some Thai marks; the repairs applied
 (sara am, `ซ้ำ`, `น้ำ`, `ดาวน์โหลด`) are listed in the ticket. Link reachability was not checked.
 
 ## Verification and rollout
