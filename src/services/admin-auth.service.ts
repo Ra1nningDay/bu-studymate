@@ -1,57 +1,59 @@
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { env } from "@/src/config/env";
+import { adminUserRepository, type AdminRole, type AdminSession, type AdminUserRepository } from "@/src/repositories/admin-user.repository";
+import { hashPassword, verifyPassword } from "@/src/services/password";
+
+export type { AdminRole, AdminSession };
 
 export const adminCookieName = "studymate-admin";
 export const adminSessionSeconds = 8 * 60 * 60;
 
+// Verified against when the email is unknown so a miss costs the same as a wrong password.
+const dummyHash = hashPassword("dummy-password-for-timing");
+
 export class AdminAuthService {
   constructor(
-    private password: string | undefined = env.ADMIN_PASSWORD,
-    private username: string = env.ADMIN_USERNAME ?? "admin",
-    // Falls back to the password so deployments keep working until ADMIN_SESSION_SECRET is set.
-    private secret: string | undefined = env.ADMIN_SESSION_SECRET ?? password
+    private secret: string | undefined = env.ADMIN_SESSION_SECRET,
+    private users: Pick<AdminUserRepository, "findByEmail" | "findActiveById"> = adminUserRepository,
+    private verify: typeof verifyPassword = verifyPassword
   ) {}
 
   get configured() {
-    return Boolean(this.password);
+    return Boolean(this.secret);
   }
 
   private sign(value: string) {
     return createHmac("sha256", this.secret!).update(`admin:${value}`).digest("hex");
   }
 
-  createSession(submittedPassword: string, now?: number): string | null;
-  createSession(submittedPassword: string, submittedUsername?: string, now?: number): string | null;
-  createSession(submittedPassword: string, usernameOrNow?: string | number, now?: number): string | null {
-    if (!this.password) return null;
-    const timestamp = typeof usernameOrNow === "number" ? usernameOrNow : (now ?? Date.now());
-    const submittedUsername = typeof usernameOrNow === "string" ? usernameOrNow : undefined;
-    if (submittedUsername !== undefined) {
-      const expectedUser = Buffer.from(this.username.trim().toLowerCase());
-      const actualUser = Buffer.from(submittedUsername.trim().toLowerCase());
-      if (expectedUser.length !== actualUser.length || !timingSafeEqual(expectedUser, actualUser)) {
-        return null;
-      }
-    }
-    const expected = Buffer.from(this.password);
-    const actual = Buffer.from(submittedPassword);
-    if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) return null;
-    const value = `${timestamp + adminSessionSeconds * 1000}.${randomBytes(16).toString("hex")}`;
+  async login(email: string, password: string, now = Date.now()): Promise<string | null> {
+    if (!this.secret) return null;
+    const user = await this.users.findByEmail(email);
+    const matches = await this.verify(password, user?.passwordHash ?? (await dummyHash));
+    if (!user?.passwordHash || !matches || user.disabledAt || !user.roles.some((r) => r === "admin" || r === "viewer")) return null;
+    const value = `${now + adminSessionSeconds * 1000}.${user.id}`;
     return `${value}.${this.sign(value)}`;
   }
 
-  isAuthenticated(token: string | undefined, now = Date.now()) {
-    if (!this.password || !token) return false;
-    const match = /^(\d{13})\.([0-9a-f]{32})\.([0-9a-f]{64})$/.exec(token);
-    if (!match || Number(match[1]) <= now) return false;
+  async getSession(token: string | undefined, now = Date.now()): Promise<AdminSession | null> {
+    if (!this.secret || !token) return null;
+    const match = /^(\d{13})\.([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.([0-9a-f]{64})$/.exec(token);
+    if (!match || Number(match[1]) <= now) return null;
     const signature = Buffer.from(match[3], "hex");
-    return timingSafeEqual(signature, Buffer.from(this.sign(`${match[1]}.${match[2]}`), "hex"));
+    if (!timingSafeEqual(signature, Buffer.from(this.sign(`${match[1]}.${match[2]}`), "hex"))) return null;
+    return this.users.findActiveById(match[2]);
   }
 
-  isRequestAuthenticated(request: Request) {
+  authenticate(request: Request) {
     const cookie = request.headers.get("cookie")?.split(";")
       .map((part) => part.trim()).find((part) => part.startsWith(`${adminCookieName}=`));
-    return this.isAuthenticated(cookie?.slice(adminCookieName.length + 1));
+    return this.getSession(cookie?.slice(adminCookieName.length + 1));
+  }
+
+  async authorize(request: Request, need: "read" | "write"): Promise<"ok" | "unauthenticated" | "forbidden"> {
+    const session = await this.authenticate(request);
+    if (!session) return "unauthenticated";
+    return need === "read" || session.roles.includes("admin") ? "ok" : "forbidden";
   }
 }
 

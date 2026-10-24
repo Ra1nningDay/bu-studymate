@@ -10,7 +10,7 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<{ login?: string }>;
 }) {
-  if (adminAuthService.isAuthenticated((await cookies()).get(adminCookieName)?.value)) {
+  if (await adminAuthService.getSession((await cookies()).get(adminCookieName)?.value)) {
     redirect("/admin");
   }
 
@@ -53,18 +53,17 @@ export default async function LoginPage({
             {adminAuthService.configured ? (
               <form action="/api/admin/auth/login" method="POST" className="mt-6 space-y-4 sm:mt-7">
                 <div className="space-y-1.5">
-                  <label htmlFor="username" className="block text-xs font-medium text-slate-300 sm:text-sm">
-                    Username
+                  <label htmlFor="email" className="block text-xs font-medium text-slate-300 sm:text-sm">
+                    Email
                   </label>
                   <input
-                    id="username"
-                    name="username"
-                    type="text"
+                    id="email"
+                    name="email"
+                    type="email"
                     autoComplete="username"
-                    defaultValue="admin"
                     required
                     maxLength={256}
-                    placeholder="admin"
+                    placeholder="you@example.com"
                     className="w-full rounded-xl border border-slate-700/80 bg-[#070b0f] px-3.5 py-2.5 text-sm text-white placeholder-slate-500 shadow-inner outline-none transition focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                   />
                 </div>
@@ -87,7 +86,7 @@ export default async function LoginPage({
 
                 {failed && (
                   <p role="alert" className="rounded-xl border border-rose-900/60 bg-rose-950/40 px-3.5 py-2.5 text-xs text-rose-300 sm:text-sm">
-                    ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง (Invalid username or password)
+                    อีเมลหรือรหัสผ่านไม่ถูกต้อง (Invalid email or password)
                   </p>
                 )}
 
@@ -107,9 +106,9 @@ export default async function LoginPage({
               </form>
             ) : (
               <div className="mt-6 rounded-xl border border-amber-900/50 bg-amber-950/30 p-4 text-xs leading-6 text-amber-200 sm:text-sm">
-                <p className="font-semibold text-amber-300">ADMIN_PASSWORD not configured</p>
+                <p className="font-semibold text-amber-300">ADMIN_SESSION_SECRET not configured</p>
                 <p className="mt-1 text-slate-300">
-                  ตั้งค่า ADMIN_PASSWORD ฝั่ง server ในไฟล์{" "}
+                  ตั้งค่า ADMIN_SESSION_SECRET (อย่างน้อย 32 ตัวอักษร) ฝั่ง server ในไฟล์{" "}
                   <code className="rounded bg-black/40 px-1 py-0.5 text-amber-200">.env</code>{" "}
                   แล้วรีสตาร์ท server เพื่อเปิดใช้งานพื้นที่ผู้ดูแล
                 </p>

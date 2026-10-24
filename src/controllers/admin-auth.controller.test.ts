@@ -9,7 +9,8 @@ async function setup(limit: Limit | Error = { allowed: true }, token: string | n
   const { AdminAuthController } = await import("./admin-auth.controller");
   const consumed: unknown[] = [];
   let sessions = 0;
-  const auth = { createSession: () => (sessions++, token) };
+  const logins: unknown[][] = [];
+  const auth = { login: async (...args: unknown[]) => (sessions++, logins.push(args), token) };
   const limits = {
     consume: async (input: unknown) => {
       consumed.push(input);
@@ -22,9 +23,9 @@ async function setup(limit: Limit | Error = { allowed: true }, token: string | n
     controller.login(new Request("http://localhost:3025/api/admin/auth/login", {
       method: "POST",
       headers: { origin: "http://localhost:3025", ...headers },
-      body: new URLSearchParams({ username: "admin", password: "pw" })
+      body: new URLSearchParams({ email: "boss@bumail.net", password: "pw" })
     }));
-  return { login, consumed, sessions: () => sessions };
+  return { login, consumed, logins, sessions: () => sessions };
 }
 
 test("clientKey takes the first forwarded address, else unknown", async () => {
@@ -50,6 +51,7 @@ test("allowed attempts keep the existing success and failure redirects", async (
   assert.equal(done.status, 303);
   assert.equal(new URL(done.headers.get("location")!).pathname, "/admin");
   assert.match(done.headers.get("set-cookie") ?? "", /studymate-admin=tok/);
+  assert.deepEqual(ok.logins, [["boss@bumail.net", "pw"]]);
   const { adminLoginRateLimitConfig } = await import("@/src/services/rate-limit.service");
   assert.deepEqual(ok.consumed, [{ lineUserId: "1.2.3.4", ...adminLoginRateLimitConfig }]);
   const bad = await setup({ allowed: true }, null);

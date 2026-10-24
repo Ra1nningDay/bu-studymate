@@ -38,13 +38,10 @@ export class AdminAuthController {
     let form: FormData;
     try { form = await request.formData(); }
     catch { return NextResponse.json({ error: "Invalid form" }, { status: 400 }); }
+    const email = form.get("email");
     const password = form.get("password");
-    const username = form.get("username");
-    const token = typeof password === "string" && password.length <= 1024
-      ? this.auth.createSession(
-          password,
-          typeof username === "string" && username.trim().length <= 256 ? username.trim() : undefined
-        )
+    const token = typeof email === "string" && email.length <= 256 && typeof password === "string" && password.length <= 1024
+      ? await this.auth.login(email, password)
       : null;
     const response = NextResponse.redirect(new URL(token ? "/admin" : "/login?login=failed", getPublicOrigin(request)), 303);
     response.headers.set("Cache-Control", "private, no-store");
