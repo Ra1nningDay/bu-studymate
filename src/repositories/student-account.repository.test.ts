@@ -53,6 +53,32 @@ test("list orders newest first and caps at limit", async () => {
   assert.equal(calls.find[1].take, 5);
 });
 
+async function removeWith(account: { email: string } | null) {
+  const { StudentAccountRepository } = await import("./student-account.repository");
+  const deleted: Args[] = [];
+  const db = {
+    studentAccount: {
+      findUnique: async () => account,
+      delete: async (a: Args) => (deleted.push(a), {})
+    }
+  };
+  return { repo: new StudentAccountRepository(db as never), deleted };
+}
+
+test("remove deletes only when the typed email matches, ignoring case and spaces", async () => {
+  const { repo, deleted } = await removeWith({ email: "a@bumail.net" });
+  assert.equal(await repo.remove({ lineUserId: "U1", confirmEmail: "other@bumail.net" }), "mismatch");
+  assert.equal(deleted.length, 0);
+  assert.equal(await repo.remove({ lineUserId: "U1", confirmEmail: " A@Bumail.net " }), "deleted");
+  assert.deepEqual(deleted, [{ where: { lineUserId: "U1" } }]);
+});
+
+test("remove reports not_found without deleting", async () => {
+  const { repo, deleted } = await removeWith(null);
+  assert.equal(await repo.remove({ lineUserId: "U9", confirmEmail: "a@bumail.net" }), "not_found");
+  assert.equal(deleted.length, 0);
+});
+
 test("list skips group queries when there are no accounts", async () => {
   const { repo, calls } = await repoWith([]);
   assert.deepEqual(await repo.list(), []);

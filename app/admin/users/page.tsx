@@ -1,4 +1,5 @@
 import { requireAdmin } from "../require-admin";
+import { DeleteStudentButton } from "./delete-student-button";
 import { studentAccountRepository, type StudentRow } from "@/src/repositories/student-account.repository";
 
 export const dynamic = "force-dynamic";
@@ -46,12 +47,13 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
                 <th className="px-4 py-3 font-semibold">Runs</th>
                 <th className="px-4 py-3 font-semibold">Tickets</th>
                 <th className="px-4 py-3 font-semibold">Last active</th>
+                <th className="px-4 py-3 font-semibold">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {error || students.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-10 text-center text-slate-500" colSpan={6}>{error ?? "No students."}</td>
+                  <td className="px-4 py-10 text-center text-slate-500" colSpan={7}>{error ?? "No students."}</td>
                 </tr>
               ) : (
                 students.map((s) => (
@@ -62,6 +64,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
                     <td className="px-4 py-4 text-slate-700">{s.runs}</td>
                     <td className="px-4 py-4 text-slate-700">{s.tickets}</td>
                     <td className="whitespace-nowrap px-4 py-4 text-slate-500">{s.lastActiveAt ? dateTime.format(s.lastActiveAt) : "-"}</td>
+                    <td className="px-4 py-4"><DeleteStudentButton lineUserId={s.lineUserId} email={s.email} /></td>
                   </tr>
                 ))
               )}

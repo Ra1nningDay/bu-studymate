@@ -50,6 +50,15 @@ export class StudentAccountRepository {
     });
   }
 
+  /** Unbinds the student (deletes only the account row); the typed email must match so a stale or forged id cannot delete the wrong person. */
+  async remove({ lineUserId, confirmEmail }: { lineUserId: string; confirmEmail: string }): Promise<"deleted" | "mismatch" | "not_found"> {
+    const account = await this.db.studentAccount.findUnique({ where: { lineUserId }, select: { email: true } });
+    if (!account) return "not_found";
+    if (account.email.toLowerCase() !== confirmEmail.trim().toLowerCase()) return "mismatch";
+    await this.db.studentAccount.delete({ where: { lineUserId } });
+    return "deleted";
+  }
+
   findByLineUserId(lineUserId: string) {
     return this.db.studentAccount.findUnique({
       where: { lineUserId },
