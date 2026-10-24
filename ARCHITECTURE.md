@@ -119,7 +119,7 @@ typing indicator. File uploads use a separate controller path and
 
 Student sign-in: the LINE text `ยืนยันนักศึกษา` makes
 [the webhook controller](src/controllers/line-webhook.controller.ts) reply with a
-`/login?link=<signed token>` button (10 minutes, holds the `lineUserId`).
+`/student/login?link=<signed token>` button (10 minutes, holds the `lineUserId`).
 [student-auth.controller](src/controllers/student-auth.controller.ts) starts the Google
 OpenID Connect flow and, in the callback, accepts only a Google ID token with
 `email_verified`, `hd` and the email domain equal to `STUDENT_EMAIL_DOMAIN`

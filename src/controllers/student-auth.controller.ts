@@ -28,7 +28,7 @@ export class StudentAuthController {
 
   async start(request: Request) {
     const started = this.auth.startGoogleSignIn(new URL(request.url).searchParams.get("t") ?? undefined);
-    if (!started) return this.redirect(request, "/login?student=failed", 303);
+    if (!started) return this.redirect(request, "/student/login?student=failed", 303);
     const response = NextResponse.redirect(started.redirectUrl, 302);
     response.headers.set("Cache-Control", "private, no-store");
     setCookie(response, studentOauthCookieName, started.stateCookie, studentOauthSeconds);
@@ -43,7 +43,7 @@ export class StudentAuthController {
       error: params.get("error") ?? undefined,
       stateCookie: readCookie(request, studentOauthCookieName)
     });
-    const response = this.redirect(request, result.ok ? "/student" : "/login?student=failed", 303);
+    const response = this.redirect(request, result.ok ? "/student" : "/student/login?student=failed", 303);
     response.cookies.set(studentOauthCookieName, "", { path: "/", maxAge: 0 });
     if (result.ok) setCookie(response, studentCookieName, result.sessionToken, studentSessionSeconds);
     return response;

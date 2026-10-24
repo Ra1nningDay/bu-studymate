@@ -21,13 +21,13 @@ LINE user (`lineUserId`) belongs to that `@bumail.net` email.
 ## Requirements
 
 1. Sending `ยืนยันนักศึกษา` in LINE replies with a button opening
-   `<APP_URL>/login?link=<signed token>` (token valid 10 minutes).
-2. `/login?link=…` shows a "Sign in with Google" button when the token is valid.
+   `<APP_URL>/student/login?link=<signed token>` (token valid 10 minutes).
+2. `/student/login?link=…` shows a "Sign in with Google" button when the token is valid.
 3. Google callback accepts only: `email_verified === true`, `hd === bumail.net`,
    and the email domain (after the single `@`) equal to `bumail.net`, case-insensitive.
 4. On success: persist the binding, set an HttpOnly student session cookie, and
    show `/student` with the bound email.
-5. On any failure: redirect to `/login?student=failed` with no binding written.
+5. On any failure: redirect to `/student/login?student=failed` with no binding written.
 6. Scopes are `openid email` only.
 
 ## Known limits
@@ -40,7 +40,7 @@ LINE user (`lineUserId`) belongs to that `@bumail.net` email.
   `lineUserId`, and the student is locked out (`email_taken`). There is no unbind and no
   LINE notification yet. Add an admin unbind and/or a LINE push naming the email before any
   feature trusts the binding; LINE Login closes it fully.
-- Failures all redirect to the same `/login?student=failed` message and are not logged.
+- Failures all redirect to the same `/student/login?student=failed` message and are not logged.
 - Which app features require a verified student is decided for LINE only by the
   gate below; web `/chat` and `/student` are not gated.
 

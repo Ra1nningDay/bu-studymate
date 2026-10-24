@@ -12,11 +12,11 @@ No feature is gated on the student session yet, and LINE Login is not added.
 
 ## Acceptance criteria
 
-1. `ยืนยันนักศึกษา` in LINE replies with a button to `<APP_URL>/login?link=<token>` (10 minutes).
-2. `/login?link=…` shows "Sign in with Google" only for a valid token.
+1. `ยืนยันนักศึกษา` in LINE replies with a button to `<APP_URL>/student/login?link=<token>` (10 minutes).
+2. `/student/login?link=…` shows "Sign in with Google" only for a valid token.
 3. Callback accepts only `email_verified`, `hd` and the email domain equal to `bumail.net`, case-insensitive; spoofed domains rejected.
 4. Success persists the binding (one email per LINE user and vice versa), sets the student cookie, `/student` shows the email.
-5. Any failure redirects to `/login?student=failed` and writes nothing.
+5. Any failure redirects to `/student/login?student=failed` and writes nothing.
 6. Scopes are `openid email` only.
 
 ## Evidence
@@ -28,5 +28,5 @@ No feature is gated on the student session yet, and LINE Login is not added.
 
 - Manual check with a real Google OAuth client and a bumail account, from a LINE message through to `/student`, plus a non-bumail account being rejected.
 - `prisma/migrations/20261023000000_student_accounts` is not applied to any database (`pnpm db:migrate:deploy`).
-- Login page rendering (valid link, failure banner) was not checked in a browser.
+- Student login page (`/student/login`, split from the admin `/login` on 2026-10-24) was smoke-checked with curl on a local dev server (failure banner, invalid-link text, `/student` redirect, no Google box on `/login`); a valid link and the real Google round trip were not checked in a browser.
 - No deployment, and `GOOGLE_*`/`STUDENT_AUTH_SECRET` are not set anywhere.

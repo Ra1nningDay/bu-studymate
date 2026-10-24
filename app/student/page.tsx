@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 export default async function StudentPage() {
   const session = studentAuthService.readSession((await cookies()).get(studentCookieName)?.value);
-  if (!session) redirect("/login");
+  if (!session) redirect("/student/login");
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-[#070b0e] p-6 font-sans">

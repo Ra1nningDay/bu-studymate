@@ -152,7 +152,7 @@ const complete = (f: ReturnType<typeof flow>, extra: Record<string, string | und
 describe("student auth service", () => {
   test("createLinkUrl points at the login page with a valid link token", () => {
     const { service, link } = flow();
-    assert.ok(service.createLinkUrl("U1").startsWith(`${appUrl}/login?link=`));
+    assert.ok(service.createLinkUrl("U1").startsWith(`${appUrl}/student/login?link=`));
     assert.equal(service.isValidLink(link), true);
     assert.equal(service.isValidLink(`${link}x`), false);
     assert.equal(service.isValidLink(undefined), false);
@@ -257,7 +257,7 @@ describe("student auth controller", () => {
   test("start with a bad link redirects to the failure page", async () => {
     const { service } = flow();
     const response = await new Controller(service).start(new Request(`${origin}/api/student/auth/google/start?t=bad`));
-    assert.equal(response.headers.get("location"), `${origin}/login?student=failed`);
+    assert.equal(response.headers.get("location"), `${origin}/student/login?student=failed`);
     assert.equal(response.headers.get("set-cookie") ?? "", "");
   });
 
@@ -277,7 +277,7 @@ describe("student auth controller", () => {
       const response = await new Controller(f.service).callback(new Request(callbackUrl(query), {
         headers: { cookie: `studymate-student-oauth=${f.start.stateCookie}` }
       }));
-      assert.equal(response.headers.get("location"), `${origin}/login?student=failed`);
+      assert.equal(response.headers.get("location"), `${origin}/student/login?student=failed`);
       assert.doesNotMatch(response.headers.get("set-cookie") ?? "", /studymate-student=[^;]/);
     }
   });
@@ -332,7 +332,7 @@ describe("LINE student link trigger and gate", () => {
       const message = f.sent[0].messages[0] as { altText?: string; template?: { actions: { type: string; uri: string }[] } };
       assert.equal(message.altText, "ยืนยันนักศึกษา BU");
       assert.equal(message.template?.actions[0].type, "uri");
-      assert.ok(message.template?.actions[0].uri.startsWith(`${appUrl}/login?link=`));
+      assert.ok(message.template?.actions[0].uri.startsWith(`${appUrl}/student/login?link=`));
     } finally {
       f.restore();
     }
@@ -355,7 +355,7 @@ describe("LINE student link trigger and gate", () => {
       await f.send("สวัสดี");
       assert.deepEqual(f.botCalls, []);
       assert.equal(f.sent[0].messages[0].altText, "ยืนยันนักศึกษาก่อนใช้งาน");
-      assert.ok(JSON.stringify(f.sent[0].messages[0]).includes(`${appUrl}/login?link=`));
+      assert.ok(JSON.stringify(f.sent[0].messages[0]).includes(`${appUrl}/student/login?link=`));
     } finally {
       f.restore();
     }
@@ -372,7 +372,7 @@ describe("LINE student link trigger and gate", () => {
       assert.equal(f.sent[0].messages[0].altText, "ยืนยันนักศึกษาก่อนใช้งาน");
       for (const reply of f.sent.slice(1)) {
         assert.equal(reply.messages[0].altText, "ยืนยันนักศึกษา BU");
-        assert.ok(JSON.stringify(reply.messages[0]).includes(`${appUrl}/login?link=`));
+        assert.ok(JSON.stringify(reply.messages[0]).includes(`${appUrl}/student/login?link=`));
       }
     } finally {
       f.restore();
