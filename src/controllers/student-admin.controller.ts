@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { adminAuthService } from "@/src/services/admin-auth.service";
-import { getPublicOrigin, isSameOrigin } from "@/src/controllers/admin-auth.controller";
+import { accessDenied, getPublicOrigin, isSameOrigin } from "@/src/controllers/admin-auth.controller";
 import { studentAccountRepository, type StudentAccountRepository } from "@/src/repositories/student-account.repository";
 
 export class StudentAdminController {
@@ -10,7 +10,11 @@ export class StudentAdminController {
   ) {}
 
   async handleDelete(request: Request): Promise<NextResponse> {
-    if (!this.auth.isRequestAuthenticated(request)) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    const access = await this.auth.authorize(request, "write");
+    if (access !== "ok") {
+      const { error, status } = accessDenied(access);
+      return NextResponse.json({ ok: false, error }, { status });
+    }
     if (!isSameOrigin(request)) return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
     let form: FormData;
     try { form = await request.formData(); }

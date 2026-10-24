@@ -26,6 +26,9 @@ export function fakeAdminUsers(users: FixtureUser[]) {
   };
 }
 
+const hashes = new Map<string, Promise<string>>();
+const hashOnce = (password: string) => hashes.get(password) ?? (hashes.set(password, hashPassword(password)), hashes.get(password)!);
+
 export async function adminAuthFixture(...seeds: Seed[]) {
   const { AdminAuthService } = await import("@/src/services/admin-auth.service");
   const users: FixtureUser[] = [];
@@ -33,7 +36,7 @@ export async function adminAuthFixture(...seeds: Seed[]) {
     users.push({
       id: `00000000-0000-4000-8000-${String(i + 1).padStart(12, "0")}`,
       email: seed.email,
-      passwordHash: seed.password ? await hashPassword(seed.password) : null,
+      passwordHash: seed.password ? await hashOnce(seed.password) : null,
       disabledAt: seed.disabledAt ?? null,
       roles: seed.roles
     });
@@ -54,4 +57,17 @@ export async function adminAuthFixture(...seeds: Seed[]) {
       headers: { ...(token ? { cookie: `studymate-admin=${token}` } : {}), ...(init.headers as Record<string, string>) }
     });
   return { service, repo, users, tokenFor, requestWith, verifies: () => verifies, AdminAuthService };
+}
+
+/** One admin and one read-only viewer, each already signed in. */
+export async function standardAdminFixture() {
+  const f = await adminAuthFixture(
+    { email: "boss@bumail.net", password: "boss-pw", roles: ["admin"] },
+    { email: "look@bumail.net", password: "look-pw", roles: ["viewer"] }
+  );
+  return {
+    ...f,
+    adminToken: await f.tokenFor("boss@bumail.net", "boss-pw"),
+    viewerToken: await f.tokenFor("look@bumail.net", "look-pw")
+  };
 }

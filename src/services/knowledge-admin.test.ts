@@ -4,13 +4,13 @@ import { KnowledgeSaveSchema } from "@/src/dtos/knowledge-admin.dto";
 import { knowledgeContentHash } from "@/lib/knowledge-index";
 import type { KnowledgeRepository } from "@/src/repositories/knowledge.repository";
 import type { KnowledgeIngestionService } from "./knowledge-ingestion.service";
+import { standardAdminFixture } from "./test-support/admin-auth-fixture";
 
 let Service: typeof import("./knowledge-admin.service").KnowledgeAdminService;
 let ErrorClass: typeof import("./knowledge-admin.service").KnowledgeAdminError;
 let availability: typeof import("./knowledge-admin.service").knowledgeAvailability;
 let Controller: typeof import("@/src/controllers/knowledge-admin.controller").KnowledgeAdminController;
 let Repository: typeof import("@/src/repositories/knowledge.repository").KnowledgeRepository;
-let Auth: typeof import("./admin-auth.service").AdminAuthService;
 
 const id = "11111111-1111-4111-8111-111111111111";
 const otherId = "22222222-2222-4222-8222-222222222222";
@@ -29,10 +29,9 @@ before(async () => {
   ({ KnowledgeAdminService: Service, KnowledgeAdminError: ErrorClass, knowledgeAvailability: availability } = await import("./knowledge-admin.service"));
   ({ KnowledgeAdminController: Controller } = await import("@/src/controllers/knowledge-admin.controller"));
   ({ KnowledgeRepository: Repository } = await import("@/src/repositories/knowledge.repository"));
-  ({ AdminAuthService: Auth } = await import("./admin-auth.service"));
 });
 
-function fixture(existing = false) {
+async function fixture(existing = false) {
   const calls: unknown[] = [];
   const repo = {
     listAdminDocuments: async (search: string, page: number, limit: number) => { calls.push({ search, page, limit }); return { items: [item], total: 25, stats: { total: 25, ready: 1, unapproved: 24, review: 0 }, categories: [item.category] }; },
@@ -51,18 +50,19 @@ function fixture(existing = false) {
   const service = new Service(repo, ingestion, async (sourceUrl) => {
     calls.push(sourceUrl); return { sourceHash: raw.sourceHash, finalUrl: sourceUrl };
   }, async (input) => { embedded.push(input); return { vectors: input.map(() => [1, ...Array<number>(1535).fill(0)]), usage: { total_tokens: 1 }, model: "text-embedding-3-small" }; });
-  const auth = new Auth("fixture-password");
-  const headers = { origin: "http://localhost:3033", cookie: `studymate-admin=${auth.createSession("fixture-password")}` };
+  const { service: auth, adminToken, viewerToken } = await standardAdminFixture();
+  const headers = { origin: "http://localhost:3033", cookie: `studymate-admin=${adminToken}` };
+  const viewerHeaders = { origin: "http://localhost:3033", cookie: `studymate-admin=${viewerToken}` };
   const controller = new Controller(service, auth);
   const request = (body: unknown = {}, overrides: Record<string, string> = {}) => new Request("http://localhost:3033/api/admin/knowledge", {
     method: "POST", headers: { ...headers, ...overrides }, body: JSON.stringify(body)
   });
-  return { repo, ingestion, service, controller, calls, embedded, headers, request };
+  return { repo, ingestion, service, controller, calls, embedded, headers, viewerHeaders, request };
 }
 
 test("all knowledge endpoints deny unauthenticated callers before repository/source work", async () => {
-  const f = fixture();
-  const request = () => new Request("http://localhost:3033/api/admin/knowledge?password=fixture-password", { method: "POST", body: "invalid" });
+  const f = await fixture();
+  const request = () => new Request("http://localhost:3033/api/admin/knowledge?password=ignored", { method: "POST", body: "invalid" });
   assert.equal((await f.controller.list(request())).status, 401);
   assert.equal((await f.controller.read(request(), id)).status, 401);
   assert.equal((await f.controller.save(request())).status, 401);
@@ -72,8 +72,21 @@ test("all knowledge endpoints deny unauthenticated callers before repository/sou
   assert.deepEqual(f.calls, []);
 });
 
+test("viewer can list and read but writes return 403 before work", async () => {
+  const f = await fixture(true);
+  const listed = await f.controller.list(new Request("http://localhost:3033/api/admin/knowledge", { headers: f.viewerHeaders }));
+  assert.equal(listed.status, 200);
+  assert.equal((await f.controller.read(new Request("http://localhost:3033/api/admin/knowledge/x", { headers: f.viewerHeaders }), id)).status, 200);
+  const calls = f.calls.length;
+  const write = () => f.request({}, f.viewerHeaders);
+  for (const response of [await f.controller.save(write()), await f.controller.snapshot(write()), await f.controller.bulk(write()), await f.controller.check(write(), id)]) {
+    assert.equal(response.status, 403);
+  }
+  assert.equal(f.calls.length, calls);
+});
+
 test("save, snapshot and source checks reject cross-origin or missing-origin writes", async () => {
-  const f = fixture();
+  const f = await fixture();
   for (const origin of ["https://attacker.test", ""]) {
     assert.equal((await f.controller.save(f.request({}, { origin }))).status, 403);
     assert.equal((await f.controller.snapshot(f.request({}, { origin }))).status, 403);
@@ -84,7 +97,7 @@ test("save, snapshot and source checks reject cross-origin or missing-origin wri
 });
 
 test("strict document, official source, UUID, date and pagination validation precedes work", async () => {
-  const f = fixture();
+  const f = await fixture();
   for (const body of [{}, { document: { ...raw, verifiedBy: "" } }, { document: { ...raw, reviewAfter: raw.verifiedAt } },
     { id: "bad", document: raw }, { document: { ...raw, sourceUrl: "https://attacker.test" } }, { document: raw, unexpected: true }]) {
     assert.equal((await f.controller.save(f.request(body))).status, 400);
@@ -101,7 +114,7 @@ test("strict document, official source, UUID, date and pagination validation pre
 });
 
 test("malformed JSON produces a validation response without work", async () => {
-  const f = fixture();
+  const f = await fixture();
   const request = () => new Request("http://localhost:3033/api/admin/knowledge", { method: "POST", headers: f.headers, body: "{" });
   assert.equal((await f.controller.save(request())).status, 400);
   assert.equal((await f.controller.snapshot(request())).status, 400);
@@ -109,7 +122,7 @@ test("malformed JSON produces a validation response without work", async () => {
 });
 
 test("search/pagination return private serializable documents and accurate eligibility", async () => {
-  const f = fixture();
+  const f = await fixture();
   const response = await f.controller.list(new Request("http://localhost:3033/api/admin/knowledge?search=wifi&page=2", { headers: f.headers }));
   const data = await response.json();
   assert.equal(response.headers.get("cache-control"), "private, no-store");
@@ -134,10 +147,10 @@ test("eligibility explains unapproved, stale, invalid, expired and incompatible 
 });
 
 test("create/edit pass explicit identity to shared ingestion and source checks target one record", async () => {
-  const created = fixture();
+  const created = await fixture();
   assert.equal((await created.controller.save(created.request({ document: raw }))).status, 200);
   assert.deepEqual(created.calls, [{ value: document, expectedId: null }]);
-  const edit = fixture(true);
+  const edit = await fixture(true);
   assert.equal((await edit.controller.save(edit.request({ id, document: raw }))).status, 200);
   assert.deepEqual(edit.calls, [{ value: document, expectedId: id }]);
   assert.equal((await edit.controller.check(edit.request(), id)).status, 200);
@@ -147,15 +160,15 @@ test("create/edit pass explicit identity to shared ingestion and source checks t
 });
 
 test("duplicate title, renamed edit and missing identity cannot invoke ingestion", async () => {
-  const f = fixture(true);
+  const f = await fixture(true);
   assert.equal((await f.controller.save(f.request({ document: raw }))).status, 409);
   assert.equal((await f.controller.save(f.request({ id, document: { ...raw, title: "Renamed" } }))).status, 409);
-  assert.equal((await fixture().controller.save(f.request({ id, document: raw }))).status, 404);
+  assert.equal((await (await fixture()).controller.save(f.request({ id, document: raw }))).status, 404);
   assert.deepEqual(f.calls, []);
 });
 
 test("known ingestion conflicts are actionable; provider/database details remain private", async () => {
-  const f = fixture();
+  const f = await fixture();
   for (const [message, status] of [
     ["Source changed since review: topic", 409], ["Document identity changed; refresh before saving", 409],
     ["An older approval cannot replace a newer document", 409], ["Changed content needs a newer approval", 409],
@@ -182,20 +195,20 @@ test("repository rejects a create collision, renamed/missing edit and concurrent
 });
 
 test("single source check does not renew approval and refuses legacy records without provenance", async () => {
-  const f = fixture(true);
+  const f = await fixture(true);
   f.repo.findById = async () => ({ ...item, sourceHash: null });
   await assert.rejects(() => f.service.check(id), (error: unknown) => error instanceof ErrorClass && error.status === 400);
   assert.deepEqual(f.calls, []);
 });
 
 test("source checks report a conflict if the selected record disappears during the check", async () => {
-  const f = fixture(true);
+  const f = await fixture(true);
   f.ingestion.checkSources = async () => [];
   await assert.rejects(() => f.service.check(id), (error: unknown) => error instanceof ErrorClass && error.status === 409);
 });
 
 test("indexed passage reads are authenticated, UUID-bound and return real content without vectors", async () => {
-  const f = fixture(true);
+  const f = await fixture(true);
   assert.equal((await f.controller.read(f.request(), "bad")).status, 400);
   const response = await f.controller.read(f.request(), id);
   assert.equal(response.headers.get("cache-control"), "private, no-store");
@@ -205,7 +218,7 @@ test("indexed passage reads are authenticated, UUID-bound and return real conten
 });
 
 test("filters reach storage before pagination, and totals remain corpus-wide", async () => {
-  const f = fixture();
+  const f = await fixture();
   let received: unknown;
   const list = f.repo.listAdminDocuments;
   f.repo.listAdminDocuments = async (...args) => { received = args; return list(...args); };
@@ -216,7 +229,7 @@ test("filters reach storage before pagination, and totals remain corpus-wide", a
 });
 
 test("a shrinking filtered result moves an out-of-range page to the last available page", async () => {
-  const f = fixture();
+  const f = await fixture();
   const data = await f.service.list("", 8);
   assert.equal(data.page, 3);
   assert.deepEqual(f.calls, [{ search: "", page: 8, limit: 10 }, { search: "", page: 3, limit: 10 }]);
@@ -225,7 +238,7 @@ test("a shrinking filtered result moves an out-of-range page to the last availab
 const selection = [{ id, updatedAt: now.toISOString() }];
 
 test("bulk validation rejects ambiguous, oversized, duplicate and unsupported edits before any work", async () => {
-  const f = fixture(true);
+  const f = await fixture(true);
   for (const body of [
     { action: "delete", selection: [] }, { action: "delete", selection: [selection[0], selection[0]] },
     { action: "delete", selection: Array.from({ length: 51 }, () => selection[0]) },
@@ -241,7 +254,7 @@ test("bulk validation rejects ambiguous, oversized, duplicate and unsupported ed
 });
 
 test("bulk delete submits only explicit versioned identities under shared auth", async () => {
-  const f = fixture(true);
+  const f = await fixture(true);
   const response = await f.controller.bulk(f.request({ action: "delete", selection }));
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("cache-control"), "private, no-store");
@@ -251,7 +264,7 @@ test("bulk delete submits only explicit versioned identities under shared auth",
 });
 
 test("keyword metadata edits preserve vectors and approval fields while refreshing lexical fingerprints", async () => {
-  const f = fixture(true);
+  const f = await fixture(true);
   await f.service.bulk({ action: "update", selection, changes: { keywords: ["ทุนพิเศษ"] } });
   const result = f.calls[0] as { updates: Array<{ category: string; keywords: string[]; contentHash: string; chunks: Array<{ searchText: string; embedding?: number[] }> }> };
   assert.equal(result.updates[0].category, document.category);
@@ -264,7 +277,7 @@ test("keyword metadata edits preserve vectors and approval fields while refreshi
 });
 
 test("category edits prepare existing passages before the atomic update", async () => {
-  const f = fixture(true);
+  const f = await fixture(true);
   await f.service.bulk({ action: "update", selection, changes: { category: "New category", keywords: [] } });
   assert.deepEqual(f.embedded, [[`${raw.title}\nNew category\n${raw.content}`]]);
   const result = f.calls[0] as { updates: Array<{ chunks: Array<{ embedding: number[] }> }> };
@@ -272,7 +285,7 @@ test("category edits prepare existing passages before the atomic update", async 
 });
 
 test("legacy and stale evidence cannot regain a valid fingerprint through bulk metadata changes", async () => {
-  const f = fixture(true);
+  const f = await fixture(true);
   const original = (await f.repo.findBulkDocuments([id]))[0];
   for (const change of [{ sourceUrl: null }, { contentHash: "stale" },
     { content: "unreviewed text" }, { chunks: [] },
@@ -289,7 +302,7 @@ test("legacy and stale evidence cannot regain a valid fingerprint through bulk m
 
 test("stale or missing selections fail before embedding, without updates", async () => {
   for (const records of [[], [{ ...item, updatedAt: new Date(now.getTime() + 1000), chunks: [] }]]) {
-    const f = fixture(true);
+    const f = await fixture(true);
     f.repo.findBulkDocuments = async () => records;
     const response = await f.controller.bulk(f.request({ action: "update", selection, changes: { category: "New" } }));
     assert.equal(response.status, 409);
@@ -299,7 +312,7 @@ test("stale or missing selections fail before embedding, without updates", async
 });
 
 test("provider failure or incomplete embedding preparation cannot start a metadata transaction", async () => {
-  const f = fixture(true);
+  const f = await fixture(true);
   for (const embed of [async () => { throw new Error("provider down"); }, async () => ({ vectors: [], usage: { total_tokens: 0 }, model: "text-embedding-3-small" as const })]) {
     const service = new Service(f.repo, f.ingestion, undefined, embed);
     await assert.rejects(() => service.bulk({ action: "update", selection, changes: { category: "New" } }));
@@ -308,14 +321,14 @@ test("provider failure or incomplete embedding preparation cannot start a metada
 });
 
 test("unchanged bulk metadata performs no provider call or document update", async () => {
-  const f = fixture(true);
+  const f = await fixture(true);
   assert.deepEqual(await f.service.bulk({ action: "update", selection, changes: { category: raw.category } }), { count: 0 });
   assert.deepEqual(f.calls, [{ selection, updates: [] }]);
   assert.deepEqual(f.embedded, []);
 });
 
 test("bulk category preparation respects the adapter's 32-passage batch limit", async () => {
-  const f = fixture(true);
+  const f = await fixture(true);
   const original = (await f.repo.findBulkDocuments([id]))[0];
   const records = Array.from({ length: 33 }, (_, index) => {
     const record = { ...original, id: `${String(index + 1).padStart(8, "0")}-1111-4111-8111-111111111111`, title: `Synthetic ${index}` };
@@ -329,7 +342,7 @@ test("bulk category preparation respects the adapter's 32-passage batch limit", 
 });
 
 test("a transaction conflict after embedding preparation remains an actionable failure", async () => {
-  const f = fixture(true);
+  const f = await fixture(true);
   f.repo.updateAdminMetadata = async () => { throw new Error("Selected documents changed; refresh before saving"); };
   const response = await f.controller.bulk(f.request({ action: "update", selection, changes: { category: "New" } }));
   assert.equal(response.status, 409);
@@ -338,7 +351,7 @@ test("a transaction conflict after embedding preparation remains an actionable f
 });
 
 test("admin refuses to create, edit or check FILE-sourced documents through the page flow", async () => {
-  const f = fixture(true);
+  const f = await fixture(true);
   const fileItem = { ...item, sourceKind: "FILE" };
   const service = new Service({ ...f.repo, findById: async () => fileItem } as typeof f.repo, f.ingestion);
   const status = async (run: () => Promise<unknown>) => {
@@ -354,7 +367,7 @@ test("admin refuses to create, edit or check FILE-sourced documents through the 
 test("admin save keeps the stored action links and ignores client-supplied ones", async () => {
   const stored = [{ label: "ยื่นคำร้อง", url: "https://bulinks.bu.ac.th/service-petition-new/" }];
   const sent = [{ label: "อื่น", url: "https://bu.ac.th/other" }];
-  const f = fixture(true);
+  const f = await fixture(true);
   const edit = new Service({ ...f.repo, findById: async () => ({ ...item, actionLinks: stored }) } as typeof f.repo, f.ingestion);
   await edit.save({ id, document: { ...document, actionLinks: sent } });
   const created = new Service({ ...f.repo, findIndexedDocument: async () => null } as typeof f.repo, f.ingestion);

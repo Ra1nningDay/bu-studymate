@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { KnowledgeIdSchema, KnowledgeListSchema, KnowledgeSaveSchema, KnowledgeSourceSchema, KnowledgeBulkSchema } from "@/src/dtos/knowledge-admin.dto";
 import { adminAuthService } from "@/src/services/admin-auth.service";
 import { KnowledgeAdminError, knowledgeAdminService } from "@/src/services/knowledge-admin.service";
-import { isSameOrigin } from "./admin-auth.controller";
+import { accessDenied, isSameOrigin } from "./admin-auth.controller";
 
 export class KnowledgeAdminController {
   constructor(private service = knowledgeAdminService, private auth = adminAuthService) {}
@@ -11,8 +11,12 @@ export class KnowledgeAdminController {
     return NextResponse.json(value, { status, headers: { "Cache-Control": "private, no-store" } });
   }
 
-  private guard(request: Request, write = false) {
-    if (!this.auth.isRequestAuthenticated(request)) return this.json({ error: "Unauthorized" }, 401);
+  private async guard(request: Request, write = false) {
+    const access = await this.auth.authorize(request, write ? "write" : "read");
+    if (access !== "ok") {
+      const { error, status } = accessDenied(access);
+      return this.json({ error }, status);
+    }
     if (write && !isSameOrigin(request)) return this.json({ error: "Forbidden" }, 403);
   }
 
@@ -22,7 +26,7 @@ export class KnowledgeAdminController {
   }
 
   async list(request: Request) {
-    const denied = this.guard(request);
+    const denied = await this.guard(request);
     if (denied) return denied;
     const params = new URL(request.url).searchParams;
     const parsed = KnowledgeListSchema.safeParse({ search: params.get("search") ?? "", page: params.get("page") ?? 1,
@@ -33,7 +37,7 @@ export class KnowledgeAdminController {
   }
 
   async save(request: Request) {
-    const denied = this.guard(request, true);
+    const denied = await this.guard(request, true);
     if (denied) return denied;
     let body: unknown;
     try { body = await request.json(); } catch { return this.json({ error: "Invalid JSON" }, 400); }
@@ -44,7 +48,7 @@ export class KnowledgeAdminController {
   }
 
   async read(request: Request, id: string) {
-    const denied = this.guard(request);
+    const denied = await this.guard(request);
     if (denied) return denied;
     if (!KnowledgeIdSchema.safeParse(id).success) return this.json({ error: "Invalid document ID" }, 400);
     try { return this.json(await this.service.read(id)); }
@@ -52,7 +56,7 @@ export class KnowledgeAdminController {
   }
 
   async bulk(request: Request) {
-    const denied = this.guard(request, true);
+    const denied = await this.guard(request, true);
     if (denied) return denied;
     let body: unknown;
     try { body = await request.json(); } catch { return this.json({ error: "Invalid JSON" }, 400); }
@@ -63,7 +67,7 @@ export class KnowledgeAdminController {
   }
 
   async snapshot(request: Request) {
-    const denied = this.guard(request, true);
+    const denied = await this.guard(request, true);
     if (denied) return denied;
     let body: unknown;
     try { body = await request.json(); } catch { return this.json({ error: "Invalid JSON" }, 400); }
@@ -74,7 +78,7 @@ export class KnowledgeAdminController {
   }
 
   async check(request: Request, id: string) {
-    const denied = this.guard(request, true);
+    const denied = await this.guard(request, true);
     if (denied) return denied;
     if (!KnowledgeIdSchema.safeParse(id).success) return this.json({ error: "Invalid document ID" }, 400);
     try { return this.json({ result: await this.service.check(id) }); }

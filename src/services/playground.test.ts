@@ -4,12 +4,10 @@ import type { PlaygroundService } from "./playground.service";
 import type { ChatOrchestrationService } from "./chat-orchestration.service";
 import type { RateLimitService } from "./rate-limit.service";
 import type { PlaygroundConversation } from "@/src/dtos/playground.dto";
+import { standardAdminFixture } from "./test-support/admin-auth-fixture";
 
 const sessionId = "playground-12345678-1234-4123-8123-123456789abc";
 const origin = "http://localhost:3025";
-let Auth: typeof import("./admin-auth.service").AdminAuthService;
-// Auth tests assert the password-fallback signing, so a developer's own secret must not leak in.
-delete process.env.ADMIN_SESSION_SECRET;
 
 let AuthController: typeof import("@/src/controllers/admin-auth.controller").AdminAuthController;
 let Controller: typeof import("@/src/controllers/playground.controller").PlaygroundController;
@@ -19,7 +17,6 @@ let presenter: typeof import("@/src/presenters/playground.presenter").presentPla
 
 before(async () => {
   process.env.DATABASE_URL ??= "postgresql://fixture:fixture@localhost:5432/fixture_unused";
-  ({ AdminAuthService: Auth } = await import("./admin-auth.service"));
   ({ AdminAuthController: AuthController } = await import("@/src/controllers/admin-auth.controller"));
   ({ PlaygroundController: Controller } = await import("@/src/controllers/playground.controller"));
   ({ PlaygroundService: Service } = await import("./playground.service"));
@@ -27,9 +24,8 @@ before(async () => {
   ({ presentPlaygroundConversation: presenter } = await import("@/src/presenters/playground.presenter"));
 });
 
-function fixture() {
-  const auth = new Auth("fixture-admin-password");
-  const token = auth.createSession("fixture-admin-password")!;
+async function fixture() {
+  const { service: auth, adminToken: token, viewerToken } = await standardAdminFixture();
   const calls: string[] = [];
   const conversation: PlaygroundConversation = {
     sessionId, createdAt: "2026-10-12T00:00:00Z", state: "IDLE", messages: [], runs: []
@@ -46,60 +42,21 @@ function fixture() {
   } as unknown as ChatOrchestrationService;
   const limiter = { consume: async () => { calls.push("limit"); return { allowed: true }; } } as unknown as RateLimitService;
   const controller = new Controller(auth, service, chat, limiter);
-  function request(path: string, body?: unknown, authenticated = true, source = origin) {
+  function request(path: string, body?: unknown, authenticated = true, source = origin, asToken = token) {
     return new Request(`${origin}/api/admin/playground/${path}`, {
       method: body === undefined ? "GET" : "POST",
       headers: {
         origin: source, "Content-Type": "application/json",
-        ...(authenticated ? { cookie: `studymate-admin=${token}` } : {})
+        ...(authenticated ? { cookie: `studymate-admin=${asToken}` } : {})
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) })
     });
   }
-  return { auth, token, controller, authController: new AuthController(auth, { consume: async () => ({ allowed: true }) } as never), calls, service, chat, limiter, request };
+  return { auth, token, viewerToken, controller, authController: new AuthController(auth, { consume: async () => ({ allowed: true }) } as never), calls, service, chat, limiter, request };
 }
 
-test("auth rejects absent config, wrong passwords, tampering, expiry and password rotation", () => {
-  const auth = new Auth("secret");
-  const now = 1791763200000;
-  assert.equal(new Auth("").createSession(""), null);
-  assert.equal(new Auth("").isAuthenticated("anything"), false);
-  assert.equal(auth.createSession("wrong", now), null);
-  const token = auth.createSession("secret", now)!;
-  assert.equal(auth.isAuthenticated(token, now), true);
-  assert.equal(auth.isAuthenticated(token, now + 8 * 60 * 60 * 1000), false);
-  assert.equal(auth.isAuthenticated(`9${token.slice(1)}`, now), false);
-  assert.equal(auth.isAuthenticated(`${token.slice(0, -1)}z`, now), false);
-  assert.equal(new Auth("rotated").isAuthenticated(token, now), false);
-  assert.equal(auth.isAuthenticated(undefined, now), false);
-  const authWithUser = new Auth("secret", "bu-admin");
-  assert.equal(authWithUser.createSession("secret", "wrong-user", now), null);
-  assert.notEqual(authWithUser.createSession("secret", "bu-admin", now), null);
-  assert.notEqual(authWithUser.createSession("secret", "BU-ADMIN", now), null);
-});
-
-test("session signing uses the dedicated secret, not the password", () => {
-  const now = 1791763200000;
-  const a = new Auth("pw", "admin", "s".repeat(32));
-  const token = a.createSession("pw", now)!;
-  assert.equal(new Auth("pw", "admin", "t".repeat(32)).isAuthenticated(token, now), false);
-  assert.equal(new Auth("other-pw", "admin", "s".repeat(32)).isAuthenticated(token, now), true);
-});
-
-test("without a secret the password still signs sessions", () => {
-  const now = 1791763200000;
-  const token = new Auth("pw", "admin", undefined).createSession("pw", now)!;
-  assert.equal(new Auth("other-pw", "admin", undefined).isAuthenticated(token, now), false);
-});
-
-test("a secret alone does not enable login", () => {
-  const a = new Auth(undefined, "admin", "s".repeat(32));
-  assert.equal(a.configured, false);
-  assert.equal(a.createSession("x"), null);
-});
-
 test("unauthenticated reads and sends never reach storage, AI or rate limiting", async () => {
-  const f = fixture();
+  const f = await fixture();
   assert.equal((await f.controller.list(f.request("sessions", undefined, false))).status, 401);
   assert.equal((await f.controller.read(f.request("sessions/id", undefined, false), sessionId)).status, 401);
   assert.equal((await f.controller.send(f.request("message", { sessionId, message: "hello" }, false))).status, 401);
@@ -107,7 +64,7 @@ test("unauthenticated reads and sends never reach storage, AI or rate limiting",
 });
 
 test("cross-origin sends, login and logout fail before mutation", async () => {
-  const f = fixture();
+  const f = await fixture();
   const req = f.request("message", { sessionId, message: "hello" }, true, "https://other.example");
   assert.equal((await f.controller.send(req)).status, 403);
   assert.equal((await f.authController.login(f.request("login", {}, true, "https://other.example"))).status, 403);
@@ -116,8 +73,8 @@ test("cross-origin sends, login and logout fail before mutation", async () => {
 });
 
 test("login submits by POST and sets a protected cookie without placing credentials in URLs", async () => {
-  const f = fixture();
-  const form = new URLSearchParams({ password: "fixture-admin-password" });
+  const f = await fixture();
+  const form = new URLSearchParams({ email: "boss@bumail.net", password: "boss-pw" });
   const response = await f.authController.login(new Request(`${origin}/api/admin/playground/login`, {
     method: "POST", headers: { origin }, body: form
   }));
@@ -125,13 +82,21 @@ test("login submits by POST and sets a protected cookie without placing credenti
   assert.equal(response.headers.get("location"), `${origin}/admin`);
   assert.match(response.headers.get("set-cookie") ?? "", /HttpOnly/i);
   assert.match(response.headers.get("set-cookie") ?? "", /SameSite=strict/i);
-  assert.doesNotMatch(response.headers.get("set-cookie") ?? "", /fixture-admin-password/);
+  assert.doesNotMatch(response.headers.get("set-cookie") ?? "", /boss-pw/);
   const logout = await f.authController.logout(f.request("logout", {}));
   assert.match(logout.headers.get("set-cookie") ?? "", /Max-Age=0/i);
 });
 
+test("viewer can list and read sessions but cannot send", async () => {
+  const f = await fixture();
+  assert.equal((await f.controller.list(f.request("sessions", undefined, true, origin, f.viewerToken))).status, 200);
+  assert.equal((await f.controller.read(f.request("sessions/id", undefined, true, origin, f.viewerToken), sessionId)).status, 200);
+  assert.equal((await f.controller.send(f.request("message", { sessionId, message: "hello" }, true, origin, f.viewerToken))).status, 403);
+  assert.deepEqual(f.calls, ["list", `read:${sessionId}`]);
+});
+
 test("rejects LINE identities, ordinary web sessions, blank messages and oversized input before storage", async () => {
-  const f = fixture();
+  const f = await fixture();
   for (const body of [
     { sessionId: "U123", message: "hello" },
     { sessionId: "browser-123", message: "hello" },
@@ -143,17 +108,17 @@ test("rejects LINE identities, ordinary web sessions, blank messages and oversiz
 });
 
 test("login uses the browser host and forwarded scheme when Next has an internal request URL", async () => {
-  const f = fixture();
+  const f = await fixture();
   const response = await f.authController.login(new Request("http://localhost:3025/api/admin/playground/login", {
     method: "POST", headers: { origin: "https://studymate.example", host: "studymate.example", "x-forwarded-proto": "https" },
-    body: new URLSearchParams({ password: "fixture-admin-password" })
+    body: new URLSearchParams({ email: "boss@bumail.net", password: "boss-pw" })
   }));
   assert.equal(response.status, 303);
   assert.equal(response.headers.get("location"), "https://studymate.example/admin");
 });
 
 test("valid send uses shared orchestration with web identity, normal quota and exact saved run ID", async () => {
-  const f = fixture();
+  const f = await fixture();
   const response = await f.controller.send(f.request("message", { sessionId, message: " hello " }));
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), { runId: "stored-run", reply: "Synthetic reply" });
@@ -162,7 +127,7 @@ test("valid send uses shared orchestration with web identity, normal quota and e
 });
 
 test("quota rejection does not call orchestration", async () => {
-  const f = fixture();
+  const f = await fixture();
   f.limiter.consume = async () => ({ allowed: false, retryAfterSeconds: 42 });
   const response = await f.controller.send(f.request("message", { sessionId, message: "hello" }));
   assert.equal(response.status, 429);
@@ -171,7 +136,7 @@ test("quota rejection does not call orchestration", async () => {
 });
 
 test("provider/storage errors return a safe failure and read-back never replays the send", async () => {
-  const f = fixture();
+  const f = await fixture();
   f.chat.createBotReply = async () => { throw new Error("sensitive provider credential"); };
   const response = await f.controller.send(f.request("message", { sessionId, message: "hello" }));
   assert.equal(response.status, 503);
@@ -182,7 +147,7 @@ test("provider/storage errors return a safe failure and read-back never replays 
 });
 
 test("session reads are private, a missing session is 404, database failure is 503", async () => {
-  const f = fixture();
+  const f = await fixture();
   const read = await f.controller.read(f.request("sessions/id"), sessionId);
   assert.match(read.headers.get("cache-control") ?? "", /no-store/);
   assert.equal((await f.controller.read(f.request("sessions/id"), sessionId.replace("789abc", "789abd"))).status, 404);

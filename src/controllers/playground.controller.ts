@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { PlaygroundMessageSchema, PlaygroundSessionIdSchema } from "@/src/dtos/playground.dto";
 import { adminAuthService } from "@/src/services/admin-auth.service";
-import { isSameOrigin } from "@/src/controllers/admin-auth.controller";
+import { accessDenied, isSameOrigin } from "@/src/controllers/admin-auth.controller";
 import { playgroundService } from "@/src/services/playground.service";
 import { chatOrchestrationService } from "@/src/services/chat-orchestration.service";
 import { rateLimitService, messageRateLimitConfig } from "@/src/services/rate-limit.service";
@@ -17,8 +17,11 @@ export class PlaygroundController {
     private limiter = rateLimitService
   ) {}
 
-  private authorized(request: Request) {
-    return this.auth.isRequestAuthenticated(request);
+  private async deny(request: Request, need: "read" | "write") {
+    const access = await this.auth.authorize(request, need);
+    if (access === "ok") return null;
+    const { error, status } = accessDenied(access);
+    return this.json({ error }, status);
   }
 
   private json(value: unknown, status = 200) {
@@ -26,7 +29,8 @@ export class PlaygroundController {
   }
 
   async list(request: Request) {
-    if (!this.authorized(request)) return this.json({ error: "Unauthorized" }, 401);
+    const denied = await this.deny(request, "read");
+    if (denied) return denied;
     try {
       return this.json({ sessions: await this.service.listSessions() });
     } catch {
@@ -35,7 +39,8 @@ export class PlaygroundController {
   }
 
   async read(request: Request, sessionId: string) {
-    if (!this.authorized(request)) return this.json({ error: "Unauthorized" }, 401);
+    const denied = await this.deny(request, "read");
+    if (denied) return denied;
     if (!PlaygroundSessionIdSchema.safeParse(sessionId).success) return this.json({ error: "Invalid session" }, 400);
     try {
       const conversation = await this.service.getConversation(sessionId);
@@ -46,7 +51,8 @@ export class PlaygroundController {
   }
 
   async send(request: Request) {
-    if (!this.authorized(request)) return this.json({ error: "Unauthorized" }, 401);
+    const denied = await this.deny(request, "write");
+    if (denied) return denied;
     if (!isSameOrigin(request)) return this.json({ error: "Forbidden" }, 403);
     let body: unknown;
     try { body = await request.json(); } catch { return this.json({ error: "Invalid JSON" }, 400); }

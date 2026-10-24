@@ -21,7 +21,7 @@ import {
 import { normalizeWebSessionId } from "@/lib/web-session";
 import { saveStudyFile } from "@/lib/study-file";
 import { adminAuthService } from "@/src/services/admin-auth.service";
-import { isSameOrigin } from "@/src/controllers/admin-auth.controller";
+import { accessDenied, isSameOrigin } from "@/src/controllers/admin-auth.controller";
 import { ticketService, type TicketService } from "@/src/services/ticket.service";
 
 function getFormString(formData: FormData, key: string) {
@@ -40,7 +40,11 @@ export class ChatController {
   ) {}
 
   async handleWebChat(request: Request): Promise<NextResponse> {
-    if (!this.auth.isRequestAuthenticated(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const access = await this.auth.authorize(request, "write");
+    if (access !== "ok") {
+      const { error, status } = accessDenied(access);
+      return NextResponse.json({ error }, { status });
+    }
     if (!isSameOrigin(request)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     let bodyRaw: unknown;
 
@@ -89,7 +93,11 @@ export class ChatController {
   }
 
   async handleStudyUpload(request: Request): Promise<NextResponse> {
-    if (!this.auth.isRequestAuthenticated(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const access = await this.auth.authorize(request, "write");
+    if (access !== "ok") {
+      const { error, status } = accessDenied(access);
+      return NextResponse.json({ error }, { status });
+    }
     if (!isSameOrigin(request)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     let formData: FormData;
 

@@ -9,14 +9,16 @@ import {
 } from "@/src/dtos/ticket.dto";
 
 import { adminAuthService } from "@/src/services/admin-auth.service";
-import { getPublicOrigin, isSameOrigin } from "@/src/controllers/admin-auth.controller";
+import { accessDenied, getPublicOrigin, isSameOrigin } from "@/src/controllers/admin-auth.controller";
 
 export class TicketController {
   constructor(private ticketSvc: TicketService = ticketService, private auth = adminAuthService) {}
 
   async handleUpdateStatus(request: Request, context: any): Promise<NextResponse> {
-    if (!this.auth.isRequestAuthenticated(request)) {
-      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    const access = await this.auth.authorize(request, "write");
+    if (access !== "ok") {
+      const { error, status } = accessDenied(access);
+      return NextResponse.json({ ok: false, error }, { status });
     }
     if (!isSameOrigin(request)) return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
     let formData: FormData;

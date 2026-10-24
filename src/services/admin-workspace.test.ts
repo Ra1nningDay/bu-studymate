@@ -5,8 +5,8 @@ import type { RateLimitService } from "./rate-limit.service";
 import type { TicketService } from "./ticket.service";
 import type { AdminOverviewRepository } from "@/src/repositories/admin-overview.repository";
 import type { saveStudyFile } from "@/lib/study-file";
+import { standardAdminFixture } from "./test-support/admin-auth-fixture";
 
-let Auth: typeof import("./admin-auth.service").AdminAuthService;
 let Chat: typeof import("@/src/controllers/chat.controller").ChatController;
 let Ticket: typeof import("@/src/controllers/ticket.controller").TicketController;
 let Overview: typeof import("./admin-overview.service").AdminOverviewService;
@@ -14,15 +14,13 @@ let windowFor: typeof import("./admin-overview.service").overviewWindow;
 
 before(async () => {
   process.env.DATABASE_URL ??= "postgresql://fixture:fixture@localhost:5432/fixture_unused";
-  ({ AdminAuthService: Auth } = await import("./admin-auth.service"));
   ({ ChatController: Chat } = await import("@/src/controllers/chat.controller"));
   ({ TicketController: Ticket } = await import("@/src/controllers/ticket.controller"));
   ({ AdminOverviewService: Overview, overviewWindow: windowFor } = await import("./admin-overview.service"));
 });
 
-function fixture() {
-  const auth = new Auth("test-admin");
-  const token = auth.createSession("test-admin")!;
+async function fixture() {
+  const { service: auth, adminToken: token, viewerToken } = await standardAdminFixture();
   const calls: unknown[] = [];
   const chat = { createBotReply: async (input: unknown) => { calls.push(input); return { text: "reply" }; } } as unknown as ChatOrchestrationService;
   const limits = { consume: async () => { calls.push("limit"); return { allowed: true }; } } as unknown as RateLimitService;
@@ -37,19 +35,20 @@ function fixture() {
   const chatController = new Chat(chat, limits, undefined, auth, tickets, save);
   const ticketController = new Ticket(tickets, auth);
   const headers = { origin: "http://localhost:3025", cookie: `studymate-admin=${token}` };
-  return { auth, calls, chatController, ticketController, headers };
+  const viewerHeaders = { origin: "http://localhost:3025", cookie: `studymate-admin=${viewerToken}` };
+  return { auth, calls, chatController, ticketController, headers, viewerHeaders };
 }
 
 test("shared auth checks do not consume POST bodies and reject the old Playground cookie", async () => {
-  const f = fixture();
+  const f = await fixture();
   const request = new Request("http://localhost:3025/api/chat", { method: "POST", headers: f.headers, body: JSON.stringify({ message: "hello" }) });
-  assert.equal(f.auth.isRequestAuthenticated(request), true);
+  assert.ok(await f.auth.authenticate(request));
   assert.deepEqual(await request.json(), { message: "hello" });
-  assert.equal(f.auth.isRequestAuthenticated(new Request(request.url, { headers: { cookie: f.headers.cookie.replace("studymate-admin", "studymate-playground") } })), false);
+  assert.equal(await f.auth.authenticate(new Request(request.url, { headers: { cookie: f.headers.cookie.replace("studymate-admin", "studymate-playground") } })), null);
 });
 
 test("web chat, uploads and ticket mutations deny unauthenticated callers before any work", async () => {
-  const f = fixture();
+  const f = await fixture();
   const request = () => new Request("http://localhost:3025/api/chat?password=test-admin", { method: "POST", headers: { "x-admin-password": "test-admin" }, body: "invalid" });
   assert.equal((await f.chatController.handleWebChat(request())).status, 401);
   assert.equal((await f.chatController.handleStudyUpload(request())).status, 401);
@@ -57,8 +56,34 @@ test("web chat, uploads and ticket mutations deny unauthenticated callers before
   assert.deepEqual(f.calls, []);
 });
 
+test("viewer can read but every write endpoint returns 403 before any work", async () => {
+  const f = await fixture();
+  const { PlaygroundController } = await import("@/src/controllers/playground.controller");
+  const { KnowledgeAdminController } = await import("@/src/controllers/knowledge-admin.controller");
+  const { StudentAdminController } = await import("@/src/controllers/student-admin.controller");
+  // Touching any dependency means work happened, so these throw instead of recording.
+  const untouchable = new Proxy({}, { get: () => { throw new Error("work was done for a viewer"); } }) as never;
+  const playground = new PlaygroundController(f.auth, untouchable, untouchable, untouchable);
+  const knowledge = new KnowledgeAdminController(untouchable, f.auth);
+  const students = new StudentAdminController(untouchable, f.auth);
+  const post = () => new Request("http://localhost:3025/api/x", { method: "POST", headers: f.viewerHeaders, body: "invalid" });
+  const writes: [string, () => Promise<Response>][] = [
+    ["chat send", () => f.chatController.handleWebChat(post())],
+    ["chat upload", () => f.chatController.handleStudyUpload(post())],
+    ["ticket status", () => f.ticketController.handleUpdateStatus(post(), { params: { id: "id" } })],
+    ["playground send", () => playground.send(post())],
+    ["knowledge save", () => knowledge.save(post())],
+    ["knowledge bulk", () => knowledge.bulk(post())],
+    ["knowledge source", () => knowledge.snapshot(post())],
+    ["knowledge check", () => knowledge.check(post(), "11111111-1111-4111-8111-111111111111")],
+    ["student delete", () => students.handleDelete(post())]
+  ];
+  for (const [name, call] of writes) assert.equal((await call()).status, 403, name);
+  assert.deepEqual(f.calls, []);
+});
+
 test("all web mutation paths reject cross-origin requests even with a valid cookie", async () => {
-  const f = fixture();
+  const f = await fixture();
   const request = () => new Request("http://localhost:3025/api/chat", { method: "POST", headers: { ...f.headers, origin: "https://other.example" }, body: "invalid" });
   assert.equal((await f.chatController.handleWebChat(request())).status, 403);
   assert.equal((await f.chatController.handleStudyUpload(request())).status, 403);
@@ -67,7 +92,7 @@ test("all web mutation paths reject cross-origin requests even with a valid cook
 });
 
 test("authenticated legacy chat API preserves reply and web identity normalization", async () => {
-  const f = fixture();
+  const f = await fixture();
   const response = await f.chatController.handleWebChat(new Request("http://localhost:3025/api/chat", {
     method: "POST", headers: { ...f.headers, "Content-Type": "application/json" }, body: JSON.stringify({ message: "hello", sessionId: "browser-test" })
   }));
@@ -77,7 +102,7 @@ test("authenticated legacy chat API preserves reply and web identity normalizati
 });
 
 test("first upload creates a resumable session before saving the lesson under that identity", async () => {
-  const f = fixture();
+  const f = await fixture();
   const form = new FormData();
   form.set("sessionId", "playground-11111111-1111-4111-8111-111111111111");
   form.set("file", new File(["fixture"], "lesson.docx"));
@@ -88,7 +113,7 @@ test("first upload creates a resumable session before saving the lesson under th
 });
 
 test("ticket updates keep status validation and redirect without credentials", async () => {
-  const f = fixture();
+  const f = await fixture();
   const response = await f.ticketController.handleUpdateStatus(new Request("http://localhost:3025/api/admin/tickets/id/status", {
     method: "POST", headers: f.headers, body: new URLSearchParams({ status: "RESOLVED", password: "ignored" })
   }), { params: Promise.resolve({ id: "id" }) });

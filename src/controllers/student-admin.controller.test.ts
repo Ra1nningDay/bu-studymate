@@ -3,11 +3,11 @@ import { test } from "node:test";
 
 process.env.DATABASE_URL ??= "postgresql://fixture:fixture@localhost:5432/fixture_unused";
 
-async function setup(result: "deleted" | "mismatch" | "not_found", authed = true) {
+async function setup(result: "deleted" | "mismatch" | "not_found", access: "ok" | "unauthenticated" | "forbidden" = "ok") {
   const { StudentAdminController } = await import("./student-admin.controller");
   const calls: unknown[] = [];
   const repo = { remove: async (a: unknown) => (calls.push(a), result) };
-  const auth = { isRequestAuthenticated: () => authed };
+  const auth = { authorize: async (_request: Request, need: string) => (need === "write" ? access : "ok") };
   const controller = new StudentAdminController(repo as never, auth as never);
   const request = (fields: Record<string, string>, origin = "http://localhost:3025") =>
     new Request("http://localhost:3025/api/admin/users/delete", {
@@ -21,11 +21,17 @@ async function setup(result: "deleted" | "mismatch" | "not_found", authed = true
 const fields = { lineUserId: "U1", confirmEmail: "a@bumail.net" };
 
 test("delete denies unauthenticated and cross-origin callers before any work", async () => {
-  const anon = await setup("deleted", false);
+  const anon = await setup("deleted", "unauthenticated");
   assert.equal((await anon.controller.handleDelete(anon.request(fields))).status, 401);
   const cross = await setup("deleted");
   assert.equal((await cross.controller.handleDelete(cross.request(fields, "http://evil.test"))).status, 403);
   assert.equal(anon.calls.length + cross.calls.length, 0);
+});
+
+test("delete denies a viewer with 403 before any work", async () => {
+  const viewer = await setup("deleted", "forbidden");
+  assert.equal((await viewer.controller.handleDelete(viewer.request(fields))).status, 403);
+  assert.equal(viewer.calls.length, 0);
 });
 
 test("delete rejects missing fields without touching the repository", async () => {

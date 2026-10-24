@@ -14,6 +14,11 @@ export function isSameOrigin(request: Request) {
   return request.headers.get("origin") === getPublicOrigin(request);
 }
 
+/** Body and status for a non-"ok" authorize() result. */
+export function accessDenied(access: "unauthenticated" | "forbidden") {
+  return access === "forbidden" ? { error: "Forbidden", status: 403 } : { error: "Unauthorized", status: 401 };
+}
+
 // shortcut: keyed per client IP only, so an attacker rotating IPs is not slowed; upgrade to a per-username or global bucket if abused.
 export function clientKey(request: Request) {
   return request.headers.get("x-forwarded-for")?.split(",")[0].trim() || "unknown";
