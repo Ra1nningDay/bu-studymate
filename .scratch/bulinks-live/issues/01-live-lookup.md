@@ -23,13 +23,15 @@ Guide: [bulinks-live-lookup.md](../../../docs/bulinks-live-lookup.md).
 
 ## Verification
 
-Commits: 866a635 (spec and plan), 0006a3b (client), 917eb5e (service and presenter), 82d1fba (wiring).
+Commits: 866a635 (spec and plan), 0006a3b (client), 917eb5e (service and presenter), 82d1fba (wiring), 93f8ed3 (docs), a29cc88 (final-review fix wave). The counts and ranking constants in the next two bullets are as of 82d1fba; current values are in Comments.
 
 - `pnpm test:bulinks` 16 tests, `pnpm test:concise-chat` 19, `pnpm test:knowledge` 46, `pnpm typecheck`, `pnpm lint`
   passed at 82d1fba; re-run for the documentation commit (see Comments). The tests use fake fetch or an injected lookup.
 - Ranking constants: `minScore = 2.5` (absolute) and `relativeCut = 0.6` (share of the best score). The relative cut was
   added because an absolute threshold alone returned graduate tuition pages for the bachelor query. Both were tuned on a
   15-title fixture; the tests exercise `relativeCut` but not `minScore` independently.
+
+### Live read-only smoke and six questions: measured BEFORE the final-review fix wave (commit 93f8ed3); the fix wave changed ranking and topic detection, see Comments
 
 ### Live read-only smoke (2026-10-24, Node `fetch`, GET only, project client and service; scratch script deleted)
 
@@ -86,3 +88,16 @@ each, are a sample, not a measurement.
   `pnpm test:knowledge` 46/46, `pnpm test:concise-chat` 19/19; `graphify update .` AST refresh (809 nodes, 1249 edges).
 - 2026-10-24: Task 2 added `relativeCut` beyond the single constant planned. The spec's "2026 tuition page only" holds at
   the year level, but two sibling 2026 pages are returned.
+- 2026-10-24, final-review fix wave (a29cc88): topic patterns narrowed (`ประกาศนียบัตร`, `ปฏิทินการศึกษา`, bare `หยุด`/`ออนไลน์`/
+  `online`/`cancel` no longer trigger; academic-calendar and holiday questions return `null` so web search runs; a topic with
+  no usable result falls through to ranking). Ranking now also uses stop words, `minMatched = 2` distinct matched tokens
+  and `minCoverage = 0.6` of the question's meaningful tokens (alongside `minScore = 2.5`, `relativeCut = 0.6`), ignores
+  year tokens when matching, and drops a page group when the named year has no page. English questions get English copy
+  (`en-GB` dates). The P1 eval injects a null lookup. A 152-title snapshot of the real page list is in
+  `lib/fixtures/bulinks-pages.json` with regression assertions. Checks after the wave: `pnpm test:bulinks` 23/23,
+  `pnpm test:knowledge` 46/46, `pnpm test:concise-chat` 19/19, `pnpm test:openai-params` 3/3, `pnpm typecheck`, `pnpm lint`.
+  The scoped re-review judged I1-I4 addressed. Post-wave `lookup("ค่าเทอมปริญญาตรี")` returns the two 2026 bachelor pages
+  (no installment page), so the sample row and smoke bullet above are stale on that point.
+- Known recall cost of the coverage rule (web search answers instead, which is safe): `ประกันอุบัติเหตุทำยังไง`,
+  `ค่าเทอมปริญญาตรีเท่าไหร่`, `ที่จอดรถอยู่ที่ไหน` return no page; "can I take online classes" can still trigger announcements.
+  Reachability of the live site, LINE and web channels, and the live miss-to-BU-Links path were not exercised end to end.
