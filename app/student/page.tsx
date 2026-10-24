@@ -6,7 +6,8 @@ export const dynamic = "force-dynamic";
 
 export default async function StudentPage() {
   const session = studentAuthService.readSession((await cookies()).get(studentCookieName)?.value);
-  if (!session) redirect("/student/login");
+  // The cookie outlives an admin delete, so confirm the binding still exists.
+  if (!session || !(await studentAuthService.isVerified(session.lineUserId))) redirect("/student/login");
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-[#070b0e] p-6 font-sans">

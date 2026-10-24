@@ -10,13 +10,15 @@ export default async function StudentLoginPage({
 }: {
   searchParams: Promise<{ link?: string; student?: string }>;
 }) {
-  if (studentAuthService.readSession((await cookies()).get(studentCookieName)?.value)) {
-    redirect("/student");
-  }
-
   const query = await searchParams;
   const failed = query.student === "failed";
   const link = studentAuthService.isValidLink(query.link) ? query.link : undefined;
+
+  // A fresh LINE link wins over a leftover cookie, otherwise a deleted student could never re-verify.
+  const session = studentAuthService.readSession((await cookies()).get(studentCookieName)?.value);
+  if (!link && session && (await studentAuthService.isVerified(session.lineUserId))) {
+    redirect("/student");
+  }
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-[#070b0e] p-6 font-sans">
