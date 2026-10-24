@@ -37,6 +37,7 @@ const envSchema = z.object({
   // Admin & App URL
   ADMIN_USERNAME: z.string().default("admin"),
   ADMIN_PASSWORD: z.string().optional(),
+  ADMIN_SESSION_SECRET: z.string().min(32).optional(),
   NEXT_PUBLIC_APP_URL: z.string().optional(),
   APP_URL: z.string().optional(),
   CRON_SECRET: z.string().min(32).optional(),

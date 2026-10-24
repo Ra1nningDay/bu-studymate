@@ -75,6 +75,26 @@ test("auth rejects absent config, wrong passwords, tampering, expiry and passwor
   assert.notEqual(authWithUser.createSession("secret", "BU-ADMIN", now), null);
 });
 
+test("session signing uses the dedicated secret, not the password", () => {
+  const now = 1791763200000;
+  const a = new Auth("pw", "admin", "s".repeat(32));
+  const token = a.createSession("pw", now)!;
+  assert.equal(new Auth("pw", "admin", "t".repeat(32)).isAuthenticated(token, now), false);
+  assert.equal(new Auth("other-pw", "admin", "s".repeat(32)).isAuthenticated(token, now), true);
+});
+
+test("without a secret the password still signs sessions", () => {
+  const now = 1791763200000;
+  const token = new Auth("pw", "admin", undefined).createSession("pw", now)!;
+  assert.equal(new Auth("other-pw", "admin", undefined).isAuthenticated(token, now), false);
+});
+
+test("a secret alone does not enable login", () => {
+  const a = new Auth(undefined, "admin", "s".repeat(32));
+  assert.equal(a.configured, false);
+  assert.equal(a.createSession("x"), null);
+});
+
 test("unauthenticated reads and sends never reach storage, AI or rate limiting", async () => {
   const f = fixture();
   assert.equal((await f.controller.list(f.request("sessions", undefined, false))).status, 401);

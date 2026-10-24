@@ -7,7 +7,9 @@ export const adminSessionSeconds = 8 * 60 * 60;
 export class AdminAuthService {
   constructor(
     private password: string | undefined = env.ADMIN_PASSWORD,
-    private username: string = env.ADMIN_USERNAME ?? "admin"
+    private username: string = env.ADMIN_USERNAME ?? "admin",
+    // Falls back to the password so deployments keep working until ADMIN_SESSION_SECRET is set.
+    private secret: string | undefined = env.ADMIN_SESSION_SECRET ?? password
   ) {}
 
   get configured() {
@@ -15,7 +17,7 @@ export class AdminAuthService {
   }
 
   private sign(value: string) {
-    return createHmac("sha256", this.password!).update(`admin:${value}`).digest("hex");
+    return createHmac("sha256", this.secret!).update(`admin:${value}`).digest("hex");
   }
 
   createSession(submittedPassword: string, now?: number): string | null;

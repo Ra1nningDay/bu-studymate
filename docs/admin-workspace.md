@@ -4,6 +4,8 @@ Open `/login` and use the server's `ADMIN_PASSWORD`. Successful login opens
 `/admin`. Without a password the workspace stays closed and shows setup guidance.
 Production requires HTTPS. Cookies are signed, HttpOnly, SameSite=Strict and
 expire after eight hours. Restart the server after changing configuration.
+Set `ADMIN_SESSION_SECRET` (32+ characters) to sign cookies with a key separate from the
+password; changing `ADMIN_PASSWORD` then no longer logs admins out. Without it the password signs cookies.
 
 | Route | Purpose |
 |---|---|
