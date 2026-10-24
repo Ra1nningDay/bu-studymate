@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
-import { House, MessageCircle, Play, ClipboardList, Menu, BookOpen } from "lucide-react";
+import { House, MessageCircle, Play, ClipboardList, Menu, BookOpen, Users } from "lucide-react";
 
 const navigation = [
   { href: "/admin", label: "Overview", icon: House },
   { href: "/admin/chat", label: "Web Chat", icon: MessageCircle },
   { href: "/admin/runs", label: "Bot Runs", icon: Play },
   { href: "/admin/knowledge", label: "Knowledge Base", icon: BookOpen },
+  { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/tickets", label: "Tickets", icon: ClipboardList }
 ];
 
