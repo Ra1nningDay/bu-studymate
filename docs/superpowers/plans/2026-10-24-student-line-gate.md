@@ -16,14 +16,14 @@
 - No feature flag and no new env var: the gate is always on whenever `StudentAuthService.configured` is true (the app is not live yet, so there are no existing users to protect). When student auth is not configured the gate is skipped, since nobody could verify.
 - `ยืนยันนักศึกษา` is never gated. Web `/chat` and group chats are untouched.
 - Card cooldown: scope `"student_gate"`, one window `{ limit: 1, seconds: 600 }`.
-- Copy (Thai, exact): card title `ยืนยันนักศึกษาก่อนใช้งาน`; body `ยืนยันบัญชี Google @bumail.net ของคุณกับ LINE ก่อน แล้วส่งข้อความมาใหม่อีกครั้งครับ`; button label `ยืนยันบัญชี`; altText `ยืนยันนักศึกษาก่อนใช้งาน`; cooldown reply `กดปุ่มยืนยันนักศึกษาในการ์ดก่อนหน้า หรือพิมพ์ "ยืนยันนักศึกษา" เพื่อรับลิงก์ใหม่ครับ`.
+- Copy (Thai, exact): card title `ยืนยันนักศึกษาก่อนใช้งาน`; body `ยืนยันบัญชี Google @bumail.net ของคุณกับ LINE ก่อน แล้วส่งข้อความมาใหม่อีกครั้งครับ`; button label `ยืนยันบัญชี`; altText `ยืนยันนักศึกษาก่อนใช้งาน`; repeats within the window reuse `createStudentLinkTemplate(url)` with a fresh link.
 - Conventional Commits. Before finishing: `pnpm typecheck`, `pnpm lint`, `pnpm test:student-auth`, then `graphify update .`.
 
 ## Review Focus
 
 - Auth unconfigured: the bot is still called, no card (Task 1).
 - Linked user: bot is called, no card (Task 1).
-- Unlinked user sends 3 messages in a row: exactly one card, then the cooldown text twice, bot never called (Task 2).
+- Unlinked user sends 3 messages in a row: exactly one card, then two compact buttons with fresh links, bot never called (Task 2).
 - Unlinked user uploads a PDF: file is not downloaded or processed (Task 2).
 - Unlinked user follows: greeting plus card; linked user following again: greeting only (Task 2).
 - Repository lookup throws: webhook must not reply with bot output; the error propagates as it does for other DB failures (Task 2).
@@ -41,13 +41,13 @@
   - `Deps.repo` widened to `Pick<StudentAccountRepository, "bind" | "findByLineUserId">`
   - `StudentAuthService.isVerified(lineUserId: string): Promise<boolean>` (`(await repo.findByLineUserId(id)) !== null`)
   - `LineFlexPresenter.createStudentGateCard(url: string)`: Flex `bubble` envelope with `altText` and the Global Constraints copy and one green `uri` button to `url`.
-  - private `LineWebhookController.replyIfNotVerified(replyToken: string, lineUserId: string): Promise<boolean>`: returns `false` when auth is unconfigured or the user is verified; otherwise replies (card when `consume` is allowed, else the cooldown text) and returns `true`, meaning the caller must stop.
+  - private `LineWebhookController.replyIfNotVerified(replyToken: string, lineUserId: string): Promise<boolean>`: returns `false` when auth is unconfigured or the user is verified; otherwise replies (card when `consume` is allowed, else `createStudentLinkTemplate(url)`) and returns `true`, meaning the caller must stop.
 
 - [ ] **Step 1: Write failing tests.** Update `flow()` so the repo also has `findByLineUserId: async () => null`. Extend `lineFixture(options: { linked?: boolean; configured?: boolean })`: `findByLineUserId` returns `{ lineUserId: "U1", email: "a@bumail.net" }` when `linked`; `configured: false` builds the service without secret; the rate-limit stub allows scope `"student_gate"` only on its first call and always allows other scopes. Tests asserting on `sent` and `botCalls`:
   - `unconfigured auth: unlinked user still reaches the bot, no card`
   - `unlinked: replies with the card and skips the bot` (`altText === "ยืนยันนักศึกษาก่อนใช้งาน"`, button uri starts with `${appUrl}/login?link=`, `botCalls` empty)
   - `linked: reaches the bot with no card`
-  - `three messages: one card then two cooldown texts` (`sent` has 3 entries; first the card, others the cooldown copy)
+  - `three messages: one card then two compact buttons with fresh links` (`sent` has 3 entries; first the card, others altText `ยืนยันนักศึกษา BU`)
   - `ยืนยันนักศึกษา still returns the link template for an unlinked user`
   - `repo throws: bot is not called` (`await assert.rejects(f.send("สวัสดี"))`, `botCalls` empty)
   - existing `other text still reaches the chat bot` must become `linked: true`.

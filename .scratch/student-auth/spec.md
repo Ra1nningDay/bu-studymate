@@ -55,7 +55,7 @@ Defaults chosen 2026-10-24 (change here first if the product call differs):
   and the follow event. `ยืนยันนักศึกษา` keeps working and is never gated.
 - The blocked message is not stored or replayed; the card says to resend after verifying.
 - The card is sent at most once per 10 minutes per user (the link TTL); inside the window a
-  one-line text reply points back to the card.
+  compact link button with a fresh link.
 - Web `/chat` and group chats are out of scope.
 - The reverse-link limit above matters more once the gate exists: ship the gate to real
   users only after an admin unbind or a LINE notice naming the bound email.

@@ -76,7 +76,7 @@ export class LineWebhookController {
     private studentAuth: StudentAuthService = studentAuthService
   ) {}
 
-  /** Replies with the verify card (or a cooldown note) and returns true when the user is not a verified student. */
+  /** Replies with the verify card (or a compact button after the first) and returns true when the user is not a verified student. */
   private async replyIfNotVerified(replyToken: string, lineUserId: string) {
     if (!this.studentAuth.configured || (await this.studentAuth.isVerified(lineUserId))) {
       return false;
@@ -87,16 +87,13 @@ export class LineWebhookController {
       scope: "student_gate",
       windows: [{ limit: 1, seconds: 10 * 60 }]
     });
-    if (cardWindow.allowed) {
-      await replyLineMessage(replyToken, [
-        this.flexPresenter.createStudentGateCard(this.studentAuth.createLinkUrl(lineUserId))
-      ]);
-    } else {
-      await replyLineText(
-        replyToken,
-        'กดปุ่มยืนยันนักศึกษาในการ์ดก่อนหน้า หรือพิมพ์ "ยืนยันนักศึกษา" เพื่อรับลิงก์ใหม่ครับ'
-      );
-    }
+    const url = this.studentAuth.createLinkUrl(lineUserId);
+    // Repeats get a compact button with a fresh link, so an expired card is never a dead end.
+    await replyLineMessage(replyToken, [
+      cardWindow.allowed
+        ? this.flexPresenter.createStudentGateCard(url)
+        : this.flexPresenter.createStudentLinkTemplate(url)
+    ]);
     return true;
   }
 

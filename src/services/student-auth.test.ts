@@ -284,7 +284,6 @@ describe("student auth controller", () => {
 });
 
 describe("LINE student link trigger and gate", () => {
-  const gateCooldownText = "กดปุ่มยืนยันนักศึกษาในการ์ดก่อนหน้า หรือพิมพ์ \"ยืนยันนักศึกษา\" เพื่อรับลิงก์ใหม่ครับ";
 
   function lineFixture(options: { linked?: boolean; configured?: boolean; lookupFails?: boolean } = {}) {
     const sent: { messages: { type?: string; altText?: string; text?: string }[] }[] = [];
@@ -362,7 +361,7 @@ describe("LINE student link trigger and gate", () => {
     }
   });
 
-  test("three messages from an unlinked user send one card then two cooldown texts", async () => {
+  test("repeat messages from an unlinked user get a compact button with a fresh link", async () => {
     const f = lineFixture();
     try {
       await f.send("a");
@@ -371,8 +370,10 @@ describe("LINE student link trigger and gate", () => {
       assert.deepEqual(f.botCalls, []);
       assert.equal(f.sent.length, 3);
       assert.equal(f.sent[0].messages[0].altText, "ยืนยันนักศึกษาก่อนใช้งาน");
-      assert.equal(f.sent[1].messages[0].text, gateCooldownText);
-      assert.equal(f.sent[2].messages[0].text, gateCooldownText);
+      for (const reply of f.sent.slice(1)) {
+        assert.equal(reply.messages[0].altText, "ยืนยันนักศึกษา BU");
+        assert.ok(JSON.stringify(reply.messages[0]).includes(`${appUrl}/login?link=`));
+      }
     } finally {
       f.restore();
     }
