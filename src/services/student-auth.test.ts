@@ -289,10 +289,12 @@ describe("LINE student link trigger and gate", () => {
   function lineFixture(options: { linked?: boolean; configured?: boolean; lookupFails?: boolean } = {}) {
     const sent: { messages: { type?: string; altText?: string; text?: string }[] }[] = [];
     const botCalls: string[] = [];
+    const urls: string[] = [];
     let gateCards = 0;
     const realFetch = globalThis.fetch;
-    globalThis.fetch = (async (_url: string, init: { body: string }) => {
-      const body = JSON.parse(init.body);
+    globalThis.fetch = (async (url: string, init?: { body?: string }) => {
+      urls.push(String(url));
+      const body = init?.body ? JSON.parse(init.body) : {};
       if (body.messages) sent.push(body); // skips the loading-animation request
       return { ok: true, text: async () => "" };
     }) as unknown as typeof fetch;
@@ -315,7 +317,12 @@ describe("LINE student link trigger and gate", () => {
     );
     const send = (text: string) =>
       controller["handleTextMessage"]({ replyToken: "r1", source: { userId: "U1" }, message: { text } } as never);
-    return { sent, botCalls, send, restore: () => { globalThis.fetch = realFetch; } };
+    const sendFile = () =>
+      controller["handleFileMessage"]({
+        replyToken: "r1", source: { userId: "U1" }, message: { id: "m1", fileName: "a.pdf" }
+      } as never);
+    const sendFollow = () => controller["handleFollowEvent"]({ replyToken: "r1", source: { userId: "U1" } } as never);
+    return { sent, botCalls, urls, send, sendFile, sendFollow, restore: () => { globalThis.fetch = realFetch; } };
   }
 
   test("ยืนยันนักศึกษา replies with a login link button and skips the chat bot", async () => {
@@ -396,6 +403,48 @@ describe("LINE student link trigger and gate", () => {
     try {
       await assert.rejects(f.send("สวัสดี"));
       assert.deepEqual(f.botCalls, []);
+    } finally {
+      f.restore();
+    }
+  });
+
+  test("unlinked file upload gets the card and the file is never downloaded", async () => {
+    const f = lineFixture();
+    try {
+      await f.sendFile();
+      assert.equal(f.sent[0].messages[0].altText, "ยืนยันนักศึกษาก่อนใช้งาน");
+      assert.ok(!f.urls.some((url) => url.includes("/content")));
+    } finally {
+      f.restore();
+    }
+  });
+
+  test("unlinked follow gets the greeting and the card in one reply", async () => {
+    const f = lineFixture();
+    try {
+      await f.sendFollow();
+      assert.equal(f.sent[0].messages.length, 2);
+      assert.equal(f.sent[0].messages[1].altText, "ยืนยันนักศึกษาก่อนใช้งาน");
+    } finally {
+      f.restore();
+    }
+  });
+
+  test("linked follow gets the greeting only", async () => {
+    const f = lineFixture({ linked: true });
+    try {
+      await f.sendFollow();
+      assert.equal(f.sent[0].messages.length, 1);
+    } finally {
+      f.restore();
+    }
+  });
+
+  test("unconfigured student auth makes the follow greeting only", async () => {
+    const f = lineFixture({ configured: false });
+    try {
+      await f.sendFollow();
+      assert.equal(f.sent[0].messages.length, 1);
     } finally {
       f.restore();
     }

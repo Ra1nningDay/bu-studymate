@@ -128,7 +128,9 @@ OpenID Connect flow and, in the callback, accepts only a Google ID token with
 ([signed-token.ts](src/services/signed-token.ts)); Google calls live in
 [lib/google-oidc.ts](lib/google-oidc.ts). Google Cloud setup: OAuth client type Web,
 redirect URI `<APP_URL>/api/student/auth/google/callback`, env `GOOGLE_CLIENT_ID`,
-`GOOGLE_CLIENT_SECRET`, `STUDENT_AUTH_SECRET`. No feature is yet gated on the session.
+`GOOGLE_CLIENT_SECRET`, `STUDENT_AUTH_SECRET`. On LINE, text, file and follow events from a `lineUserId` with no `StudentAccount` get a
+verify card instead of any bot reply (skipped when student auth is not configured); web `/chat`
+is not gated.
 
 Web session identifiers are normalized by [lib/web-session.ts](lib/web-session.ts).
 They identify conversation context, not an authenticated BU student account.

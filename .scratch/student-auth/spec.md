@@ -41,5 +41,21 @@ LINE user (`lineUserId`) belongs to that `@bumail.net` email.
   LINE notification yet. Add an admin unbind and/or a LINE push naming the email before any
   feature trusts the binding; LINE Login closes it fully.
 - Failures all redirect to the same `/login?student=failed` message and are not logged.
-- Which app features require a verified student is not decided; this work only
-  creates the binding and the session.
+- Which app features require a verified student is decided for LINE only by the
+  gate below; web `/chat` and `/student` are not gated.
+
+## LINE gate (ticket [student-auth-02](issues/02-line-gate.md))
+
+Defaults chosen 2026-10-24 (change here first if the product call differs):
+
+- No feature flag: the app is not live, so the gate is always on whenever student auth is
+  configured. If it is not configured the gate is skipped (nobody could verify).
+- A LINE user with no `student_accounts` row gets a Flex card with a
+  `createLinkUrl` button instead of any bot reply. This covers text messages, file uploads
+  and the follow event. `ยืนยันนักศึกษา` keeps working and is never gated.
+- The blocked message is not stored or replayed; the card says to resend after verifying.
+- The card is sent at most once per 10 minutes per user (the link TTL); inside the window a
+  one-line text reply points back to the card.
+- Web `/chat` and group chats are out of scope.
+- The reverse-link limit above matters more once the gate exists: ship the gate to real
+  users only after an admin unbind or a LINE notice naming the bound email.

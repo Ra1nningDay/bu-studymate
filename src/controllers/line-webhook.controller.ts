@@ -152,7 +152,13 @@ export class LineWebhookController {
       return;
     }
 
-    await replyLineMessage(replyToken, [this.flexPresenter.createGreetingRichMessage()]);
+    const lineUserId = event.source?.userId;
+    const messages: unknown[] = [this.flexPresenter.createGreetingRichMessage()];
+    if (lineUserId && this.studentAuth.configured && !(await this.studentAuth.isVerified(lineUserId))) {
+      messages.push(this.flexPresenter.createStudentGateCard(this.studentAuth.createLinkUrl(lineUserId)));
+    }
+
+    await replyLineMessage(replyToken, messages);
   }
 
   private async handleFileMessage(event: LineWebhookEvent) {
@@ -177,6 +183,10 @@ export class LineWebhookController {
     });
     if (!rateLimit.allowed) {
       await replyLineText(replyToken, this.rateLimitSvc.formatMessage(rateLimit));
+      return;
+    }
+
+    if (await this.replyIfNotVerified(replyToken, lineUserId)) {
       return;
     }
 
