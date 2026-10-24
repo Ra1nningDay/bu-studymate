@@ -20,7 +20,7 @@ type Deps = {
   clientSecret?: string;
   domain: string;
   appUrl: string;
-  repo: Pick<StudentAccountRepository, "bind">;
+  repo: Pick<StudentAccountRepository, "bind" | "findByLineUserId">;
   google: { exchange: typeof exchangeGoogleCode };
 };
 
@@ -98,6 +98,10 @@ export class StudentAuthService {
     } catch {
       return fail("exchange_failed");
     }
+  }
+
+  async isVerified(lineUserId: string) {
+    return (await this.deps.repo.findByLineUserId(lineUserId)) !== null;
   }
 
   readSession(token: string | undefined, now?: number) {

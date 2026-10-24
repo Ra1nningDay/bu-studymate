@@ -35,6 +35,42 @@ export class LineFlexPresenter {
     };
   }
 
+  createStudentGateCard(url: string) {
+    return {
+      type: "flex",
+      altText: "ยืนยันนักศึกษาก่อนใช้งาน",
+      contents: {
+        type: "bubble",
+        body: {
+          type: "box",
+          layout: "vertical",
+          spacing: "md",
+          contents: [
+            { type: "text", text: "ยืนยันนักศึกษาก่อนใช้งาน", weight: "bold", size: "lg", color: "#06C755", wrap: true },
+            {
+              type: "text",
+              text: "ยืนยันบัญชี Google @bumail.net ของคุณกับ LINE ก่อน แล้วส่งข้อความมาใหม่อีกครั้งครับ",
+              size: "sm",
+              wrap: true
+            }
+          ]
+        },
+        footer: {
+          type: "box",
+          layout: "vertical",
+          contents: [
+            {
+              type: "button",
+              style: "primary",
+              color: "#06C755",
+              action: { type: "uri", label: "ยืนยันบัญชี", uri: url }
+            }
+          ]
+        }
+      }
+    };
+  }
+
   createTicketConfirmTemplate(draft: TicketDraftDto) {
     return {
       type: "template",

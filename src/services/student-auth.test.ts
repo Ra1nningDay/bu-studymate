@@ -124,7 +124,10 @@ function flow(options: { claims?: Partial<import("@/lib/google-oidc").GoogleIdCl
   const state = { nonce: "" };
   const service = new Service({
     secret, clientId: "client-1", clientSecret: "secret-1", domain: "bumail.net", appUrl,
-    repo: { bind: async (input: { lineUserId: string; email: string }) => { binds.push(input); return (options.bind ?? "bound") as never; } },
+    repo: {
+      bind: async (input: { lineUserId: string; email: string }) => { binds.push(input); return (options.bind ?? "bound") as never; },
+      findByLineUserId: (async () => null) as never
+    },
     google: {
       exchange: async () => {
         if (options.exchangeFails) throw new Error("boom");
@@ -280,20 +283,34 @@ describe("student auth controller", () => {
   });
 });
 
-describe("LINE student link trigger", () => {
-  function lineFixture() {
-    const sent: { messages: { template?: { actions: { uri: string }[] }; text?: string }[] }[] = [];
+describe("LINE student link trigger and gate", () => {
+  const gateCooldownText = "กดปุ่มยืนยันนักศึกษาในการ์ดก่อนหน้า หรือพิมพ์ \"ยืนยันนักศึกษา\" เพื่อรับลิงก์ใหม่ครับ";
+
+  function lineFixture(options: { linked?: boolean; configured?: boolean; lookupFails?: boolean } = {}) {
+    const sent: { messages: { type?: string; altText?: string; text?: string }[] }[] = [];
     const botCalls: string[] = [];
+    let gateCards = 0;
     const realFetch = globalThis.fetch;
     globalThis.fetch = (async (_url: string, init: { body: string }) => {
-      sent.push(JSON.parse(init.body));
+      const body = JSON.parse(init.body);
+      if (body.messages) sent.push(body); // skips the loading-animation request
       return { ok: true, text: async () => "" };
     }) as unknown as typeof fetch;
-    const { service } = flow();
+    const service = new Service({
+      secret: options.configured === false ? undefined : secret, clientId: "client-1", clientSecret: "secret-1",
+      domain: "bumail.net", appUrl,
+      repo: {
+        bind: async () => "bound" as never,
+        findByLineUserId: (async () => {
+          if (options.lookupFails) throw new Error("db down");
+          return options.linked ? { lineUserId: "U1", email: "a@bumail.net" } : null;
+        }) as never
+      }
+    });
     const controller = new LineController(
       { createBotReply: async ({ message }: { message: string }) => { botCalls.push(message); return { text: "bot" }; } } as never,
       new LinePresenter(),
-      { consume: async () => ({ allowed: true }) } as never,
+      { consume: async ({ scope }: { scope: string }) => ({ allowed: scope !== "student_gate" || gateCards++ === 0 }) } as never,
       service
     );
     const send = (text: string) =>
@@ -315,11 +332,70 @@ describe("LINE student link trigger", () => {
     }
   });
 
-  test("other text still reaches the chat bot", async () => {
-    const f = lineFixture();
+  test("linked user reaches the chat bot with no card", async () => {
+    const f = lineFixture({ linked: true });
     try {
       await f.send("สวัสดี");
       assert.deepEqual(f.botCalls, ["สวัสดี"]);
+      assert.equal(f.sent[0].messages[0].altText, undefined);
+    } finally {
+      f.restore();
+    }
+  });
+
+  test("unlinked user gets the verify card and the chat bot is skipped", async () => {
+    const f = lineFixture();
+    try {
+      await f.send("สวัสดี");
+      assert.deepEqual(f.botCalls, []);
+      assert.equal(f.sent[0].messages[0].altText, "ยืนยันนักศึกษาก่อนใช้งาน");
+      assert.ok(JSON.stringify(f.sent[0].messages[0]).includes(`${appUrl}/login?link=`));
+    } finally {
+      f.restore();
+    }
+  });
+
+  test("three messages from an unlinked user send one card then two cooldown texts", async () => {
+    const f = lineFixture();
+    try {
+      await f.send("a");
+      await f.send("b");
+      await f.send("c");
+      assert.deepEqual(f.botCalls, []);
+      assert.equal(f.sent.length, 3);
+      assert.equal(f.sent[0].messages[0].altText, "ยืนยันนักศึกษาก่อนใช้งาน");
+      assert.equal(f.sent[1].messages[0].text, gateCooldownText);
+      assert.equal(f.sent[2].messages[0].text, gateCooldownText);
+    } finally {
+      f.restore();
+    }
+  });
+
+  test("ยืนยันนักศึกษา still returns the link template for an unlinked user", async () => {
+    const f = lineFixture();
+    try {
+      await f.send("ยืนยันนักศึกษา");
+      assert.equal(f.sent[0].messages[0].altText, "ยืนยันนักศึกษา BU");
+    } finally {
+      f.restore();
+    }
+  });
+
+  test("unconfigured student auth skips the gate", async () => {
+    const f = lineFixture({ configured: false });
+    try {
+      await f.send("สวัสดี");
+      assert.deepEqual(f.botCalls, ["สวัสดี"]);
+    } finally {
+      f.restore();
+    }
+  });
+
+  test("a failing verification lookup never reaches the chat bot", async () => {
+    const f = lineFixture({ lookupFails: true });
+    try {
+      await assert.rejects(f.send("สวัสดี"));
+      assert.deepEqual(f.botCalls, []);
     } finally {
       f.restore();
     }

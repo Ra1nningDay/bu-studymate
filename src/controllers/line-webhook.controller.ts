@@ -76,6 +76,30 @@ export class LineWebhookController {
     private studentAuth: StudentAuthService = studentAuthService
   ) {}
 
+  /** Replies with the verify card (or a cooldown note) and returns true when the user is not a verified student. */
+  private async replyIfNotVerified(replyToken: string, lineUserId: string) {
+    if (!this.studentAuth.configured || (await this.studentAuth.isVerified(lineUserId))) {
+      return false;
+    }
+
+    const cardWindow = await this.rateLimitSvc.consume({
+      lineUserId,
+      scope: "student_gate",
+      windows: [{ limit: 1, seconds: 10 * 60 }]
+    });
+    if (cardWindow.allowed) {
+      await replyLineMessage(replyToken, [
+        this.flexPresenter.createStudentGateCard(this.studentAuth.createLinkUrl(lineUserId))
+      ]);
+    } else {
+      await replyLineText(
+        replyToken,
+        'กดปุ่มยืนยันนักศึกษาในการ์ดก่อนหน้า หรือพิมพ์ "ยืนยันนักศึกษา" เพื่อรับลิงก์ใหม่ครับ'
+      );
+    }
+    return true;
+  }
+
   private async handleTextMessage(event: LineWebhookEvent) {
     const replyToken = event.replyToken;
     const lineUserId = event.source?.userId;
@@ -105,6 +129,10 @@ export class LineWebhookController {
           ? this.flexPresenter.createStudentLinkTemplate(this.studentAuth.createLinkUrl(lineUserId))
           : { type: "text", text: "ระบบยืนยันนักศึกษายังไม่เปิดใช้งานครับ" }
       ]);
+      return;
+    }
+
+    if (await this.replyIfNotVerified(replyToken, lineUserId)) {
       return;
     }
 
