@@ -100,6 +100,9 @@ export async function answerFreshInfoFromVerifiedSources(
     message,
     options: { requireOfficialBuSources: true },
     toolType: "web_search_preview"
+  }).catch((error) => {
+    console.warn("Fresh info web search failed", error instanceof Error ? error.message : error);
+    return null;
   });
 
   if (!response || !response.text || response.text.includes("VERIFIED_SOURCE_NOT_FOUND")) {

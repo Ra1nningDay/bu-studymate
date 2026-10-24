@@ -345,8 +345,13 @@ export async function createWebSearchResponse({
           type: toolType
         }
       ]
-    })
+    }),
+    signal: AbortSignal.timeout(45000)
   });
+
+  if (!response.ok) {
+    throw new Error(`OpenAI web search failed: ${response.status}`);
+  }
 
   const data = (await response.json()) as {
     error?: { message?: string };
@@ -362,10 +367,6 @@ export async function createWebSearchResponse({
     usage?: { total_tokens: number };
     model?: string;
   };
-
-  if (!response.ok) {
-    throw new Error(data.error?.message || `OpenAI web search failed: ${response.status}`);
-  }
 
   return extractResponseTextAndSources(data);
 }

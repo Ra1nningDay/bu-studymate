@@ -50,3 +50,5 @@ desktop.ini
 *.swp
 *.swo
 *~
+
+.vercel
