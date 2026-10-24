@@ -1,12 +1,39 @@
 # Admin Workspace
 
-Open `/login` and use the server's `ADMIN_PASSWORD`. Successful login opens
-`/admin`. Without a password the workspace stays closed and shows setup guidance.
-Production requires HTTPS. Cookies are signed, HttpOnly, SameSite=Strict and
-expire after eight hours. Restart the server after changing configuration.
-Set `ADMIN_SESSION_SECRET` (32+ characters) to sign cookies with a key separate from the
-password; changing `ADMIN_PASSWORD` then no longer logs admins out. Without it the password signs cookies.
+Open `/login` and sign in with your email and password; success opens `/admin`.
+Admin accounts live in the `users` table and are governed by roles:
+
+- `admin`: full access, including every write (chat send, lesson upload, knowledge save/bulk/check,
+  ticket status, deleting a student link).
+- `viewer`: read-only. Every admin page and read API works; each write returns 403.
+
+A user without `admin` or `viewer` (for example a student) cannot sign in. The session cookie holds
+only the user id and an expiry; every request re-reads the user and roles from the database, so
+disabling a user (`disabled_at`) or changing roles takes effect immediately. There is no screen for
+managing users or changing passwords yet.
+
+```powershell
+pnpm admin:create you@example.com admin     # new user: prints a random password once
+pnpm admin:create reader@example.com viewer
+pnpm admin:create you@example.com viewer    # existing user: adds the role, password untouched
+pnpm admin:reset you@example.com            # prints a new random password once
+```
+
+Set `ADMIN_SESSION_SECRET` (32+ characters) to enable the workspace; without it `/login` shows setup
+guidance. Production requires HTTPS. Cookies are signed, HttpOnly, SameSite=Strict and expire after
+eight hours. Restart the server after changing configuration.
 Login is limited to 10 attempts per 15 minutes and 30 per hour per client IP (HTTP 429). The client IP is read from `x-forwarded-for`, which is only trustworthy behind Vercel (or another proxy that overwrites it); to log every admin out, rotate `ADMIN_SESSION_SECRET`.
+
+### Rollout runbook
+
+1. Set `ADMIN_SESSION_SECRET` in Vercel.
+2. Apply the migration to production: `pnpm db:migrate:deploy` against the production URL.
+3. Create your account against the same database: `pnpm admin:create <your email> admin`; store the printed password.
+4. Deploy (this logs every admin out once; Vercel's production build also runs the migration).
+5. Confirm login works, then delete `ADMIN_PASSWORD` and `ADMIN_USERNAME` from Vercel.
+6. A student who bound between steps 2 and 4 landed only in `student_accounts`; re-run the backfill:
+   `INSERT INTO users (email, line_user_id, verified_at) SELECT lower(email), line_user_id, verified_at FROM student_accounts ON CONFLICT DO NOTHING;`
+   then `INSERT INTO user_roles (user_id, role_id) SELECT u.id, r.id FROM users u JOIN student_accounts s ON u.line_user_id = s.line_user_id CROSS JOIN roles r WHERE r.name = 'student' ON CONFLICT DO NOTHING;`
 
 | Route | Purpose |
 |---|---|
@@ -24,7 +51,7 @@ An existing Playground cookie requires signing in again with the new admin cooki
 
 Every admin data page checks auth before reading storage, alongside its layout
 guard. Playground, `/api/chat`, `/api/chat/upload` and ticket mutation APIs check
-the same cookie. Mutations require a same-origin request. Password query strings,
+the same cookie. Mutations require the `admin` role and a same-origin request. Password query strings,
 hidden form passwords and `x-admin-password` no longer authorize access. Legacy
 password queries on Tickets/Runs redirect to clean URLs after authentication.
 LINE webhooks keep their separate signature-based authentication.

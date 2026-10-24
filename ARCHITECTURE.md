@@ -173,6 +173,12 @@ chat/Playground URLs redirect to the unified workspace. LINE signature checks re
 separate. See [admin-01](.scratch/admin-dashboard/issues/01-unified-workspace.md)
 for scope, checks and evidence boundaries.
 
+Admin sign-in is per person: `users` (students and admins together) with `roles`/`user_roles`
+(`student`, `admin`, `viewer`). `AdminAuthService` verifies a scrypt password, issues a cookie holding only
+user id and expiry, and re-reads user and roles on every request; `authorize(request, "read"|"write")`
+returns ok/unauthenticated/forbidden (viewer reads, only admin writes). Provisioning is
+`pnpm admin:create`/`admin:reset`. `StudentAccountRepository` now reads `users`; `student_accounts` is deprecated.
+
 `/admin/knowledge` requires admin auth before loading its initial list. Its
 `/api/admin/knowledge` read/save, `/source` snapshot and `/{id}/check` endpoints
 use the same cookie, same-origin writes and strict DTO validation. Repository

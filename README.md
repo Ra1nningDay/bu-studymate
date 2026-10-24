@@ -14,7 +14,7 @@
 3. 📝 **Study Memory & AI Tutor:** Ingests lecture notes, PDFs, and DOCX files (with Thai OCR fallback), extracts key concepts and homework deadlines, and provides tutor interactions (Friend Explain, Flashcards, Practice Questions, Exam Summaries).
 4. 🌐 **Fresh Info & Web Search:** Intelligently routes time-sensitive queries (holidays, academic calendar, admission deadlines) to verified web search.
 5. 📊 **Admin Portal:** Sign in once at `/login` for `/admin` Overview, Bot Runs and ticket management. Overview uses actual recorded metrics. See [Admin workspace guide](docs/admin-workspace.md).
-6. 🧪 **Admin Web Chat:** Test without LINE at `/admin/chat`, inspect saved traces, resume sessions, upload lessons and open printable reports. Requires `ADMIN_PASSWORD`; uses the configured database and AI providers with real writes. `/chat` and `/admin/playground` redirect here. See [chat/trace guide](docs/playground.md).
+6. 🧪 **Admin Web Chat:** Test without LINE at `/admin/chat`, inspect saved traces, resume sessions, upload lessons and open printable reports. Requires an admin account (`pnpm admin:create`); uses the configured database and AI providers with real writes. `/chat` and `/admin/playground` redirect here. See [chat/trace guide](docs/playground.md).
 7. 🧪 **Automated LLM Evaluation:** Integrated Promptfoo benchmark suite to continuously evaluate router accuracy, prevent hallucination, and guard prompt quality.
 
 ---
@@ -87,7 +87,7 @@ JEV_ROUTER_MODEL=typesafe/jev-1.13
 JEV_ROUTER_MIN_PROBABILITY=0.8
 
 # App & Admin
-ADMIN_PASSWORD=your-secure-admin-password
+ADMIN_SESSION_SECRET=generate-with-openssl-rand-hex-32
 NEXT_PUBLIC_APP_URL=https://your-domain.com
 
 # Study Memory & OCR
@@ -173,7 +173,7 @@ During the UAT phase, testers can verify system behavior across the following 5 
 
 ### Scenario 5: Admin Portal & Management
 - Navigate to: `http://localhost:3000/admin/tickets` (or deployed domain)
-- Enter `ADMIN_PASSWORD`
+- Sign in with an account created by `pnpm admin:create <email> admin`
 - Verify list of open tickets, review descriptions, and toggle statuses (`IN_PROGRESS`, `RESOLVED`).
 
 ---

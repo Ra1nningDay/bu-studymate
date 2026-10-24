@@ -1,10 +1,10 @@
 # Admin Web Chat and Playground
 
-Sign in at `/login` with the server's `ADMIN_PASSWORD`, then open `/admin/chat`.
+Sign in at `/login` with your admin email and password (see the admin workspace guide), then open `/admin/chat`. Sending messages and uploading lessons needs role `admin`; `viewer` can read sessions and reports.
 `/admin/playground` redirects to this shared Web Chat screen. See the
 [admin workspace guide](admin-workspace.md) for routing and metric definitions.
 The page and its APIs require authentication, including conversation reports.
-The password is submitted by POST; a signed, HttpOnly, SameSite=Strict cookie
+Credentials are submitted by POST; a signed, HttpOnly, SameSite=Strict cookie
 expires after eight hours. Production cookies require HTTPS. Without an admin
 password the Playground stays closed. Restart the server after changing config.
 
