@@ -35,6 +35,14 @@ export const fileUploadRateLimitConfig = {
   ]
 };
 
+export const adminLoginRateLimitConfig = {
+  scope: "admin_login",
+  windows: [
+    { limit: 10, seconds: 15 * 60 },
+    { limit: 30, seconds: 60 * 60 }
+  ]
+};
+
 function secondsAgo(now: Date, seconds: number) {
   return new Date(now.getTime() - seconds * 1000);
 }

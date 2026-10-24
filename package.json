@@ -24,6 +24,7 @@
     "knowledge:source": "tsx scripts/knowledge.ts source",
     "knowledge:check": "tsx scripts/knowledge.ts check",
     "knowledge:faq": "tsx scripts/knowledge.ts faq",
+    "test:admin-auth": "tsx --test src/controllers/admin-auth.controller.test.ts src/services/playground.test.ts src/services/admin-workspace.test.ts",
     "test:student-auth": "tsx --test src/services/student-auth.test.ts src/repositories/student-account.repository.test.ts src/controllers/student-admin.controller.test.ts lib/google-oidc.test.ts",
     "test:knowledge": "tsx --test lib/knowledge-rag.test.ts lib/knowledge-faq.test.ts",
     "test:knowledge:db": "tsx scripts/check-knowledge-db.ts",

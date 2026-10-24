@@ -6,6 +6,7 @@ Production requires HTTPS. Cookies are signed, HttpOnly, SameSite=Strict and
 expire after eight hours. Restart the server after changing configuration.
 Set `ADMIN_SESSION_SECRET` (32+ characters) to sign cookies with a key separate from the
 password; changing `ADMIN_PASSWORD` then no longer logs admins out. Without it the password signs cookies.
+Login is limited to 10 attempts per 15 minutes and 30 per hour per client IP (HTTP 429).
 
 | Route | Purpose |
 |---|---|

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { env } from "@/src/config/env";
+import { adminLoginRateLimitConfig, rateLimitService, type RateLimitService } from "@/src/services/rate-limit.service";
 import { adminAuthService, adminCookieName, adminSessionSeconds } from "@/src/services/admin-auth.service";
 
 export function getPublicOrigin(request: Request) {
@@ -13,11 +14,27 @@ export function isSameOrigin(request: Request) {
   return request.headers.get("origin") === getPublicOrigin(request);
 }
 
+// shortcut: keyed per client IP only, so an attacker rotating IPs is not slowed; upgrade to a per-username or global bucket if abused.
+export function clientKey(request: Request) {
+  return request.headers.get("x-forwarded-for")?.split(",")[0].trim() || "unknown";
+}
+
 export class AdminAuthController {
-  constructor(private auth = adminAuthService) {}
+  constructor(private auth = adminAuthService, private limits: Pick<RateLimitService, "consume"> = rateLimitService) {}
 
   async login(request: Request) {
     if (!isSameOrigin(request)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    try {
+      const limit = await this.limits.consume({ lineUserId: clientKey(request), ...adminLoginRateLimitConfig });
+      if (!limit.allowed) {
+        return NextResponse.json({ error: "Too many attempts" }, {
+          status: 429,
+          headers: { "Retry-After": String(limit.retryAfterSeconds ?? 60), "Cache-Control": "private, no-store" }
+        });
+      }
+    } catch (error) {
+      console.error("admin login rate limit unavailable", error); // fail open: the limit is defense in depth
+    }
     let form: FormData;
     try { form = await request.formData(); }
     catch { return NextResponse.json({ error: "Invalid form" }, { status: 400 }); }

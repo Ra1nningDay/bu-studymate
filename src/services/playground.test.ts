@@ -53,7 +53,7 @@ function fixture() {
       ...(body === undefined ? {} : { body: JSON.stringify(body) })
     });
   }
-  return { auth, token, controller, authController: new AuthController(auth), calls, service, chat, limiter, request };
+  return { auth, token, controller, authController: new AuthController(auth, { consume: async () => ({ allowed: true }) } as never), calls, service, chat, limiter, request };
 }
 
 test("auth rejects absent config, wrong passwords, tampering, expiry and password rotation", () => {
