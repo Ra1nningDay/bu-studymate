@@ -73,3 +73,55 @@ test("cross-origin login is rejected before consuming the limit", async () => {
   assert.equal(res.status, 403);
   assert.equal(s.consumed.length, 0);
 });
+
+async function pwSetup(result: string = "ok", session: unknown = { userId: "u1", email: "a@bumail.net", roles: ["viewer"] }, limit: Limit = { allowed: true }) {
+  const { AdminAuthController } = await import("./admin-auth.controller");
+  const changes: unknown[][] = [];
+  const auth = { authenticate: async () => session };
+  const users = { changePassword: async (...args: unknown[]) => (changes.push(args), result) };
+  const limits = { consume: async () => limit };
+  const controller = new AdminAuthController(auth as never, limits as never, users as never);
+  const post = (fields: Record<string, string>, origin = "http://localhost:3025") =>
+    controller.changePassword(new Request("http://localhost:3025/api/admin/auth/password", {
+      method: "POST", headers: { origin }, body: new URLSearchParams(fields)
+    }));
+  return { post, changes };
+}
+
+const pwFields = { currentPassword: "old-password-1", newPassword: "brand-new-pass", confirmPassword: "brand-new-pass" };
+
+test("change password denies cross-origin and signed-out callers before any work", async () => {
+  const cross = await pwSetup();
+  assert.equal((await cross.post(pwFields, "http://evil.test")).status, 403);
+  const anon = await pwSetup("ok", null);
+  assert.equal((await anon.post(pwFields)).status, 401);
+  assert.equal(cross.changes.length + anon.changes.length, 0);
+});
+
+test("change password redirects with the outcome and passes the session email", async () => {
+  const ok = await pwSetup("ok");
+  const done = await ok.post(pwFields);
+  assert.equal(done.status, 303);
+  assert.equal(done.headers.get("location"), "http://localhost:3025/admin/profile?password=ok");
+  assert.deepEqual(ok.changes, [["a@bumail.net", "old-password-1", "brand-new-pass"]]);
+  const wrong = await pwSetup("wrong_password");
+  assert.equal((await wrong.post(pwFields)).headers.get("location"), "http://localhost:3025/admin/profile?password=wrong_password");
+  const short = await pwSetup("too_short");
+  assert.equal((await short.post(pwFields)).headers.get("location"), "http://localhost:3025/admin/profile?password=too_short");
+});
+
+test("change password rejects a mismatched confirmation and a missing field without calling the service", async () => {
+  const s = await pwSetup();
+  const mismatch = await s.post({ ...pwFields, confirmPassword: "different-pass" });
+  assert.equal(mismatch.headers.get("location"), "http://localhost:3025/admin/profile?password=mismatch");
+  const missing = await s.post({ newPassword: "brand-new-pass", confirmPassword: "brand-new-pass" });
+  assert.equal(missing.headers.get("location"), "http://localhost:3025/admin/profile?password=wrong_password");
+  assert.equal(s.changes.length, 0);
+});
+
+test("change password is rate limited before checking the current password", async () => {
+  const s = await pwSetup("ok", undefined, { allowed: false, retryAfterSeconds: 30 });
+  const res = await s.post(pwFields);
+  assert.equal(res.status, 429);
+  assert.equal(s.changes.length, 0);
+});

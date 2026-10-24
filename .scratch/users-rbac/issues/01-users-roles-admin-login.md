@@ -33,7 +33,7 @@ Plan: [users + RBAC](../../../docs/superpowers/plans/2026-10-24-users-rbac.md).
 
 - Student bind/unlink against a real DB and the Supabase backfill with real rows are unchecked (the Supabase table was empty). No browser UI check, no LINE check, code not deployed.
 - `output/prepare-knowledge-browser.ts` (git-ignored) now reads `ADMIN_EMAIL` + `ADMIN_PASSWORD` from the shell and logs in.
-- No user-management UI, password change screen, or contract migration dropping `student_accounts`.
+- No user-management UI or contract migration dropping `student_accounts`. Header identity and `/admin/profile` password change added afterwards (85 admin-auth tests; throwaway DB: wrong/short/mismatch/ok outcomes, old password rejected, new one accepted, 401 without cookie, full-width layout checked in the browser). Changing a password does not revoke other sessions.
 - An existing user with no password who is given a role by `admin:create` receives a generated password (ruling).
 
 ## Rollout runbook

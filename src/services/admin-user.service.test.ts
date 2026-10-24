@@ -65,3 +65,32 @@ test("resetPassword replaces the hash for an admin, and throws for unknown or st
   await assert.rejects(() => service.resetPassword("s@bumail.net"), { message: "User not found" });
   assert.equal(rows[1].passwordHash, null);
 });
+
+async function withPassword(password: string) {
+  const { hashPassword } = await import("./password");
+  return setup({ id: "u0", email: "a@bumail.net", passwordHash: await hashPassword(password), disabledAt: null, roles: ["viewer"] });
+}
+
+test("changePassword replaces the hash when the current password is right", async () => {
+  const { service, rows } = await withPassword("old-password-1");
+  assert.equal(await service.changePassword("A@bumail.net", "old-password-1", "brand-new-pass"), "ok");
+  assert.equal(await verifyPassword("brand-new-pass", rows[0].passwordHash!), true);
+  assert.equal(await verifyPassword("old-password-1", rows[0].passwordHash!), false);
+});
+
+test("changePassword rejects a wrong current password and an unknown user without changing anything", async () => {
+  const { service, rows } = await withPassword("old-password-1");
+  const before = rows[0].passwordHash;
+  assert.equal(await service.changePassword("a@bumail.net", "nope", "brand-new-pass"), "wrong_password");
+  assert.equal(await service.changePassword("ghost@bumail.net", "old-password-1", "brand-new-pass"), "wrong_password");
+  assert.equal(rows[0].passwordHash, before);
+});
+
+test("changePassword enforces 10 to 1024 characters before touching the hash", async () => {
+  const { service, rows } = await withPassword("old-password-1");
+  const before = rows[0].passwordHash;
+  assert.equal(await service.changePassword("a@bumail.net", "old-password-1", "short-9ch"), "too_short");
+  assert.equal(await service.changePassword("a@bumail.net", "old-password-1", "x".repeat(1025)), "too_short");
+  assert.equal(rows[0].passwordHash, before);
+  assert.equal(await service.changePassword("a@bumail.net", "old-password-1", "exactly-10!"), "ok");
+});

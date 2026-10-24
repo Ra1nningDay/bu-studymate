@@ -14,7 +14,7 @@ const navigation = [
   { href: "/admin/tickets", label: "Tickets", icon: ClipboardList }
 ];
 
-export function AdminShell({ children }: { children: ReactNode }) {
+export function AdminShell({ children, user }: { children: ReactNode; user: { email: string; role: "admin" | "viewer" } }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const report = pathname.startsWith("/admin/chat/report/") || pathname.startsWith("/admin/playground/report/");
@@ -46,7 +46,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
             <span className="truncate text-sm font-semibold">Bangkok University LINE Chatbot</span>
           </div>
           <div className="flex shrink-0 items-center gap-3">
-            <div className="hidden items-center gap-2 sm:flex"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#101b36] text-xs font-semibold text-white">A</span><span className="text-xs"><span className="block font-semibold">Admin</span><span className="text-slate-500">Administrator</span></span></div>
+            <Link href="/admin/profile" aria-label="โปรไฟล์และเปลี่ยนรหัสผ่าน" className="hidden items-center gap-2 rounded-lg px-2 py-1 hover:bg-emerald-50 focus-visible:outline-emerald-600 sm:flex"><span aria-hidden="true" className="flex h-8 w-8 items-center justify-center rounded-full bg-[#101b36] text-xs font-semibold uppercase text-white">{user.email[0]}</span><span className="min-w-0 text-xs"><span className="block max-w-[14rem] truncate font-semibold">{user.email}</span><span className="text-slate-500">{user.role === "admin" ? "Administrator" : "Viewer (read-only)"}</span></span></Link>
             <form action="/api/admin/auth/logout" method="POST"><button className="whitespace-nowrap rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium hover:bg-emerald-50 focus-visible:outline-emerald-600">ออกจากระบบ</button></form>
           </div>
         </header>

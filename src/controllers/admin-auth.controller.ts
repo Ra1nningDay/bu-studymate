@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { env } from "@/src/config/env";
 import { adminLoginRateLimitConfig, rateLimitService, type RateLimitService } from "@/src/services/rate-limit.service";
 import { adminAuthService, adminCookieName, adminSessionSeconds } from "@/src/services/admin-auth.service";
+import { adminUserService, passwordLength, type AdminUserService } from "@/src/services/admin-user.service";
 
 export function getPublicOrigin(request: Request) {
   const url = new URL(request.url);
@@ -25,7 +26,11 @@ export function clientKey(request: Request) {
 }
 
 export class AdminAuthController {
-  constructor(private auth = adminAuthService, private limits: Pick<RateLimitService, "consume"> = rateLimitService) {}
+  constructor(
+    private auth = adminAuthService,
+    private limits: Pick<RateLimitService, "consume"> = rateLimitService,
+    private users: Pick<AdminUserService, "changePassword"> = adminUserService
+  ) {}
 
   async login(request: Request) {
     if (!isSameOrigin(request)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -54,6 +59,35 @@ export class AdminAuthController {
       httpOnly: true, secure: env.NODE_ENV === "production", sameSite: "strict",
       path: "/", maxAge: adminSessionSeconds
     });
+    return response;
+  }
+
+  async changePassword(request: Request) {
+    if (!isSameOrigin(request)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const session = await this.auth.authenticate(request);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    try {
+      const limit = await this.limits.consume({ lineUserId: `pw-change:${session.userId}`, ...adminLoginRateLimitConfig });
+      if (!limit.allowed) {
+        return NextResponse.json({ error: "Too many attempts" }, {
+          status: 429,
+          headers: { "Retry-After": String(limit.retryAfterSeconds ?? 60), "Cache-Control": "private, no-store" }
+        });
+      }
+    } catch (error) {
+      console.error("admin password change rate limit unavailable", error); // fail open, like login
+    }
+    let form: FormData;
+    try { form = await request.formData(); }
+    catch { return NextResponse.json({ error: "Invalid form" }, { status: 400 }); }
+    const field = (name: string) => {
+      const value = form.get(name);
+      return typeof value === "string" && value.length <= passwordLength.max ? value : "";
+    };
+    const [current, next, confirm] = [field("currentPassword"), field("newPassword"), field("confirmPassword")];
+    const outcome = !current ? "wrong_password" : next !== confirm ? "mismatch" : await this.users.changePassword(session.email, current, next);
+    const response = NextResponse.redirect(new URL(`/admin/profile?password=${outcome}`, getPublicOrigin(request)), 303);
+    response.headers.set("Cache-Control", "private, no-store");
     return response;
   }
 

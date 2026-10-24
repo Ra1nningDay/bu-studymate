@@ -9,8 +9,9 @@ Admin accounts live in the `users` table and are governed by roles:
 
 A user without `admin` or `viewer` (for example a student) cannot sign in. The session cookie holds
 only the user id and an expiry; every request re-reads the user and roles from the database, so
-disabling a user (`disabled_at`) or changing roles takes effect immediately. There is no screen for
-managing users or changing passwords yet.
+disabling a user (`disabled_at`) or changing roles takes effect immediately. The header shows the signed-in email and role and links to `/admin/profile`, where any admin or viewer can
+change their own password (current password required, 10 to 1024 characters, rate limited). Changing it does
+not sign out other devices; their cookies expire after eight hours. There is no screen for managing other users yet.
 
 ```powershell
 pnpm admin:create you@example.com admin     # new user: prints a random password once
