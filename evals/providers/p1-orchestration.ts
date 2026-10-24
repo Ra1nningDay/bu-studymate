@@ -81,7 +81,10 @@ class P1OrchestrationProvider {
       logRepo,
       new TicketService(ticketRepo, sessionRepo),
       studyService,
-      knowledge
+      knowledge,
+      undefined,
+      // Keep the eval hermetic: no live BU Links calls, so it measures the pre-existing paths only.
+      async () => null
     );
 
     try {

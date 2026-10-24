@@ -66,10 +66,13 @@ each, are a sample, not a measurement.
 
 ## Known limits
 
-- Topic regexes are unanchored substrings: `ปฏิทินการศึกษา` (academic calendar) matches the activities-calendar topic and
-  `ประกาศนียบัตร` (certificate) matches announcement. The class, online and `หยุด` patterns are broad (`หยุดพัก` triggers a lookup).
+- Topic regexes were narrowed after the final review (see Comments); remaining ambiguity: `เรียนออนไลน์` also matches
+  "ลงทะเบียนเรียนออนไลน์", and `exchange` matches "exchange rate".
 - The page list refresh retries upstream on every call while bulinks is down (no negative cache; up to 5 requests of 5 s each).
-- `evals/providers/p1-orchestration.ts` now reaches the live site for fresh-info and knowledge-miss cases.
+- The P1 eval (`evals/providers/p1-orchestration.ts`) injects a lookup that returns `null`: it stays offline and does
+  not cover BU Links.
+- Ranking: filler-heavy questions fall below 60% coverage and go to web search; `ลงทะเบียนออนไลน์ยังไง` returns old
+  COVID vaccine-registration pages; one-word matches ("How do I pay tuition online?") return `null`.
 - Category IDs are hard-coded and may drift; nothing checks that they still exist.
 - Calendar and BU NEWS are link-only; no event parsing or month filtering.
 - th-TH date formatting depends on the Node ICU build (the smoke printed Buddhist-era years).

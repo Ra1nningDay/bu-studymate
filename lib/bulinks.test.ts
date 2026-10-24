@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { afterEach, before, test } from "node:test";
 import { BuLinksClient, decodeWpText, type BuLinksPage, type BuLinksPost } from "@/lib/bulinks";
 import { formatAnnouncements, formatServiceLinks } from "@/src/presenters/bulinks.presenter";
-import { BuLinksService, detectBuLinksTopics, rankServicePages } from "@/src/services/bulinks.service";
+import { BuLinksService, detectBuLinksTopics, rankServicePages, type BuLinksTopic } from "@/src/services/bulinks.service";
 
 const page = (id: number, link: string, title: string, slug = `p${id}`) => ({ id, link, slug, title: { rendered: title } });
 const minute = 60_000;
@@ -217,6 +218,118 @@ test("lookup returns service pages when no topic matches, and null when nothing 
   assert.equal(await new BuLinksService(fakeClient({ postsError: new Error("down") }).client, lookupNow).lookup("ประกาศล่าสุด"), null);
   assert.equal(await new BuLinksService(fakeClient({ pagesError: new Error("down") }).client, lookupNow).lookup("ห้องพยาบาล"), null);
   assert.equal(await new BuLinksService(fakeClient({ posts: [] }).client, lookupNow).lookup("ประกาศล่าสุด"), null);
+});
+
+// ---- Final-review regressions ----
+const topicCases: Array<[string, BuLinksTopic[]]> = [
+  ["เดือนนี้มหาวิทยาลัยหยุดวันไหนบ้าง", []],
+  ["วันหยุดภาคเรียนปี 2569", []],
+  ["หยุดพักกลางวันกี่โมง", []],
+  ["ขอใบประกาศนียบัตรได้ที่ไหน", []],
+  ["ลงทะเบียนออนไลน์ยังไง", []],
+  ["จ่ายค่าเทอมออนไลน์ได้ไหม", []],
+  ["How do I pay tuition online?", []],
+  ["When do classes start?", []],
+  ["how to cancel my course registration", []],
+  ["What is BU's official policy for bringing a pet to class?", []],
+  ["ปฏิทินการศึกษา 2569", []],
+  ["academic calendar", []],
+  ["how to prevent plagiarism", []],
+  ["นักศึกษาต่างประเทศต้องทำวีซ่ายังไง", []],
+  ["ปฏิทินกิจกรรมเดือนนี้", ["calendar"]],
+  ["events this week", ["calendar"]],
+  ["มีประกาศอะไรใหม่ไหม", ["announcement"]],
+  ["ปิดเรียนเพราะน้ำท่วมไหม", ["announcement"]],
+  ["พรุ่งนี้เรียนออนไลน์หรือ onsite", ["announcement"]],
+  ["are classes cancelled tomorrow", ["announcement"]],
+  ["is the class online today", ["announcement"]],
+  ["โครงการแลกเปลี่ยน study abroad", ["study_abroad"]]
+];
+
+test("topic patterns reject the false-positive probes and keep the real signals", () => {
+  for (const [message, expected] of topicCases) assert.deepEqual(detectBuLinksTopics(message), expected, message);
+});
+
+test("lookup never answers academic-calendar, holiday or false-positive questions with announcements", async () => {
+  for (const message of ["ปฏิทินการศึกษา 2569", "academic calendar", "วันหยุดภาคเรียนปี 2569", "school holiday schedule"]) {
+    const fake = fakeClient({ posts: [livePost] });
+    assert.equal(await new BuLinksService(fake.client, lookupNow).lookup(message), null, message);
+    assert.equal(fake.calls.length, 0, message);
+  }
+  for (const [message] of topicCases.filter(([, topics]) => !topics.length)) {
+    const fake = fakeClient({ posts: [livePost] });
+    const result = await new BuLinksService(fake.client, lookupNow).lookup(message);
+    assert.notEqual(result?.kind, "announcements", message);
+    assert.equal(fake.calls.length, 0, message);
+  }
+});
+
+test("lookup falls through to service-page ranking when a topic yields nothing", async () => {
+  const result = await new BuLinksService(fakeClient({ posts: [] }).client, lookupNow).lookup("ประกาศห้องพยาบาล");
+  assert.equal(result?.kind, "services");
+  assert.deepEqual(result?.links, [{ title: "ห้องพยาบาล", url: `${site}/nurse-room/` }]);
+});
+
+test("rankServicePages drops a page group that has no page for the named year", () => {
+  assert.deepEqual(rankServicePages("ค่าเทอมปริญญาตรี 2570", fixturePages), []);
+  assert.deepEqual(rankServicePages("ค่าเทอมสาขานิเทศศาสตร์ปีการศึกษา 2570 เท่าไรครับ", fixturePages), []);
+  assert.deepEqual(rankServicePages("tuition fees bachelor 2027", fixturePages), []);
+  assert.deepEqual(urlsOf(rankServicePages("ค่าเทอมปริญญาตรี 2569", fixturePages)), [`${site}/tuition-fees-2026/`]);
+});
+
+test("rankServicePages needs more than one common matched word and ignores filler words", () => {
+  assert.deepEqual(rankServicePages("เทอมหน้าลงทะเบียนเรียนวันไหน", fixturePages), []);
+  assert.deepEqual(urlsOf(rankServicePages("ห้องพยาบาลอยู่ที่ไหนครับ", fixturePages)), [`${site}/nurse-room/`]);
+  // "การศึกษา" alone must not link graduate tuition or scholarships.
+  assert.deepEqual(rankServicePages("ปีการศึกษา", fixturePages), []);
+});
+
+// Snapshot of the real bulinks.bu.ac.th page list (152 pages), taken through BuLinksClient.listPages().
+const realPages: BuLinksPage[] = (JSON.parse(readFileSync("lib/fixtures/bulinks-pages.json", "utf8")) as Array<Omit<BuLinksPage, "id">>)
+  .map((entry, index) => ({ id: index + 1, ...entry }));
+const slugsOf = (message: string) => rankServicePages(message, realPages).map((p) => p.slug);
+
+test("rankServicePages returns sensible pages on the real BU Links list", () => {
+  assert.equal(realPages.length, 152);
+  const tuition = slugsOf("ค่าเทอมปริญญาตรี");
+  assert.deepEqual(tuition, ["estimated-total-tuition-fees-2026", "tuition-fees-2026"]);
+  assert.deepEqual(slugsOf("ค่าเทอมปริญญาตรี 2570"), []);
+  assert.ok(tuition.every((slug) => !/(^|-)graduate|-2025|-2024/.test(slug)), tuition.join());
+  assert.deepEqual(slugsOf("ประกันอุบัติเหตุ"), ["accident-insurance"]);
+  assert.deepEqual(slugsOf("Lost and found"), ["lost-and-found-en"]);
+  assert.deepEqual(slugsOf("lost and found ของหาย"), ["lost-and-found"]);
+  assert.ok(slugsOf("ลงทะเบียนยานพาหนะ").includes("parking-at-bu-th"));
+  assert.ok(slugsOf("ลงทะเบียนมอเตอร์ไซค์").includes("bu-motospace"));
+  // The list has no nurse-room page; one common word must not invent a match.
+  assert.deepEqual(slugsOf("ห้องพยาบาล"), []);
+  assert.deepEqual(slugsOf("เทอมหน้าลงทะเบียนเรียนวันไหน"), []);
+  assert.deepEqual(slugsOf("ค่าเทอมสาขานิเทศศาสตร์ปีการศึกษา 2570 เท่าไรครับ"), []);
+  assert.deepEqual(slugsOf("สูตรอาหารไทย"), []);
+});
+
+test("English questions get English copy and en-GB Bangkok dates; Thai copy is unchanged", async () => {
+  const now = new Date("2026-10-24T03:05:00Z");
+  const posts: BuLinksPost[] = [{ id: 1, title: "Exam notice", url: `${site}/en/a/`, publishedAt: new Date("2026-10-23T18:00:00Z"), categoryIds: [24] }];
+  assert.equal(formatAnnouncements(posts, [{ title: "BU NEWS", url: "https://www.bu.ac.th/th/featured-stories/type/5" }], now, "en"), [
+    "Latest announcements and news from BU Links (checked at 10:05 Thailand time):",
+    `1. Exam notice (24 Oct 2026)\n   ${site}/en/a/`,
+    "More:\n- BU NEWS: https://www.bu.ac.th/th/featured-stories/type/5",
+    "These are only the latest headlines. Please open the links and read the details before deciding."
+  ].join("\n"));
+  assert.equal(formatAnnouncements([], [{ title: "BU Links events calendar", url: `${site}/events-calendar/` }], now, "en"),
+    `More:\n- BU Links events calendar: ${site}/events-calendar/`);
+  assert.equal(formatServiceLinks([{ title: "Lost & Found", url: `${site}/en/lost-and-found/` }], "en"),
+    `StudyMate has no verified answer for this yet, but these related BU Links pages were found:\n- Lost & Found: ${site}/en/lost-and-found/`);
+
+  const en = await new BuLinksService(fakeClient({ posts }).client, lookupNow).lookup("latest announcements");
+  assert.ok(en?.text.startsWith("Latest announcements and news from BU Links (checked at 10:05 Thailand time):"));
+  assert.ok(en?.text.includes("(24 Oct 2026)") && !en.text.includes("2569") && !en.text.includes("น."));
+  const calendar = await new BuLinksService(fakeClient().client, lookupNow).lookup("events calendar");
+  assert.equal(calendar?.text, `More:\n- BU Links events calendar: ${site}/events-calendar/`);
+  const services = await new BuLinksService(fakeClient().client, lookupNow).lookup("lost and found");
+  assert.ok(services?.text.startsWith("StudyMate has no verified answer for this yet"));
+  const th = await new BuLinksService(fakeClient({ posts }).client, lookupNow).lookup("ประกาศล่าสุด");
+  assert.ok(th?.text.startsWith("ประกาศและข่าวล่าสุดจาก BU Links"));
 });
 
 // Fresh-info wiring: the lookup runs before, and instead of, the web search.
