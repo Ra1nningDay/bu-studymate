@@ -8,6 +8,9 @@ import type { PlaygroundConversation } from "@/src/dtos/playground.dto";
 const sessionId = "playground-12345678-1234-4123-8123-123456789abc";
 const origin = "http://localhost:3025";
 let Auth: typeof import("./admin-auth.service").AdminAuthService;
+// Auth tests assert the password-fallback signing, so a developer's own secret must not leak in.
+delete process.env.ADMIN_SESSION_SECRET;
+
 let AuthController: typeof import("@/src/controllers/admin-auth.controller").AdminAuthController;
 let Controller: typeof import("@/src/controllers/playground.controller").PlaygroundController;
 let Service: typeof import("./playground.service").PlaygroundService;
