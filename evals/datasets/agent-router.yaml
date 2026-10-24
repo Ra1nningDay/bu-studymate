@@ -80,6 +80,18 @@
       value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.selectedTarget === 'knowledge_base' && d.intent === 'ASK_BU_INFO'"
 
 - vars:
+    message: "หลังจากยื่นผ่อนผันทหารแล้ว ต้องดำเนินการซ้ำทุกปีหรือไม่?"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.selectedTarget === 'knowledge_base' && d.intent === 'ASK_BU_INFO'"
+
+- vars:
+    message: "ผ่อนผันทหารต้องเตรียมเอกสารอะไรบ้าง"
+  assert:
+    - type: javascript
+      value: "const d = typeof output === 'object' ? output : JSON.parse(output); d.selectedTarget === 'knowledge_base' && d.intent === 'ASK_BU_INFO'"
+
+- vars:
     message: "วันนี้มหาวิทยาลัยเปิดไหม มีวันหยุดอะไรบ้างเดือนนี้"
   assert:
     - type: javascript

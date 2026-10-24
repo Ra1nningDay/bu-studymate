@@ -78,8 +78,8 @@ type JevRouterResult = {
 };
 
 const jevIntentCriteria: Record<AgentRouterIntent, string> = {
-  ASK_BU_INFO: "Stable Bangkok University how-to information, locations, departments, contacts, BU apps or Wi-Fi, including short related keywords.",
-  ASK_FRESH_INFO: "Current or changing Bangkok University information such as today's hours, schedules, holidays, admissions, fees, deadlines or BU news; requires verified web search.",
+  ASK_BU_INFO: "Stable Bangkok University how-to information, locations, departments, contacts, BU apps or Wi-Fi, including short related keywords. Also stable procedures and rules for student services such as military deferment (ผ่อนผันทหาร), documents required, where to go, or whether a step repeats every year; a recurring process is not changing information.",
+  ASK_FRESH_INFO: "Current or changing Bangkok University information such as today's hours, schedules, holidays, admissions, fees, deadlines or BU news; requires verified web search. Not for stable procedures merely mentioning a year or 'every year' (ทุกปี).",
   ASK_STUDY_MEMORY: "A specific study question about saved class notes, lecture content or uploaded materials.",
   LIST_ASSIGNMENTS: "List assignments or ask when homework in saved study materials is due.",
   LIST_NOTEBOOKS: "List available saved notes, courses or notebooks without opening one.",
@@ -343,6 +343,7 @@ async function classifyWithOpenAi(
             "Route assignment/homework deadline questions to LIST_ASSIGNMENTS. " +
             "Route current, changing, dated, opening-hours, schedule, news, holiday, admission-round, fee, or deadline questions about Bangkok University to fresh info. " +
             "Route stable Bangkok University how-to information, locations, departments, and contact info to the knowledge base. " +
+            "Student-service procedures and rules (e.g. military deferment, required documents, whether a step must be repeated every year) are stable, so route them to the knowledge base even when they mention 'every year'. " +
             "Route short keywords or terms related to BU (e.g., app names, places) to the knowledge base. " +
             "Route room/facility/lost-item problems to ticket creation. " +
             "GENERAL_CHAT means greetings and casual conversation only, plus human handoff requests without verified contact questions and safety-critical messages. " +
@@ -390,6 +391,11 @@ async function classifyWithOpenAi(
               {
                 intent: "ASK_BU_INFO",
                 message: "BU Wi-Fi ใช้ยังไง",
+                selectedTarget: "knowledge_base"
+              },
+              {
+                intent: "ASK_BU_INFO",
+                message: "หลังจากยื่นผ่อนผันทหารแล้ว ต้องดำเนินการซ้ำทุกปีหรือไม่?",
                 selectedTarget: "knowledge_base"
               },
               {
