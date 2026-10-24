@@ -101,6 +101,23 @@ export async function replyLineMessage(replyToken: string, messages: any[]) {
   }
 }
 
+export async function pushLineMessage(to: string, messages: any[]) {
+  const accessToken = requireLineEnv("LINE_CHANNEL_ACCESS_TOKEN");
+
+  const response = await fetch("https://api.line.me/v2/bot/message/push", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ to, messages })
+  });
+
+  if (!response.ok) {
+    throw new Error(`LINE push failed: ${response.status} ${await response.text()}`);
+  }
+}
+
 export async function getLineMessageContent(messageId: string) {
   const accessToken = requireLineEnv("LINE_CHANNEL_ACCESS_TOKEN");
   const response = await fetch(`https://api-data.line.me/v2/bot/message/${messageId}/content`, {

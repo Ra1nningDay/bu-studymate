@@ -71,6 +71,14 @@ export class LineFlexPresenter {
     };
   }
 
+  createStudentLinkedMessage(email: string) {
+    const [local, domain] = email.split("@");
+    return {
+      type: "text",
+      text: `ยืนยันนักศึกษาสำเร็จแล้วครับ เชื่อมกับ ${local[0]}****@${domain} เริ่มถามได้เลย`
+    };
+  }
+
   createTicketConfirmTemplate(draft: TicketDraftDto) {
     return {
       type: "template",

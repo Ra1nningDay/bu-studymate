@@ -3,6 +3,8 @@ import { env } from "@/src/config/env";
 import {
   studentAuthService, studentCookieName, studentOauthCookieName, studentOauthSeconds, studentSessionSeconds
 } from "@/src/services/student-auth.service";
+import { lineFlexPresenter } from "@/src/presenters/line-flex.presenter";
+import { pushLineMessage } from "@/lib/line";
 import { getPublicOrigin } from "./admin-auth.controller";
 
 function readCookie(request: Request, name: string) {
@@ -18,12 +20,24 @@ function setCookie(response: NextResponse, name: string, value: string, maxAge: 
 }
 
 export class StudentAuthController {
-  constructor(private auth = studentAuthService) {}
+  constructor(
+    private auth = studentAuthService,
+    private push: typeof pushLineMessage = pushLineMessage
+  ) {}
 
   private redirect(request: Request, location: string, status: number) {
     const response = NextResponse.redirect(new URL(location, getPublicOrigin(request)), status);
     response.headers.set("Cache-Control", "private, no-store");
     return response;
+  }
+
+  // A failed push must not undo a successful sign-in.
+  private async notifyLinked(lineUserId: string, email: string) {
+    try {
+      await this.push(lineUserId, [lineFlexPresenter.createStudentLinkedMessage(email)]);
+    } catch (error) {
+      console.error("student link notice failed", error);
+    }
   }
 
   async start(request: Request) {
@@ -45,7 +59,10 @@ export class StudentAuthController {
     });
     const response = this.redirect(request, result.ok ? "/student" : "/student/login?student=failed", 303);
     response.cookies.set(studentOauthCookieName, "", { path: "/", maxAge: 0 });
-    if (result.ok) setCookie(response, studentCookieName, result.sessionToken, studentSessionSeconds);
+    if (result.ok) {
+      setCookie(response, studentCookieName, result.sessionToken, studentSessionSeconds);
+      if (result.newlyBound) await this.notifyLinked(result.lineUserId, result.email);
+    }
     return response;
   }
 }

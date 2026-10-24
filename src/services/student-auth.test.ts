@@ -263,12 +263,46 @@ describe("student auth controller", () => {
 
   test("callback success sets the session cookie and redirects to /student", async () => {
     const f = flow();
-    const response = await new Controller(f.service).callback(new Request(callbackUrl(`code=c&state=${f.stateParam}`), {
+    const response = await new Controller(f.service, (async () => {}) as never).callback(new Request(callbackUrl(`code=c&state=${f.stateParam}`), {
       headers: { cookie: `studymate-student-oauth=${f.start.stateCookie}` }
     }));
     assert.equal(response.status, 303);
     assert.equal(response.headers.get("location"), `${origin}/student`);
     assert.match(response.headers.get("set-cookie") ?? "", /studymate-student=[^;]+/);
+  });
+
+  describe("LINE notice after binding", () => {
+    const callbackWith = async (f: ReturnType<typeof flow>, push: (to: string, messages: unknown[]) => Promise<void>) =>
+      new Controller(f.service, push as never).callback(new Request(callbackUrl(`code=c&state=${f.stateParam}`), {
+        headers: { cookie: `studymate-student-oauth=${f.start.stateCookie}` }
+      }));
+
+    test("a new binding pushes one confirmation with the masked email to that LINE user", async () => {
+      const pushes: { to: string; messages: { type: string; text: string }[] }[] = [];
+      await callbackWith(flow(), async (to, messages) => { pushes.push({ to, messages: messages as never }); });
+      assert.equal(pushes.length, 1);
+      assert.equal(pushes[0].to, "U1");
+      assert.match(pushes[0].messages[0].text, /s\*\*\*\*@bumail\.net/);
+      assert.doesNotMatch(pushes[0].messages[0].text, /somchai/);
+    });
+
+    test("re-binding the same pair pushes nothing", async () => {
+      let pushed = 0;
+      await callbackWith(flow({ bind: "unchanged" }), async () => { pushed++; });
+      assert.equal(pushed, 0);
+    });
+
+    test("a failed push still signs the student in", async () => {
+      const response = await callbackWith(flow(), async () => { throw new Error("line down"); });
+      assert.equal(response.headers.get("location"), `${origin}/student`);
+      assert.match(response.headers.get("set-cookie") ?? "", /studymate-student=[^;]+/);
+    });
+
+    test("a rejected sign-in pushes nothing", async () => {
+      let pushed = 0;
+      await callbackWith(flow({ bind: "email_taken" }), async () => { pushed++; });
+      assert.equal(pushed, 0);
+    });
   });
 
   test("callback failure redirects to the failure page without a session cookie", async () => {

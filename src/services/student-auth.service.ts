@@ -24,7 +24,7 @@ type Deps = {
   google: { exchange: typeof exchangeGoogleCode };
 };
 
-type SignInResult = { ok: true; sessionToken: string; email: string } | { ok: false; reason: string };
+type SignInResult = { ok: true; sessionToken: string; email: string; lineUserId: string; newlyBound: boolean } | { ok: false; reason: string };
 
 export class StudentAuthService {
   private deps: Deps;
@@ -94,7 +94,7 @@ export class StudentAuthService {
       const sessionToken = signToken(
         { typ: "session", lineUserId: oauth.lineUserId, email }, this.deps.secret!, studentSessionSeconds, now
       );
-      return { ok: true, sessionToken, email };
+      return { ok: true, sessionToken, email, lineUserId: oauth.lineUserId, newlyBound: bound === "bound" };
     } catch {
       return fail("exchange_failed");
     }
