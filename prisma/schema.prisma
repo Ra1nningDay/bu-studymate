@@ -139,6 +139,7 @@ model RateLimitEvent {
   @@map("rate_limit_events")
 }
 
+/// Deprecated: replaced by User + UserRole("student"); kept one release, drop in a later contract migration.
 model StudentAccount {
   id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   lineUserId String   @unique @map("line_user_id")
@@ -146,6 +147,37 @@ model StudentAccount {
   verifiedAt DateTime @default(now()) @map("verified_at") @db.Timestamptz(6)
 
   @@map("student_accounts")
+}
+
+model User {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String     @unique
+  lineUserId   String?    @unique @map("line_user_id")
+  passwordHash String?    @map("password_hash")
+  verifiedAt   DateTime?  @map("verified_at") @db.Timestamptz(6)
+  disabledAt   DateTime?  @map("disabled_at") @db.Timestamptz(6)
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  roles        UserRole[]
+
+  @@map("users")
+}
+
+model Role {
+  id    String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name  String     @unique
+  users UserRole[]
+
+  @@map("roles")
+}
+
+model UserRole {
+  userId String @map("user_id") @db.Uuid
+  roleId String @map("role_id") @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("user_roles")
 }
 
 model Notebook {

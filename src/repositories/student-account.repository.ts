@@ -11,19 +11,24 @@ export type StudentRow = {
   lastActiveAt: Date | null;
 };
 
+const studentRole = { roles: { some: { role: { name: "student" } } } };
+
 export class StudentAccountRepository {
   constructor(
-    private db: Pick<typeof prisma, "$transaction" | "studentAccount" | "botRun" | "ticket"> = prisma
+    private db: Pick<typeof prisma, "$transaction" | "user" | "role" | "userRole" | "botRun" | "ticket"> = prisma
   ) {}
 
   async list({ q, limit = 200 }: { q?: string; limit?: number } = {}): Promise<StudentRow[]> {
     const email = q?.trim();
-    const accounts = await this.db.studentAccount.findMany({
-      where: email ? { email: { contains: email, mode: "insensitive" } } : undefined,
+    const users = await this.db.user.findMany({
+      where: { lineUserId: { not: null }, ...studentRole, ...(email ? { email: { contains: email, mode: "insensitive" } } : {}) },
       orderBy: { verifiedAt: "desc" },
       take: limit,
       select: { lineUserId: true, email: true, verifiedAt: true }
     });
+    const accounts = users.flatMap((u) =>
+      u.lineUserId && u.verifiedAt ? [{ lineUserId: u.lineUserId, email: u.email, verifiedAt: u.verifiedAt }] : []
+    );
     if (accounts.length === 0) return [];
     const where = { lineUserId: { in: accounts.map((a) => a.lineUserId) } };
     const [runs, tickets] = await Promise.all([
@@ -42,28 +47,45 @@ export class StudentAccountRepository {
 
   async bind({ lineUserId, email }: { lineUserId: string; email: string }): Promise<BindResult> {
     return this.db.$transaction(async (tx) => {
-      const byLine = await tx.studentAccount.findUnique({ where: { lineUserId } });
+      const byLine = await tx.user.findUnique({ where: { lineUserId } });
       if (byLine) return byLine.email === email ? "unchanged" : "line_taken";
-      if (await tx.studentAccount.findUnique({ where: { email } })) return "email_taken";
-      await tx.studentAccount.create({ data: { lineUserId, email } });
+      const byEmail = await tx.user.findUnique({ where: { email } });
+      if (byEmail?.lineUserId) return "email_taken";
+      const role = await tx.role.findUnique({ where: { name: "student" } });
+      if (!role) throw new Error("Role student is missing; run migrations");
+      if (byEmail) {
+        // An existing admin or previously unlinked student: attach LINE and student only, never another role.
+        await tx.user.update({ where: { id: byEmail.id }, data: { lineUserId, verifiedAt: new Date() } });
+        await tx.userRole.upsert({
+          where: { userId_roleId: { userId: byEmail.id, roleId: role.id } },
+          create: { userId: byEmail.id, roleId: role.id },
+          update: {}
+        });
+      } else {
+        await tx.user.create({ data: { email, lineUserId, verifiedAt: new Date(), roles: { create: { roleId: role.id } } } });
+      }
       return "bound";
     });
   }
 
-  /** Unbinds the student (deletes only the account row); the typed email must match so a stale or forged id cannot delete the wrong person. */
+  /** Unlinks LINE and the student role (the user row stays, e.g. an admin); the typed email must match so a stale or forged id cannot unlink the wrong person. */
   async remove({ lineUserId, confirmEmail }: { lineUserId: string; confirmEmail: string }): Promise<"deleted" | "mismatch" | "not_found"> {
-    const account = await this.db.studentAccount.findUnique({ where: { lineUserId }, select: { email: true } });
-    if (!account) return "not_found";
-    if (account.email.toLowerCase() !== confirmEmail.trim().toLowerCase()) return "mismatch";
-    await this.db.studentAccount.delete({ where: { lineUserId } });
-    return "deleted";
+    return this.db.$transaction(async (tx) => {
+      const user = await tx.user.findUnique({ where: { lineUserId }, select: { id: true, email: true } });
+      if (!user) return "not_found";
+      if (user.email.toLowerCase() !== confirmEmail.trim().toLowerCase()) return "mismatch";
+      await tx.user.update({ where: { id: user.id }, data: { lineUserId: null, verifiedAt: null } });
+      await tx.userRole.deleteMany({ where: { userId: user.id, role: { name: "student" } } });
+      return "deleted";
+    });
   }
 
-  findByLineUserId(lineUserId: string) {
-    return this.db.studentAccount.findUnique({
-      where: { lineUserId },
-      select: { lineUserId: true, email: true }
+  async findByLineUserId(lineUserId: string) {
+    const user = await this.db.user.findFirst({
+      where: { lineUserId, disabledAt: null, ...studentRole },
+      select: { email: true }
     });
+    return user ? { lineUserId, email: user.email } : null;
   }
 }
 
