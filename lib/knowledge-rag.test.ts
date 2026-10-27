@@ -12,6 +12,7 @@ let KnowledgeIngestionService: typeof import("@/src/services/knowledge-ingestion
 let rewrite: typeof import("@/lib/ai").rewriteKnowledgeAnswer;
 let rerank: typeof import("@/lib/knowledge-rerank").rerankKnowledge;
 let rewriteQuery: typeof import("@/lib/knowledge-query").rewriteKnowledgeQuery;
+let isStandaloneKnowledgeQuery: typeof import("@/lib/knowledge-query").isStandaloneKnowledgeQuery;
 const originalFetch = globalThis.fetch;
 const vector = [1, ...Array<number>(1535).fill(0)];
 const now = new Date("2026-10-13T00:00:00Z");
@@ -27,6 +28,12 @@ const evidence: KnowledgeEvidence[] = ["one", "two"].map((id) => ({
   created_at: now.toISOString(), updated_at: now.toISOString(), verifiedAt: now,
   validFrom: null, validUntil: null, score: 0.02, similarity: 0.8, keywordRank: 1, vectorRank: 1
 }));
+const sixEvidence: KnowledgeEvidence[] = ["one", "two", "three", "four", "five", "six"].map((id) => ({
+  id, documentId: id, title: reviewed.title, category: reviewed.category, content: reviewed.content,
+  keywords: reviewed.keywords, source: reviewed.sourceUrl, sourceUrl: `${reviewed.sourceUrl}/${id}`,
+  created_at: now.toISOString(), updated_at: now.toISOString(), verifiedAt: now,
+  validFrom: null, validUntil: null, score: 0.02, similarity: 0.8, keywordRank: 1, vectorRank: 1
+}));
 
 before(async () => {
   process.env.DATABASE_URL ??= "postgresql://fixture:fixture@localhost:5432/fixture_unused";
@@ -37,9 +44,15 @@ before(async () => {
   ({ KnowledgeIngestionService } = await import("@/src/services/knowledge-ingestion.service"));
   ({ rewriteKnowledgeAnswer: rewrite } = await import("@/lib/ai"));
   ({ rerankKnowledge: rerank } = await import("@/lib/knowledge-rerank"));
-  ({ rewriteKnowledgeQuery: rewriteQuery } = await import("@/lib/knowledge-query"));
+  ({ rewriteKnowledgeQuery: rewriteQuery, isStandaloneKnowledgeQuery } = await import("@/lib/knowledge-query"));
 });
-afterEach(() => { globalThis.fetch = originalFetch; env.CRON_SECRET = undefined; env.OPENAI_API_KEY = "synthetic-key"; });
+afterEach(() => {
+  globalThis.fetch = originalFetch;
+  env.CRON_SECRET = undefined;
+  env.OPENAI_API_KEY = "synthetic-key";
+  env.OPENAI_QUERY_REWRITE_MODEL = "gpt-6-luna";
+  env.OPENAI_RERANK_MODEL = "gpt-6-luna";
+});
 
 const fakeEmbed = async () => ({ vectors: [vector], usage: { total_tokens: 1 }, model: "text-embedding-3-small" as const });
 
@@ -171,7 +184,7 @@ test("embedding outage uses keyword evidence; empty/unsafe evidence remains a mi
 
 test("answer provider outage abstains and successful replies include embedding/rerank token usage", async () => {
   globalThis.fetch = async () => new Response(null, { status: 503 });
-  const service = new KnowledgeService({ hasIndexedEvidence: async () => true, hybridSearch: async () => evidence }, fakeEmbed,
+  const service = new KnowledgeService({ hasIndexedEvidence: async () => true, hybridSearch: async () => sixEvidence }, fakeEmbed,
     async () => { throw new Error("provider timeout"); });
   const miss = await service.answerQuestion("เอกสาร");
   assert.equal(miss.isMiss, true);
@@ -180,9 +193,9 @@ test("answer provider outage abstains and successful replies include embedding/r
   globalThis.fetch = async (_url, init) => {
     const ranking = JSON.parse(String(init?.body)).response_format?.json_schema?.name === "knowledge_ranking";
     return Response.json({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify(ranking
-      ? { evidenceIds: ["one", "two"] } : { answer: "คำตอบ", evidenceIds: ["one"] }) } }], usage: { total_tokens: ranking ? 3 : 12 } });
+      ? { evidenceIds: ["one", "two", "three", "four", "five"] } : { answer: "คำตอบ", evidenceIds: ["one"] }) } }], usage: { total_tokens: ranking ? 3 : 12 } });
   };
-  const answered = await new KnowledgeService({ hasIndexedEvidence: async () => true, hybridSearch: async () => evidence }, fakeEmbed).answerQuestion("เอกสาร");
+  const answered = await new KnowledgeService({ hasIndexedEvidence: async () => true, hybridSearch: async () => sixEvidence }, fakeEmbed).answerQuestion("เอกสาร");
   assert.equal(answered.usage?.total_tokens, 16);
   assert.equal(answered.retrievalModel, "text-embedding-3-small");
   assert.equal(answered.rerankStatus, "applied");
@@ -191,19 +204,23 @@ test("answer provider outage abstains and successful replies include embedding/r
 test("reranker promotes an original rank-eight passage before answering and filters unofficial candidates", async () => {
   const candidates = Array.from({ length: 8 }, (_, index) => ({ ...evidence[0], id: `chunk-${index}`, content: `passage-${index}` }));
   const ids = ["chunk-7", "chunk-3", "chunk-2", "chunk-1", "chunk-0"];
+  env.OPENAI_RERANK_MODEL = "gpt-6-luna-rerank";
   let calls = 0;
   globalThis.fetch = async (_url, init) => {
     calls++;
     assert.ok(init?.signal);
     const body = JSON.parse(String(init?.body));
     const payload = JSON.parse(body.messages.at(-1).content);
-    assert.equal(body.model, env.OPENAI_MODEL);
     assert.equal(body.response_format.json_schema.strict, true);
     if (body.response_format.json_schema.name === "knowledge_ranking") {
+      assert.equal(body.model, "gpt-6-luna-rerank");
+      assert.equal(body.max_completion_tokens, 2048);
       assert.deepEqual(payload.evidence.map((item: { id: string }) => item.id), candidates.map((item) => item.id));
       assert.equal(payload.question, "เอกสาร IT232");
       return Response.json({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify({ evidenceIds: ids }) } }], usage: { total_tokens: 3 }, model: "synthetic-reranker" });
     }
+    assert.equal(body.model, env.OPENAI_MODEL);
+    assert.equal(body.max_completion_tokens, 4096);
     assert.deepEqual(payload.evidence.map((item: { id: string }) => item.id), ids);
     assert.equal(payload.evidence[0].content, "passage-7");
     return Response.json({ choices: [{ message: { content: JSON.stringify({ answer: "คำตอบทดสอบ", evidenceIds: ["chunk-7"] }) } }], usage: { total_tokens: 12 } });
@@ -253,15 +270,15 @@ test("invalid rankings, refusal and truncation preserve RRF Top 5 and reported u
   }
 });
 
-test("reranker bounds candidates and skips empty/single input or missing credentials", async () => {
+test("reranker bounds candidates and skips <= 5 candidates or missing credentials", async () => {
   globalThis.fetch = async () => { throw new Error("Must not call provider"); };
-  for (const items of [[], [evidence[0]]]) {
+  for (const items of [[], [evidence[0]], evidence, sixEvidence.slice(0, 5)]) {
     const ranked = await rerank("เอกสาร", items);
     assert.equal(ranked.status, "skipped");
     assert.deepEqual(ranked.items, items);
   }
   env.OPENAI_API_KEY = undefined;
-  assert.equal((await rerank("เอกสาร", evidence)).status, "fallback");
+  assert.equal((await rerank("เอกสาร", sixEvidence)).status, "fallback");
   env.OPENAI_API_KEY = "synthetic-key";
   const candidates = Array.from({ length: 45 }, (_, index) => ({ ...evidence[0], id: `chunk-${index}` }));
   globalThis.fetch = async (_url, init) => {
@@ -281,17 +298,17 @@ test("rerank HTTP errors, malformed envelopes and timeouts preserve original evi
     async () => { throw new DOMException("Timed out", "TimeoutError"); }
   ]) {
     globalThis.fetch = fetcher;
-    const result = await rerank("เอกสาร", evidence);
+    const result = await rerank("เอกสาร", sixEvidence);
     assert.equal(result.status, "fallback");
-    assert.deepEqual(result.items, evidence);
+    assert.deepEqual(result.items, sixEvidence.slice(0, 5));
   }
 });
 
 test("rejected ranking output still contributes reported usage to the final answer", async () => {
   globalThis.fetch = async () => Response.json({ choices: "invalid", usage: { total_tokens: 4 }, model: "synthetic-reranker" });
-  const service = new KnowledgeService({ hasIndexedEvidence: async () => true, hybridSearch: async () => evidence }, fakeEmbed,
+  const service = new KnowledgeService({ hasIndexedEvidence: async () => true, hybridSearch: async () => sixEvidence }, fakeEmbed,
     async ({ evidence: selected }) => {
-      assert.deepEqual(selected, evidence);
+      assert.deepEqual(selected, sixEvidence.slice(0, 5));
       return { text: "คำตอบทดสอบ", sources: [], usage: { total_tokens: 2 }, model: "synthetic-answer" };
     });
   const result = await service.answerQuestion("เอกสาร");
@@ -337,18 +354,52 @@ test("follow-up rewrite feeds embeddings, hybrid retrieval and reranker but pres
 
 test("query rewrite bounds history to eight messages and 1200 Unicode characters each", async () => {
   const history = Array.from({ length: 12 }, (_, index) => ({ role: "user" as const, content: `${index}:` + "😀".repeat(1500) }));
+  env.OPENAI_QUERY_REWRITE_MODEL = "gpt-6-luna-rewrite";
   globalThis.fetch = async (_url, init) => {
     assert.ok(init?.signal);
     const body = JSON.parse(String(init?.body));
     const input = JSON.parse(body.messages.at(-1).content);
-    assert.equal(body.model, env.OPENAI_MODEL);
+    assert.equal(body.model, "gpt-6-luna-rewrite");
+    assert.equal(body.max_completion_tokens, 1536);
     assert.equal(body.response_format.json_schema.strict, true);
     assert.equal(input.history.length, 8);
     assert.ok(input.history[0].content.startsWith("4:"));
     assert.ok(input.history.every((item: { content: string }) => Array.from(item.content).length === 1200 && !item.content.includes("\uFFFD")));
     return Response.json({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify({ query: " English course IT232 in 2026 " }) } }] });
   };
-  assert.equal((await rewriteQuery("English course IT232 in 2026", history)).query, "English course IT232 in 2026");
+  assert.equal((await rewriteQuery("What about English course IT232 in 2026?", history)).query, "English course IT232 in 2026");
+});
+
+test("standalone questions skip query rewrite even with conversation history while follow-ups still rewrite", async () => {
+  const history = [
+    { role: "user" as const, content: "ลงทะเบียน Wi-Fi ยังไง" },
+    { role: "assistant" as const, content: "ทำตามคู่มือเชื่อมต่อเครือข่าย" }
+  ];
+  globalThis.fetch = async () => { throw new Error("Standalone query must not call rewrite provider"); };
+
+  for (const standalone of [
+    "ลืมรหัสผ่าน BU account ต้องทำยังไง",
+    "หลังจากยื่นผ่อนผันทหารแล้ว ต้องดำเนินการซ้ำทุกปีหรือไม่?",
+    "ขอใบรับรองผลการศึกษา (Transcript) เสียค่าธรรมเนียมกี่บาท",
+    "How do I connect to Bangkok University Wi-Fi on macOS?"
+  ]) {
+    assert.equal(isStandaloneKnowledgeQuery(standalone), true, standalone);
+    const result = await rewriteQuery(standalone, history);
+    assert.equal(result.status, "skipped");
+    assert.equal(result.query, standalone);
+  }
+
+  for (const followUp of [
+    "แล้วใช้กับ iPhone ล่ะ",
+    "ต้องใช้เอกสารอะไรบ้าง",
+    "เสียค่าธรรมเนียมกี่บาทครับ",
+    "ยื่นเอกสารเรื่องนี้ได้ที่ไหน",
+    "วันเสาร์เปิดไหม",
+    "How much does it cost?",
+    "What about Android?"
+  ]) {
+    assert.equal(isStandaloneKnowledgeQuery(followUp), false, followUp);
+  }
 });
 
 test("invalid rewrite, refusal and truncation fall back to the original query and retain usage", async () => {
@@ -405,25 +456,25 @@ for (const channel of ["line", "web"] as const) {
     const history = [{ role: "user" as const, content: "ลงทะเบียน Wi-Fi ยังไง" },
       { role: "assistant" as const, content: "ข้อมูลจากคู่มือทดสอบ" }];
     globalThis.fetch = async (url, init) => String(url).endsWith("/responses")
-      ? Response.json({ output_text: JSON.stringify({ intent: "ASK_BU_INFO", selectedTarget: "knowledge_base", confidence: 0.99, needsWebSearch: false, reason: "synthetic" }) })
+      ? Response.json({ output_text: JSON.stringify({ intent: "ASK_BU_INFO", selectedTarget: "knowledge_base", confidence: 0.99, needsWebSearch: false, reason: "synthetic", safetyCritical: false }) })
       : Response.json({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify(
         JSON.parse(String(init?.body)).response_format?.json_schema?.name === "knowledge_query"
           ? { query: "ลงทะเบียน Wi-Fi บน iPhone ยังไง" }
           : JSON.parse(String(init?.body)).response_format?.json_schema?.name === "knowledge_ranking"
-            ? { evidenceIds: ["two", "one"] } : { answer: "คำตอบทดสอบ", evidenceIds: ["two"] }
+            ? { evidenceIds: ["two", "one", "three", "four", "five"] } : { answer: "คำตอบทดสอบ", evidenceIds: ["two"] }
       ) } }] });
-    const knowledge = new KnowledgeService({ hasIndexedEvidence: async () => true, hybridSearch: async () => evidence }, fakeEmbed);
+    const knowledge = new KnowledgeService({ hasIndexedEvidence: async () => true, hybridSearch: async () => sixEvidence }, fakeEmbed);
     const { createConciseChatFixture } = await import("@/evals/concise-chat/fixtures");
     const fixture = await createConciseChatFixture({ knowledgeService: knowledge, history });
     const reply = await fixture.service.createBotReply({ channel, lineUserId: "synthetic-eval-user", message: "แล้ว iPhone ล่ะ" });
-    assert.deepEqual(reply.sources, [{ title: reviewed.title, url: evidence[1].sourceUrl }]);
-    assert.ok(reply.text.includes(evidence[1].sourceUrl));
+    assert.deepEqual(reply.sources, [{ title: reviewed.title, url: sixEvidence[1].sourceUrl }]);
+    assert.ok(reply.text.includes(sixEvidence[1].sourceUrl));
     assert.equal(reply.usedWebSearch, undefined);
     assert.ok(reply.executionLog?.some((entry) => entry.action === "Reranker" && entry.status === "applied"));
     assert.ok(reply.executionLog?.some((entry) => entry.action === "Query Rewrite" && entry.status === "applied"));
     assert.equal(reply.executionLog?.at(-1)?.action, "Output");
     assert.equal(fixture.messages[0].content, "แล้ว iPhone ล่ะ");
-    assert.deepEqual((fixture.updates.at(-1)?.metadata as { sourceUrls: string[] }).sourceUrls, [evidence[1].sourceUrl]);
+    assert.deepEqual((fixture.updates.at(-1)?.metadata as { sourceUrls: string[] }).sourceUrls, [sixEvidence[1].sourceUrl]);
     assert.deepEqual((fixture.updates.at(-1)?.metadata as { executionLog: unknown }).executionLog, reply.executionLog);
   });
 }

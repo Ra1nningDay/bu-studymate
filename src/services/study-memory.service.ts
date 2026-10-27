@@ -406,7 +406,8 @@ Description: ${assignment.description ?? "-"}`;
     lineUserId: string,
     userMessage: string,
     isThai: boolean = true,
-    executionLog?: any[]
+    executionLog?: any[],
+    onTextDelta?: (delta: string) => void
   ): Promise<{ text: string; flexMessage?: any }> {
     if (isListNotesRequest(userMessage)) {
       executionLog?.push({ action: "Extract Intent", details: "Detected 'list notebooks' request — redirecting to listNotebooks" });
@@ -432,7 +433,7 @@ Description: ${assignment.description ?? "-"}`;
 
       executionLog?.push({ action: "Generate Study Tutor Answer (OpenAI)", details: getStudyTutorTitle(tutorAction) });
       const tutorPrompt = buildStudyTutorPrompt(tutorAction, latestMaterial.courseName);
-      const answer = await generateStudyAnswer(tutorPrompt, result.context, isThai);
+      const answer = await generateStudyAnswer(tutorPrompt, result.context, isThai, onTextDelta);
 
       if (answer === "ยังไม่พบข้อมูลนี้ในโน้ตที่บันทึกไว้ครับ" || answer === "I couldn't find this information in your saved notes.") {
         executionLog?.push({ action: "Format Response", details: "No tutor answer found in context" });
@@ -458,7 +459,7 @@ Description: ${assignment.description ?? "-"}`;
     }
 
     executionLog?.push({ action: "Generate Study Answer (OpenAI)" });
-    const answer = await generateStudyAnswer(userMessage, result.context, isThai);
+    const answer = await generateStudyAnswer(userMessage, result.context, isThai, onTextDelta);
 
     if (answer === "ยังไม่พบข้อมูลนี้ในโน้ตที่บันทึกไว้ครับ" || answer === "I couldn't find this information in your saved notes.") {
       executionLog?.push({ action: "Format Response", details: "No answer found in context" });

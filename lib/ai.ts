@@ -2,6 +2,13 @@ import { env } from "@/src/config/env";
 import { z } from "zod";
 import type { ActionLink } from "@/src/dtos/knowledge.dto";
 import type { KnowledgeEvidence } from "@/src/repositories/knowledge.repository";
+import {
+  consumeChatCompletionStream,
+  consumeResponsesStream,
+  extractJsonAnswerPrefix,
+  isEventStreamResponse,
+  type ResponsesApiPayload
+} from "@/lib/openai-stream";
 
 const systemPrompt = `You are BU StudyMate, a friendly Bangkok University AI assistant.
 Answer the student's question using only the provided context.
@@ -277,20 +284,22 @@ function extractResponseTextAndSources(data: {
 export async function createWebSearchResponse({
   history,
   message,
+  onTextDelta,
   options,
   toolType
 }: {
   history?: Array<{ content: string; role: "assistant" | "user" }>;
   message: string;
+  onTextDelta?: (delta: string) => void;
   options?: WebSearchOptions;
   toolType: "web_search" | "web_search_preview";
 }) {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = env.OPENAI_API_KEY;
   if (!apiKey) {
     return null;
   }
 
-  const styleRules = 
+  const styleRules =
     "Style Guidelines:\n" +
     "- Be direct and concise. Answer the user's core question immediately in the very first sentence without unnecessary introductions or rambling.\n" +
     "- Always respond in the exact same language the user used in their query (e.g., Thai for Thai, English for English). Ensure a polite tone across all languages.\n" +
@@ -344,7 +353,8 @@ export async function createWebSearchResponse({
         {
           type: toolType
         }
-      ]
+      ],
+      ...(onTextDelta ? { stream: true } : {})
     }),
     signal: AbortSignal.timeout(45000)
   });
@@ -353,20 +363,35 @@ export async function createWebSearchResponse({
     throw new Error(`OpenAI web search failed: ${response.status}`);
   }
 
-  const data = (await response.json()) as {
-    error?: { message?: string };
-    output?: Array<{
-      content?: Array<{
-        annotations?: Array<{ title?: string; type?: string; url?: string }>;
-        text?: string;
-        type?: string;
-      }>;
-      type?: string;
-    }>;
-    output_text?: string;
-    usage?: { total_tokens: number };
-    model?: string;
-  };
+  let data: ResponsesApiPayload;
+  if (onTextDelta && isEventStreamResponse(response)) {
+    const sentinel = "VERIFIED_SOURCE_NOT_FOUND";
+    let rawAccumulated = "";
+    let emittedLength = 0;
+    let stoppedAtFooter = false;
+    data = await consumeResponsesStream(response, (delta) => {
+      rawAccumulated += delta;
+      if (stoppedAtFooter || sentinel.startsWith(rawAccumulated) || rawAccumulated.includes(sentinel)) {
+        return;
+      }
+      const footerMatch = /\n+\s*(?:Sources|แหล่งที่มา)\s*:?/i.exec(rawAccumulated);
+      const visibleEnd = footerMatch ? footerMatch.index : rawAccumulated.length;
+      if (footerMatch) {
+        stoppedAtFooter = true;
+      }
+      if (visibleEnd > emittedLength) {
+        onTextDelta(rawAccumulated.slice(emittedLength, visibleEnd));
+        emittedLength = visibleEnd;
+      }
+    });
+  } else {
+    data = (await response.json()) as ResponsesApiPayload;
+    const parsed = extractResponseTextAndSources(data);
+    if (onTextDelta && parsed.text && !parsed.text.includes("VERIFIED_SOURCE_NOT_FOUND")) {
+      onTextDelta(parsed.text);
+    }
+    return parsed;
+  }
 
   return extractResponseTextAndSources(data);
 }
@@ -412,7 +437,11 @@ export async function answerWithWebSearch(
 export async function generateGeneralChatReply(
   message: string,
   history: Array<{ content: string; role: "assistant" | "user" }> = [],
-  options: { policy?: "general" | "clarification"; safetyCritical?: boolean } = {}
+  options: {
+    onTextDelta?: (delta: string) => void;
+    policy?: "general" | "clarification";
+    safetyCritical?: boolean;
+  } = {}
 ) {
   const apiKey = env.OPENAI_API_KEY;
   const isThai = /[\u0E00-\u0E7F]/.test(message);
@@ -425,6 +454,7 @@ export async function generateGeneralChatReply(
       : "What would you like me to help with?";
 
   if (!apiKey) {
+    options.onTextDelta?.(fallback);
     return { text: fallback, usage: undefined, model: undefined, finishReason: undefined };
   }
 
@@ -436,7 +466,8 @@ export async function generateGeneralChatReply(
     },
     body: JSON.stringify({
       model: env.OPENAI_MODEL,
-      ...(options.safetyCritical ? {} : { max_completion_tokens: 400 }),
+      ...(options.safetyCritical ? {} : { max_completion_tokens: 8192 }),
+      ...(options.onTextDelta ? { stream: true, stream_options: { include_usage: true } } : {}),
       messages: [
         {
           role: "system",
@@ -453,7 +484,29 @@ export async function generateGeneralChatReply(
 
   if (!response.ok) {
     console.error("OpenAI general chat failed", await response.text());
+    options.onTextDelta?.(fallback);
     return { text: fallback, usage: undefined, model: undefined, finishReason: undefined };
+  }
+
+  if (options.onTextDelta && isEventStreamResponse(response)) {
+    let trimmedStarted = false;
+    const streamed = await consumeChatCompletionStream(response, (delta) => {
+      const piece = trimmedStarted ? delta : delta.replace(/^\s+/, "");
+      if (piece.length > 0) {
+        trimmedStarted = true;
+        options.onTextDelta?.(piece);
+      }
+    });
+    const text = streamed.content.trim();
+    if (!text) {
+      options.onTextDelta(fallback);
+    }
+    return {
+      text: text || fallback,
+      usage: streamed.usage,
+      model: streamed.model || env.OPENAI_MODEL,
+      finishReason: streamed.finishReason
+    };
   }
 
   const data = (await response.json()) as {
@@ -463,8 +516,10 @@ export async function generateGeneralChatReply(
   };
 
   const text = data.choices?.[0]?.message?.content?.trim();
+  const finalText = text || fallback;
+  options.onTextDelta?.(finalText);
   return {
-    text: text || fallback,
+    text: finalText,
     usage: data.usage,
     model: data.model || env.OPENAI_MODEL,
     finishReason: data.choices?.[0]?.finish_reason
@@ -481,11 +536,15 @@ type KnowledgeAnswerResult = {
 
 export async function rewriteKnowledgeAnswer({
   history = [],
+  onTextDelta,
+  onTextReset,
   question,
   evidence
 }: {
   evidence: KnowledgeEvidence[];
   history?: Array<{ content: string; role: "assistant" | "user" }>;
+  onTextDelta?: (delta: string) => void;
+  onTextReset?: () => void;
   question: string;
 }): Promise<KnowledgeAnswerResult> {
   const apiKey = env.OPENAI_API_KEY;
@@ -503,6 +562,8 @@ export async function rewriteKnowledgeAnswer({
     },
     body: JSON.stringify({
       model: env.OPENAI_MODEL,
+      max_completion_tokens: 4096,
+      ...(onTextDelta ? { stream: true, stream_options: { include_usage: true } } : {}),
       response_format: { type: "json_schema", json_schema: {
         name: "knowledge_answer", strict: true,
         schema: { type: "object", properties: {
@@ -530,32 +591,76 @@ export async function rewriteKnowledgeAnswer({
     return miss;
   }
 
-  const data = (await response.json()) as {
-    choices?: Array<{ message?: { content?: string } }>;
-    usage?: { total_tokens: number };
-    model?: string;
-  };
+  let rawContent: string;
+  let usage: { total_tokens: number } | undefined;
+  let model: string | undefined;
+  let emittedLength = 0;
 
-  const metadata = { usage: data.usage, model: data.model || env.OPENAI_MODEL };
+  if (onTextDelta && isEventStreamResponse(response)) {
+    const sentinel = "NO_VERIFIED_INFO_FOUND";
+    let rawJson = "";
+    let blocked = false;
+    const streamed = await consumeChatCompletionStream(response, (delta) => {
+      rawJson += delta;
+      if (blocked) return;
+      const prefix = extractJsonAnswerPrefix(rawJson);
+      if (!prefix) return;
+      if (sentinel.startsWith(prefix)) return;
+      if (prefix.includes(sentinel) || /https?:\/\/|www\./i.test(prefix)) {
+        blocked = true;
+        if (emittedLength > 0) {
+          onTextReset?.();
+          emittedLength = 0;
+        }
+        return;
+      }
+      if (prefix.length > emittedLength) {
+        onTextDelta(prefix.slice(emittedLength));
+        emittedLength = prefix.length;
+      }
+    });
+    rawContent = streamed.content;
+    usage = streamed.usage;
+    model = streamed.model;
+  } else {
+    const data = (await response.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+      usage?: { total_tokens: number };
+      model?: string;
+    };
+    rawContent = data.choices?.[0]?.message?.content ?? "";
+    usage = data.usage;
+    model = data.model;
+  }
+
+  const metadata = { usage, model: model || env.OPENAI_MODEL };
   try {
     const answer = z.object({ answer: z.string().trim().min(1), evidenceIds: z.array(z.string()) }).strict()
-      .parse(JSON.parse(data.choices?.[0]?.message?.content ?? ""));
+      .parse(JSON.parse(rawContent));
     const ids = new Set(answer.evidenceIds);
     if (answer.answer.includes("NO_VERIFIED_INFO_FOUND") || !ids.size ||
       [...ids].some((id) => !evidence.some((item) => item.id === id)) ||
-      /https?:\/\/|www\./i.test(answer.answer)) return { ...miss, ...metadata };
+      /https?:\/\/|www\./i.test(answer.answer)) {
+      if (emittedLength > 0) onTextReset?.();
+      return { ...miss, ...metadata };
+    }
     const sources = uniqueSources(evidence.filter((item) => ids.has(item.id))
       .map((item) => ({ title: item.title, url: item.sourceUrl })));
     const actionLinks = [...new Map(evidence.filter((item) => ids.has(item.id))
       .flatMap((item) => item.actionLinks ?? []).map((link) => [link.url, link])).values()].slice(0, 5);
-    return { text: cleanChatText(answer.answer), sources, actionLinks, ...metadata };
+    const cleaned = cleanChatText(answer.answer);
+    if (onTextDelta && emittedLength === 0 && cleaned) {
+      onTextDelta(cleaned);
+    }
+    return { text: cleaned, sources, actionLinks, ...metadata };
   } catch {
+    if (emittedLength > 0) onTextReset?.();
     return { ...miss, ...metadata };
   }
 }
 
 export async function extractTicketDraftFromLLM(message: string): Promise<{ location?: string; room?: string; description?: string } | null> {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = env.OPENAI_API_KEY;
   if (!apiKey) return null;
 
   try {
@@ -567,6 +672,7 @@ export async function extractTicketDraftFromLLM(message: string): Promise<{ loca
       },
       body: JSON.stringify({
         model: env.OPENAI_MODEL,
+        max_completion_tokens: 1536,
         response_format: { type: "json_object" },
         messages: [
           {
@@ -582,11 +688,11 @@ export async function extractTicketDraftFromLLM(message: string): Promise<{ loca
     });
 
     if (!response.ok) return null;
-    
+
     const data = await response.json();
     const text = data.choices?.[0]?.message?.content;
     if (!text) return null;
-    
+
     const parsed = JSON.parse(text);
     return {
       location: parsed.location || undefined,

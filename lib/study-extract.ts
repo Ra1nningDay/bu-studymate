@@ -102,6 +102,7 @@ export async function extractStudyNote(
       },
       body: JSON.stringify({
         model: env.OPENAI_MODEL,
+        max_completion_tokens: 4096,
         response_format: { type: "json_object" },
         messages: [
           {

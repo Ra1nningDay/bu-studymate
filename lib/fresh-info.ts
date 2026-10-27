@@ -87,17 +87,26 @@ export function compactFreshInfoSources(message: string, sources: AnswerSource[]
 export async function answerFreshInfoFromVerifiedSources(
   message: string,
   history?: Array<{ content: string; role: "assistant" | "user" }>,
-  lookup: BuLinksLookupFn = (text) => buLinksService.lookup(text)
+  lookup: BuLinksLookupFn = (text) => buLinksService.lookup(text),
+  stream?: { onTextDelta?: (delta: string) => void; onTextReset?: () => void }
 ): Promise<FreshInfoAnswer> {
   // A lookup failure must never block the web-search fallback.
   const bulinks = await lookup(message).catch(() => null);
   if (bulinks) {
+    stream?.onTextDelta?.(bulinks.text);
     return { sources: [], text: bulinks.text, usedWebSearch: false, origin: "bulinks", links: bulinks.links };
   }
 
+  let streamedAny = false;
   const response = await createWebSearchResponse({
     history,
     message,
+    onTextDelta: stream?.onTextDelta
+      ? (delta) => {
+          streamedAny = true;
+          stream.onTextDelta?.(delta);
+        }
+      : undefined,
     options: { requireOfficialBuSources: true },
     toolType: "web_search_preview"
   }).catch((error) => {
@@ -106,9 +115,14 @@ export async function answerFreshInfoFromVerifiedSources(
   });
 
   if (!response || !response.text || response.text.includes("VERIFIED_SOURCE_NOT_FOUND")) {
+    if (streamedAny) {
+      stream?.onTextReset?.();
+    }
+    const unverifiedText = formatUnverifiedBuReply(message);
+    stream?.onTextDelta?.(unverifiedText);
     return {
       sources: [],
-      text: formatUnverifiedBuReply(message),
+      text: unverifiedText,
       usedWebSearch: true,
       origin: "web_search"
     };

@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { afterEach, before, test } from "node:test";
 
 // The default model (gpt-6-luna) rejects any non-default temperature with HTTP 400, and each caller
-// swallows that error into a fallback, so the failure is silent in production. Pin that no request sends one.
+// swallows that error into a fallback, so the failure is silent in production. Pin that no request sends one
+// and that each Chat Completions call carries its task-calibrated max_completion_tokens ceiling.
 let env: typeof import("@/src/config/env").env;
 let generateStudyAnswer: typeof import("@/lib/study-answer").generateStudyAnswer;
 let extractStudyNote: typeof import("@/lib/study-extract").extractStudyNote;
@@ -25,7 +26,7 @@ afterEach(() => {
 });
 
 function capture() {
-  process.env.OPENAI_API_KEY = "synthetic-key"; // extractTicketDraftFromLLM reads process.env directly
+  process.env.OPENAI_API_KEY = "synthetic-key";
   const bodies: Array<Record<string, unknown>> = [];
   globalThis.fetch = async (_url, init) => {
     bodies.push(JSON.parse(String(init?.body)));
@@ -34,23 +35,26 @@ function capture() {
   return bodies;
 }
 
-test("study answer request sends no temperature", async () => {
+test("study answer request sends no temperature and uses 8192 completion token ceiling", async () => {
   const bodies = capture();
   await generateStudyAnswer("คำถาม", "บริบท");
   assert.equal(bodies.length, 1);
   assert.equal("temperature" in bodies[0], false);
+  assert.equal(bodies[0].max_completion_tokens, 8192);
 });
 
-test("study note extraction request sends no temperature", async () => {
+test("study note extraction request sends no temperature and uses 4096 completion token ceiling", async () => {
   const bodies = capture();
   await extractStudyNote("วิชา", "เนื้อหา");
   assert.equal(bodies.length, 1);
   assert.equal("temperature" in bodies[0], false);
+  assert.equal(bodies[0].max_completion_tokens, 4096);
 });
 
-test("ticket draft extraction request sends no temperature", async () => {
+test("ticket draft extraction request sends no temperature and uses 1536 completion token ceiling", async () => {
   const bodies = capture();
   await extractTicketDraftFromLLM("แอร์ห้อง A301 เสีย");
   assert.equal(bodies.length, 1);
   assert.equal("temperature" in bodies[0], false);
+  assert.equal(bodies[0].max_completion_tokens, 1536);
 });

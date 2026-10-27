@@ -1,16 +1,27 @@
 import { env } from "@/src/config/env";
+import { consumeChatCompletionStream, isEventStreamResponse } from "@/lib/openai-stream";
 
-export async function generateStudyAnswer(question: string, context: string, isThai: boolean = true) {
+export async function generateStudyAnswer(
+  question: string,
+  context: string,
+  isThai: boolean = true,
+  onTextDelta?: (delta: string) => void
+) {
   const trimmedContext = context.trim();
-  if (!trimmedContext) {
-    return isThai ? "ยังไม่พบข้อมูลนี้ในโน้ตที่บันทึกไว้ครับ" : "I couldn't find this information in your saved notes.";
-  }
+  const missingStudyInfoReply = isThai
+    ? "ยังไม่พบข้อมูลนี้ในโน้ตที่บันทึกไว้ครับ"
+    : "I couldn't find this information in your saved notes.";
 
-  const missingStudyInfoReply = isThai ? "ยังไม่พบข้อมูลนี้ในโน้ตที่บันทึกไว้ครับ" : "I couldn't find this information in your saved notes.";
+  if (!trimmedContext) {
+    onTextDelta?.(missingStudyInfoReply);
+    return missingStudyInfoReply;
+  }
 
   const apiKey = env.OPENAI_API_KEY;
   if (!apiKey) {
-    return trimmedContext.slice(0, 1000);
+    const slice = trimmedContext.slice(0, 1000);
+    onTextDelta?.(slice);
+    return slice;
   }
 
   try {
@@ -22,6 +33,8 @@ export async function generateStudyAnswer(question: string, context: string, isT
       },
       body: JSON.stringify({
         model: env.OPENAI_MODEL,
+        max_completion_tokens: 8192,
+        ...(onTextDelta ? { stream: true, stream_options: { include_usage: true } } : {}),
         messages: [
           {
             role: "system",
@@ -42,7 +55,33 @@ export async function generateStudyAnswer(question: string, context: string, isT
 
     if (!response.ok) {
       console.error("Study answer generation failed", await response.text());
+      onTextDelta?.(missingStudyInfoReply);
       return missingStudyInfoReply;
+    }
+
+    if (onTextDelta && isEventStreamResponse(response)) {
+      let pendingStar = false;
+      let started = false;
+      const streamed = await consumeChatCompletionStream(response, (delta) => {
+        const combined = (pendingStar ? "*" : "") + delta;
+        pendingStar = combined.endsWith("*") && !combined.endsWith("**");
+        const consumable = pendingStar ? combined.slice(0, -1) : combined;
+        const withoutBold = consumable.replace(/\*\*/g, "");
+        const piece = started ? withoutBold : withoutBold.replace(/^\s+/, "");
+        if (piece.length > 0) {
+          started = true;
+          onTextDelta(piece);
+        }
+      });
+      if (pendingStar) {
+        onTextDelta("*");
+      }
+      const answer = streamed.content.trim().replace(/\*\*/g, "");
+      if (!answer) {
+        onTextDelta(missingStudyInfoReply);
+        return missingStudyInfoReply;
+      }
+      return answer;
     }
 
     const data = (await response.json()) as {
@@ -50,9 +89,12 @@ export async function generateStudyAnswer(question: string, context: string, isT
     };
 
     const answer = data.choices?.[0]?.message?.content?.trim();
-    return answer ? answer.replace(/\*\*/g, "") : missingStudyInfoReply;
+    const cleaned = answer ? answer.replace(/\*\*/g, "") : missingStudyInfoReply;
+    onTextDelta?.(cleaned);
+    return cleaned;
   } catch (error) {
     console.error("Study answer generation error", error);
+    onTextDelta?.(missingStudyInfoReply);
     return missingStudyInfoReply;
   }
 }

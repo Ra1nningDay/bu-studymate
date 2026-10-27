@@ -80,7 +80,11 @@ export class KnowledgeService {
     return (await this.retrieve(query)).items[0] ?? null;
   }
 
-  async answerQuestion(query: string, history: Array<{ content: string; role: "assistant" | "user" }> = []) {
+  async answerQuestion(
+    query: string,
+    history: Array<{ content: string; role: "assistant" | "user" }> = [],
+    options: { onTextDelta?: (delta: string) => void; onTextReset?: () => void } = {}
+  ) {
     const retrieval = await this.retrieve(query, history);
     const evidence = retrieval.items;
     const metadata = { retrievalModel: retrieval.model, rerankModel: retrieval.rerankModel, rerankStatus: retrieval.rerankStatus,
@@ -93,7 +97,13 @@ export class KnowledgeService {
     let result: Awaited<ReturnType<typeof rewriteKnowledgeAnswer>>;
     const generationStarted = performance.now();
     try {
-      result = await this.rewrite({ evidence, history, question: query });
+      result = await this.rewrite({
+        evidence,
+        history,
+        onTextDelta: options.onTextDelta,
+        onTextReset: options.onTextReset,
+        question: query
+      });
     } catch {
       retrieval.trace.push({ action: "LLM Generation", status: "error",
         durationMs: Math.round(performance.now() - generationStarted), details: "สร้างคำตอบไม่สำเร็จ" });
