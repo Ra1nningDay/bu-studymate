@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useRef, useState, type FormEvent } from "react";
 import { ChevronDown, ChevronRight, ChevronsDown, CheckCheck, FilePlus2, FileText, History, MessageCircle, MoreVertical, PanelLeftOpen, PanelRightOpen, RefreshCw, Search, Send, X } from "lucide-react";
 import { PlaygroundSessionIdSchema, type PlaygroundConversation, type PlaygroundMessage, type PlaygroundSession } from "@/src/dtos/playground.dto";
+import { consumeChatSseResponse, SseStreamError } from "@/lib/chat-sse-client";
 import { RunTrace } from "./run-trace";
 import { ChatAvatar, ChatSources } from "./chat-ui";
 
@@ -41,6 +42,7 @@ export function Playground() {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(true);
   const [sending, setSending] = useState(false);
+  const [streamingReply, setStreamingReply] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [historyOpen, setHistoryOpen] = useState(true);
@@ -79,7 +81,10 @@ export function Playground() {
     return () => { active = false; };
   }, []);
 
-  useEffect(() => { endRef.current?.scrollIntoView({ block: "nearest" }); }, [conversation?.messages.length, sending]);
+  const latestMessageText = conversation?.messages.at(-1)?.text;
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ block: "nearest" });
+  }, [conversation?.messages.length, latestMessageText, sending]);
 
   async function loadSessions() {
     const data = await request<{ sessions: PlaygroundSession[] }>(`${api}/sessions`);
@@ -136,6 +141,8 @@ export function Playground() {
     const messageText = input.trim();
     if (!conversation || busy || !messageText) return;
 
+    const targetSessionId = conversation.sessionId;
+    const previousMessageCount = conversation.messages.length;
     const optimisticMessage: PlaygroundMessage = {
       id: `optimistic-${crypto.randomUUID()}`,
       role: "user",
@@ -143,9 +150,32 @@ export function Playground() {
       createdAt: new Date().toISOString(),
       sources: []
     };
+    const replyId = `reply-${crypto.randomUUID()}`;
+    const replyCreatedAt = new Date().toISOString();
+
+    const upsertStreamingReply = (updater: (existing: PlaygroundMessage | undefined) => PlaygroundMessage | null) => {
+      setConversation((current) => {
+        if (!current) return null;
+        const idx = current.messages.findIndex((msg) => msg.id === replyId);
+        const existing = idx >= 0 ? current.messages[idx] : undefined;
+        const nextMsg = updater(existing);
+        if (!nextMsg) {
+          return idx >= 0
+            ? { ...current, messages: current.messages.filter((msg) => msg.id !== replyId) }
+            : current;
+        }
+        if (idx >= 0) {
+          const updated = current.messages.slice();
+          updated[idx] = nextMsg;
+          return { ...current, messages: updated };
+        }
+        return { ...current, messages: [...current.messages, nextMsg] };
+      });
+    };
 
     setBusy(true);
     setSending(true);
+    setStreamingReply(false);
     setError(null);
     setInput("");
     setConversation((current) => current ? {
@@ -155,41 +185,98 @@ export function Playground() {
 
     let sent = false;
     try {
-      const result = await request<{ runId: string; reply: string }>(`${api}/message`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId: conversation.sessionId, message: messageText })
+      const response = await fetch(`${api}/message`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+        body: JSON.stringify({ sessionId: targetSessionId, message: messageText }),
+        cache: "no-store"
       });
-      sent = true;
 
-      const optimisticReply: PlaygroundMessage = {
-        id: `reply-${crypto.randomUUID()}`,
+      if (response.status === 401) {
+        window.location.assign("/login");
+        return;
+      }
+
+      if (!response.ok) {
+        const errData = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(errData.error ?? "ส่งข้อความไม่สำเร็จ");
+      }
+
+      let result: { runId: string | null; reply: string; sources?: string[] };
+      if (response.headers.get("content-type")?.toLowerCase().includes("text/event-stream")) {
+        result = await consumeChatSseResponse<{ runId: string | null; reply: string; sources?: string[] }>(response, {
+          onDelta: (delta) => {
+            setStreamingReply(true);
+            upsertStreamingReply((existing) => ({
+              id: replyId,
+              role: "assistant",
+              text: (existing?.text ?? "") + delta,
+              createdAt: existing?.createdAt ?? replyCreatedAt,
+              sources: existing?.sources ?? []
+            }));
+          },
+          onReset: () => {
+            setStreamingReply(false);
+            upsertStreamingReply(() => null);
+          },
+          onReplace: (text, sources) => {
+            setStreamingReply(true);
+            upsertStreamingReply((existing) => ({
+              id: replyId,
+              role: "assistant",
+              text,
+              createdAt: existing?.createdAt ?? replyCreatedAt,
+              sources: sources.map((source) => source.url)
+            }));
+          }
+        });
+      } else {
+        result = (await response.json()) as { runId: string | null; reply: string; sources?: string[] };
+      }
+
+      sent = true;
+      upsertStreamingReply((existing) => ({
+        id: replyId,
         role: "assistant",
         text: result.reply,
-        createdAt: new Date().toISOString(),
-        sources: []
-      };
-
-      setConversation((current) => current ? {
-        ...current,
-        messages: [...current.messages, optimisticReply]
-      } : null);
-      setSelectedRunId(result.runId);
+        createdAt: existing?.createdAt ?? replyCreatedAt,
+        sources: result.sources ?? existing?.sources ?? []
+      }));
+      if (result.runId) {
+        setSelectedRunId(result.runId);
+      }
       setBusy(false);
       setSending(false);
+      setStreamingReply(false);
 
       void (async () => {
         try {
-          await readSession(conversation.sessionId);
+          await readSession(targetSessionId);
           await loadSessions();
         } catch { /* Background sync */ }
       })();
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : "ส่งข้อความไม่สำเร็จ";
+      upsertStreamingReply(() => null);
+      if (cause instanceof SseStreamError) {
+        try {
+          const check = await fetch(`${api}/sessions/${encodeURIComponent(targetSessionId)}`, { cache: "no-store" });
+          if (check.ok) {
+            const loaded = ((await check.json()) as { conversation: PlaygroundConversation }).conversation;
+            if (loaded.messages.length > previousMessageCount || loaded.runs.length > 0) {
+              setConversation(loaded);
+              setSelectedRunId(loaded.runs.at(-1)?.id ?? null);
+              void loadSessions().catch(() => {});
+              sent = true;
+            }
+          }
+        } catch { /* Fall back to restoring input below */ }
+      }
       if (!sent) {
         setInput(messageText);
         setConversation((current) => current ? {
           ...current,
-          messages: current.messages.filter((msg) => msg.id !== optimisticMessage.id)
+          messages: current.messages.filter((msg) => msg.id !== optimisticMessage.id && msg.id !== replyId)
         } : null);
       }
       setError(message);
@@ -197,6 +284,7 @@ export function Playground() {
       if (!sent) {
         setBusy(false);
         setSending(false);
+        setStreamingReply(false);
       }
     }
   }
@@ -296,7 +384,7 @@ export function Playground() {
                 </Fragment>;
               })}
               {conversation?.runs.filter((run) => !run.assistantMessageId).map((run) => <button key={run.id} onClick={() => { setSelectedRunId(run.id); setTraceOpen(true); }} aria-pressed={run.id === selectedRunId} className="block rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">เทิร์น {run.status} · {run.errorCode ?? "ยังไม่มีคำตอบ"} · ดู trace →</button>)}
-              {sending && <div role="status" className="flex items-center gap-3"><ChatAvatar /><span className="flex gap-1 rounded-2xl bg-slate-50 px-4 py-3"><span className="h-2 w-2 rounded-full bg-slate-300 motion-safe:animate-pulse" /><span className="h-2 w-2 rounded-full bg-slate-300 motion-safe:animate-pulse" /><span className="h-2 w-2 rounded-full bg-slate-300 motion-safe:animate-pulse" /><span className="sr-only">StudyMate กำลังตอบ…</span></span></div>}
+              {sending && !streamingReply && <div role="status" className="flex items-center gap-3"><ChatAvatar /><span className="flex gap-1 rounded-2xl bg-slate-50 px-4 py-3"><span className="h-2 w-2 rounded-full bg-slate-300 motion-safe:animate-pulse" /><span className="h-2 w-2 rounded-full bg-slate-300 motion-safe:animate-pulse" /><span className="h-2 w-2 rounded-full bg-slate-300 motion-safe:animate-pulse" /><span className="sr-only">StudyMate กำลังตอบ…</span></span></div>}
               <div ref={endRef} />
             </div>
             <div className="border-t border-slate-100 p-4">

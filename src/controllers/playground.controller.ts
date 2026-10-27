@@ -5,9 +5,11 @@ import { accessDenied, isSameOrigin } from "@/src/controllers/admin-auth.control
 import { playgroundService } from "@/src/services/playground.service";
 import { chatOrchestrationService } from "@/src/services/chat-orchestration.service";
 import { rateLimitService, messageRateLimitConfig } from "@/src/services/rate-limit.service";
+import { createSseChatResponse, wantsEventStream } from "@/src/presenters/chat-stream.presenter";
 import { normalizeWebSessionId } from "@/lib/web-session";
 
 const privateHeaders = { "Cache-Control": "private, no-store" };
+const sendErrorMessage = "ส่งข้อความไม่สำเร็จ ตรวจสอบ trace และการตั้งค่าฐานข้อมูล/AI ก่อนลองใหม่";
 
 export class PlaygroundController {
   constructor(
@@ -63,11 +65,22 @@ export class PlaygroundController {
     try {
       const limit = await this.limiter.consume({ lineUserId, ...messageRateLimitConfig });
       if (!limit.allowed) return this.json({ error: "ส่งข้อความถี่เกินไป กรุณารอสักครู่", retryAfterSeconds: limit.retryAfterSeconds }, 429);
+      if (wantsEventStream(request)) {
+        return createSseChatResponse({
+          errorMessage: sendErrorMessage,
+          execute: (stream) => this.chat.createBotReply({ channel: "web", lineUserId, message, stream }),
+          formatDone: (reply) => ({
+            runId: reply.runId ?? null,
+            reply: reply.text,
+            sources: (reply.sources ?? []).map((source) => source.url)
+          })
+        });
+      }
       const reply = await this.chat.createBotReply({ channel: "web", lineUserId, message });
       return this.json({ runId: reply.runId, reply: reply.text });
     } catch {
       // Some failures have a persisted error run. The client reloads the session to inspect it.
-      return this.json({ error: "ส่งข้อความไม่สำเร็จ ตรวจสอบ trace และการตั้งค่าฐานข้อมูล/AI ก่อนลองใหม่" }, 503);
+      return this.json({ error: sendErrorMessage }, 503);
     }
   }
 }

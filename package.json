@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test:bulinks": "tsx --test lib/bulinks.test.ts",
     "test:concise-chat": "tsx --test lib/concise-chat.test.ts",
+    "test:chat-latency": "tsx --test lib/chat-latency-sse.test.ts",
     "eval:concise-chat": "tsx evals/concise-chat/run.ts",
     "prepare": "husky",
     "postinstall": "prisma generate",

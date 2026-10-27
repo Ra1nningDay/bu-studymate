@@ -18,6 +18,7 @@ import {
   chatResponsePresenter,
   type ChatResponsePresenter
 } from "@/src/presenters/chat-response.presenter";
+import { createSseChatResponse, wantsEventStream } from "@/src/presenters/chat-stream.presenter";
 import { normalizeWebSessionId } from "@/lib/web-session";
 import { saveStudyFile } from "@/lib/study-file";
 import { adminAuthService } from "@/src/services/admin-auth.service";
@@ -73,6 +74,29 @@ export class ChatController {
         this.presenter.formatRateLimitError(rateLimit),
         { status: 429 }
       );
+    }
+
+    if (wantsEventStream(request)) {
+      return createSseChatResponse({
+        errorMessage: "ไม่สามารถสร้างคำตอบได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง",
+        execute: (stream) =>
+          this.chatSvc.createBotReply({
+            channel: "web",
+            lineUserId,
+            message,
+            stream
+          }),
+        formatDone: (reply) => ({
+          ...this.presenter.formatWebChatSuccess({
+            aiConfigured: isAiConfigured(),
+            reply: reply.text,
+            flexMessage: reply.flexMessage,
+            sources: reply.sources ?? [],
+            usedWebSearch: Boolean(reply.usedWebSearch)
+          }),
+          runId: reply.runId ?? null
+        })
+      });
     }
 
     const reply = await this.chatSvc.createBotReply({
