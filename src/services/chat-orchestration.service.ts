@@ -37,10 +37,17 @@ import { formatOutOfScopeReply } from "@/src/presenters/chat-policy.presenter";
 import type { ExecutionLogEntry } from "@/src/dtos/playground.dto";
 export type { ExecutionLogEntry } from "@/src/dtos/playground.dto";
 
+export type BotReplyStreamCallbacks = {
+  onTextDelta?: (delta: string) => void;
+  onTextReplace?: (text: string, sources?: AnswerSource[]) => void;
+  onTextReset?: () => void;
+};
+
 export type BotReplyInput = {
   channel?: ChatChannel;
   lineUserId: string;
   message: string;
+  stream?: BotReplyStreamCallbacks;
 };
 
 export type BotReply = {
@@ -73,6 +80,17 @@ type ResolvedRoute = {
   usage?: { total_tokens: number };
   model?: string;
 };
+
+const safetyCriticalHintPattern =
+  /(ทำร้ายตัวเอง|ฆ่าตัวตาย|ไม่อยากมีชีวิต|ไม่อยากอยู่แล้ว|อยากตาย|จบชีวิต|กรีดข้อมือ|กินยาเกินขนาด|กระโดดตึก|ไฟไหม้|เพลิงไหม้|ระเบิด|ถูกทำร้าย|มีคนถือมีด|มีปืน|อันตรายถึงชีวิต|ช่วยชีวิต|หมดสติ|เลือดออกมาก|หายใจไม่ออก|hurt\s+myself|kill\s+myself|end\s+my\s+life|suicid|self[- ]?harm|overdose|immediate\s+danger|on\s+fire|bomb|gunman|stabbing|bleeding\s+heavily|unconscious)/i;
+
+export function mightBeSafetyCritical(message: string): boolean {
+  return safetyCriticalHintPattern.test(message);
+}
+
+function needsRawChatHistory(intent: Intent) {
+  return intent === "ASK_BU_INFO" || intent === "ASK_FRESH_INFO";
+}
 
 function parseAddNoteCommand(message: string) {
   const body = message.replace(/^\/addnote/i, "").trim();
@@ -183,6 +201,16 @@ function normalizeMenuMessage(message: string) {
   return message.replace(/\s+/g, " ").trim().toLowerCase();
 }
 
+const deterministicMenuMessages = new Set([
+  "อัปโหลดบทเรียน",
+  "ถามข้อมูล bu",
+  "ถามข้อมูลทั่วไป",
+  "แจ้งปัญหาห้องเรียน",
+  "งานที่ต้องส่งมีอะไรบ้าง",
+  "ดูบันทึกโน้ต",
+  "ถามจากบทเรียนนี้"
+]);
+
 function asReply(
   text: string,
   sources?: AnswerSource[],
@@ -208,6 +236,20 @@ export class ChatOrchestrationService {
     return reply.origin === "bulinks"
       ? { action: "BU Links Lookup", details: reply.links?.map((link) => link.url).join(", ") }
       : { action: "Search Fresh Info (Web Search)", details: reply.model ? `Model: ${reply.model}` : undefined };
+  }
+
+  private canResolveWithoutRouter(trimmedMessage: string): boolean {
+    const menuMessage = normalizeMenuMessage(trimmedMessage);
+    if (deterministicMenuMessages.has(menuMessage) || isResetOrCancelCommand(trimmedMessage)) {
+      return true;
+    }
+    if (trimmedMessage.toLowerCase().startsWith("/addnote")) {
+      return !mightBeSafetyCritical(trimmedMessage);
+    }
+    if (extractTicketCode(trimmedMessage)) {
+      return !mightBeSafetyCritical(trimmedMessage);
+    }
+    return false;
   }
 
   private hardGuardRoute({
@@ -347,7 +389,7 @@ export class ChatOrchestrationService {
     trimmedMessage: string;
   }): Promise<ResolvedRoute> {
     const guarded = this.hardGuardRoute({ session, trimmedMessage });
-    if (guarded && guarded.selectedTarget !== "ticket") {
+    if (guarded && (guarded.selectedTarget !== "ticket" || !mightBeSafetyCritical(trimmedMessage))) {
       return guarded;
     }
 
@@ -379,16 +421,33 @@ export class ChatOrchestrationService {
     lineUserId,
     route,
     session,
+    stream,
     trimmedMessage
   }: {
     history: Array<{ content: string; role: "assistant" | "user" }>;
     lineUserId: string;
     route: ResolvedRoute;
     session: ChatSession;
+    stream?: BotReplyStreamCallbacks;
     trimmedMessage: string;
   }): Promise<BotReply> {
     const { intent } = route;
     let reply: BotReply;
+    let streamedText = "";
+    const onTextDelta = stream?.onTextDelta
+      ? (delta: string) => {
+          streamedText += delta;
+          stream.onTextDelta?.(delta);
+        }
+      : undefined;
+    const onTextReset = stream?.onTextReset
+      ? () => {
+          streamedText = "";
+          stream.onTextReset?.();
+        }
+      : undefined;
+    const streamHooks = onTextDelta ? { onTextDelta, onTextReset } : undefined;
+
     const routerModel = route.model;
     const executionLog: ExecutionLogEntry[] = [
       {
@@ -531,7 +590,8 @@ export class ChatOrchestrationService {
         lineUserId,
         trimmedMessage,
         isThai,
-        executionLog
+        executionLog,
+        onTextDelta
       );
       reply = asReply(
         memoryReply.text,
@@ -542,16 +602,16 @@ export class ChatOrchestrationService {
         executionLog
       );
     } else if (intent === "ASK_FRESH_INFO") {
-      const fresh = await answerFreshInfoFromVerifiedSources(trimmedMessage, history, this.buLinksLookup);
+      const fresh = await answerFreshInfoFromVerifiedSources(trimmedMessage, history, this.buLinksLookup, streamHooks);
       reply = fresh;
       executionLog.push(this.freshInfoLogEntry(fresh));
       reply.executionLog = executionLog;
     } else if (intent === "ASK_BU_INFO") {
-      const knowledgeAnswer = await this.knowledgeSvc.answerQuestion(trimmedMessage, history);
+      const knowledgeAnswer = await this.knowledgeSvc.answerQuestion(trimmedMessage, history, streamHooks);
       executionLog.push(...(knowledgeAnswer.trace ?? []));
       if (knowledgeAnswer.isMiss) {
         executionLog.push({ action: "Knowledge Base Miss - Falling back to Web Search" });
-        const fresh = await answerFreshInfoFromVerifiedSources(trimmedMessage, history, this.buLinksLookup);
+        const fresh = await answerFreshInfoFromVerifiedSources(trimmedMessage, history, this.buLinksLookup, streamHooks);
         reply = fresh;
         executionLog.push(this.freshInfoLogEntry(fresh));
         if (knowledgeAnswer.usage && reply.usage) {
@@ -623,6 +683,7 @@ export class ChatOrchestrationService {
     } else {
       const actionName = intent === "UNKNOWN" ? "Generate Clarification Question (OpenAI)" : "Generate General Chat Reply (OpenAI)";
       const aiResponse = await generateGeneralChatReply(trimmedMessage, history, {
+        onTextDelta,
         policy: intent === "UNKNOWN" ? "clarification" : "general",
         safetyCritical: route.safetyCritical
       });
@@ -652,62 +713,94 @@ export class ChatOrchestrationService {
         status: "applied", details: `เตรียมคำตอบพร้อม ${reply.sources?.length ?? 0} citations` });
     }
 
+    if (stream) {
+      if (!streamedText) {
+        stream.onTextDelta?.(reply.text);
+        if (reply.sources?.length) {
+          stream.onTextReplace?.(reply.text, reply.sources);
+        }
+      } else if (streamedText !== reply.text || (reply.sources?.length ?? 0) > 0) {
+        if (reply.text.startsWith(streamedText) && !(reply.sources?.length)) {
+          const suffix = reply.text.slice(streamedText.length);
+          if (suffix) stream.onTextDelta?.(suffix);
+        } else {
+          stream.onTextReplace?.(reply.text, reply.sources);
+        }
+      }
+    }
+
     return reply;
   }
 
   async createBotReply({
     channel = "line",
     lineUserId,
-    message
+    message,
+    stream
   }: BotReplyInput): Promise<BotReply> {
     const trimmedMessage = message.trim();
     if (!trimmedMessage) {
-      return asReply("พิมพ์คำถามหรือรายละเอียดที่ต้องการให้ StudyMate ช่วยได้เลยครับ");
+      const promptReply = "พิมพ์คำถามหรือรายละเอียดที่ต้องการให้ StudyMate ช่วยได้เลยครับ";
+      stream?.onTextDelta?.(promptReply);
+      return asReply(promptReply);
     }
 
     const startedAt = Date.now();
-    const session = await this.ticketSvc.getOrCreateChatSession(lineUserId);
-    const completedHistory = await this.chatLogRepo.getRecentCompletedChatHistory(lineUserId, 4);
+    const skipCompletedHistory = this.canResolveWithoutRouter(trimmedMessage);
+    const [session, completedHistory] = await Promise.all([
+      this.ticketSvc.getOrCreateChatSession(lineUserId),
+      skipCompletedHistory
+        ? Promise.resolve([] as Array<{ content: string; role: "assistant" | "user" }>)
+        : this.chatLogRepo.getRecentCompletedChatHistory(lineUserId, 4)
+    ]);
+
     const route = await this.resolveRoute({ history: completedHistory, session, trimmedMessage });
-    const history = route.intent === "GENERAL_CHAT" || route.intent === "UNKNOWN" || route.intent === "OUT_OF_SCOPE"
-      ? completedHistory
-      : await this.chatLogRepo.getRecentChatHistory(lineUserId);
     const intent = route.intent;
+    const userMessageId = crypto.randomUUID();
 
-    const userMessage = await this.chatLogRepo.createChatMessage({
-      channel,
-      content: trimmedMessage,
-      intent,
-      lineUserId,
-      metadata: {
-        messageLength: trimmedMessage.length,
-        needsWebSearch: route.needsWebSearch,
-        routerConfidence: route.routerConfidence,
-        routerReason: route.routerReason,
-        routerType: route.routerType,
-        selectedTarget: route.selectedTarget,
-        safetyCritical: Boolean(route.safetyCritical),
-        sessionState: session.state
-      },
-      role: "user",
-      sessionId: session.id
-    });
-
-    const run = await this.chatLogRepo.createBotRun({
-      intent,
-      lineUserId,
-      metadata: {
+    const [history, , run] = await Promise.all([
+      route.guideAction || route.resetRequested
+        ? Promise.resolve([] as Array<{ content: string; role: "assistant" | "user" }>)
+        : intent === "GENERAL_CHAT" || intent === "UNKNOWN"
+          ? Promise.resolve(completedHistory)
+          : needsRawChatHistory(intent)
+            ? this.chatLogRepo.getRecentChatHistory(lineUserId, 8, userMessageId)
+            : Promise.resolve([] as Array<{ content: string; role: "assistant" | "user" }>),
+      this.chatLogRepo.createChatMessage({
+        id: userMessageId,
         channel,
-        needsWebSearch: route.needsWebSearch,
-        routerConfidence: route.routerConfidence,
-        routerReason: route.routerReason,
-        routerType: route.routerType,
-        selectedTarget: route.selectedTarget,
-        safetyCritical: Boolean(route.safetyCritical),
-        sessionState: session.state
-      },
-      userMessageId: userMessage?.id
-    });
+        content: trimmedMessage,
+        intent,
+        lineUserId,
+        metadata: {
+          messageLength: trimmedMessage.length,
+          needsWebSearch: route.needsWebSearch,
+          routerConfidence: route.routerConfidence,
+          routerReason: route.routerReason,
+          routerType: route.routerType,
+          selectedTarget: route.selectedTarget,
+          safetyCritical: Boolean(route.safetyCritical),
+          sessionState: session.state
+        },
+        role: "user",
+        sessionId: session.id
+      }),
+      this.chatLogRepo.createBotRun({
+        intent,
+        lineUserId,
+        metadata: {
+          channel,
+          needsWebSearch: route.needsWebSearch,
+          routerConfidence: route.routerConfidence,
+          routerReason: route.routerReason,
+          routerType: route.routerType,
+          selectedTarget: route.selectedTarget,
+          safetyCritical: Boolean(route.safetyCritical),
+          sessionState: session.state
+        },
+        userMessageId
+      })
+    ]);
 
     try {
       const reply = await this.executeBotReply({
@@ -715,54 +808,58 @@ export class ChatOrchestrationService {
         lineUserId,
         route,
         session,
+        stream,
         trimmedMessage
       });
 
-      const assistantMessage = await this.chatLogRepo.createChatMessage({
-        channel,
-        content: reply.text,
-        intent,
-        lineUserId,
-        metadata: {
-          replyLength: reply.text.length,
-          sourceCount: reply.sources?.length ?? 0,
-          sourceUrls: reply.sources?.map((source) => source.url) ?? [],
-          usedWebSearch: Boolean(reply.usedWebSearch)
-        },
-        role: "assistant",
-        sessionId: session.id
-      });
-
+      const assistantMessageId = crypto.randomUUID();
       const totalTokens = (route.usage?.total_tokens ?? 0) + (reply.usage?.total_tokens ?? 0);
       const finalModel = reply.model || route.model;
 
-      await this.chatLogRepo.updateBotRun(run!.id, {
-        assistantMessageId: assistantMessage?.id,
-        latencyMs: Date.now() - startedAt,
-        metadata: {
+      await Promise.all([
+        this.chatLogRepo.createChatMessage({
+          id: assistantMessageId,
           channel,
-          needsWebSearch: route.needsWebSearch,
-          routerConfidence: route.routerConfidence,
-          routerReason: route.routerReason,
-          routerType: route.routerType,
-          routerModel: route.model,
-          responseModel: reply.model,
-          selectedTarget: route.selectedTarget,
-          safetyCritical: Boolean(route.safetyCritical),
-          replyLength: reply.text.length,
-          sourceCount: reply.sources?.length ?? 0,
-          tokensUsed: totalTokens > 0 ? totalTokens : undefined,
-          sourceUrls: reply.sources?.map((source) => source.url) ?? [],
-          modelName: finalModel,
-          sessionState: session.state,
-          executionLog: reply.executionLog
-        },
-        status: "success",
-        usedOpenAI: mightUseOpenAI(route, Boolean(reply.usedWebSearch)),
-        usedStudyMemory: didUseStudyMemory(intent),
-        usedTicketFlow: didUseTicketFlow(intent),
-        usedWebSearch: Boolean(reply.usedWebSearch)
-      });
+          content: reply.text,
+          intent,
+          lineUserId,
+          metadata: {
+            replyLength: reply.text.length,
+            sourceCount: reply.sources?.length ?? 0,
+            sourceUrls: reply.sources?.map((source) => source.url) ?? [],
+            usedWebSearch: Boolean(reply.usedWebSearch)
+          },
+          role: "assistant",
+          sessionId: session.id
+        }),
+        this.chatLogRepo.updateBotRun(run!.id, {
+          assistantMessageId,
+          latencyMs: Date.now() - startedAt,
+          metadata: {
+            channel,
+            needsWebSearch: route.needsWebSearch,
+            routerConfidence: route.routerConfidence,
+            routerReason: route.routerReason,
+            routerType: route.routerType,
+            routerModel: route.model,
+            responseModel: reply.model,
+            selectedTarget: route.selectedTarget,
+            safetyCritical: Boolean(route.safetyCritical),
+            replyLength: reply.text.length,
+            sourceCount: reply.sources?.length ?? 0,
+            tokensUsed: totalTokens > 0 ? totalTokens : undefined,
+            sourceUrls: reply.sources?.map((source) => source.url) ?? [],
+            modelName: finalModel,
+            sessionState: session.state,
+            executionLog: reply.executionLog
+          },
+          status: "success",
+          usedOpenAI: mightUseOpenAI(route, Boolean(reply.usedWebSearch)),
+          usedStudyMemory: didUseStudyMemory(intent),
+          usedTicketFlow: didUseTicketFlow(intent),
+          usedWebSearch: Boolean(reply.usedWebSearch)
+        })
+      ]);
 
       return { ...reply, runId: run!.id };
     } catch (error) {

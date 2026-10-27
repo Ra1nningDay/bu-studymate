@@ -6,6 +6,7 @@ export type ChatRole = "assistant" | "system" | "user";
 export type BotRunStatus = "error" | "processing" | "success";
 
 export type CreateChatMessageData = {
+  id?: string;
   channel: ChatChannel;
   content: string;
   intent?: string | null;
@@ -16,6 +17,7 @@ export type CreateChatMessageData = {
 };
 
 export type CreateBotRunData = {
+  id?: string;
   intent?: string | null;
   lineUserId: string;
   metadata?: Prisma.InputJsonValue;
@@ -39,6 +41,7 @@ export class ChatLogRepository {
   async createChatMessage(data: CreateChatMessageData) {
     return prisma.chatMessage.create({
       data: {
+        ...(data.id ? { id: data.id } : {}),
         channel: data.channel,
         content: data.content,
         intent: data.intent,
@@ -53,6 +56,7 @@ export class ChatLogRepository {
   async createBotRun(data: CreateBotRunData) {
     return prisma.botRun.create({
       data: {
+        ...(data.id ? { id: data.id } : {}),
         intent: data.intent,
         lineUserId: data.lineUserId,
         metadata: data.metadata ?? {},
@@ -79,11 +83,12 @@ export class ChatLogRepository {
     });
   }
 
-  async getRecentChatHistory(lineUserId: string, limit = 50) {
+  async getRecentChatHistory(lineUserId: string, limit = 8, excludeMessageId?: string) {
     const rows = await prisma.chatMessage.findMany({
       where: {
         lineUserId,
-        role: { in: ["user", "assistant"] }
+        role: { in: ["user", "assistant"] },
+        ...(excludeMessageId ? { id: { not: excludeMessageId } } : {})
       },
       select: { content: true, role: true },
       orderBy: { createdAt: "desc" },
@@ -97,30 +102,30 @@ export class ChatLogRepository {
   }
 
   async getRecentCompletedChatHistory(lineUserId: string, turnLimit = 4) {
-    const runs = await prisma.botRun.findMany({
-      where: {
-        lineUserId,
-        status: "success",
-        userMessageId: { not: null },
-        assistantMessageId: { not: null }
-      },
-      select: { userMessageId: true, assistantMessageId: true },
-      orderBy: { createdAt: "desc" },
-      take: turnLimit
-    });
-    const ids = runs.flatMap((run) => [run.userMessageId!, run.assistantMessageId!]);
-    const messages = await this.findMessagesByIds(ids);
-    const byId = new Map(messages.map((message) => [message.id, message]));
+    if (turnLimit <= 0) return [];
+    const safeLimit = Math.max(1, Math.trunc(turnLimit));
+    const rows = await prisma.$queryRaw<Array<{ userContent: string; assistantContent: string }>>`
+      WITH recent_runs AS (
+        SELECT user_message_id, assistant_message_id, created_at, id
+        FROM bot_runs
+        WHERE line_user_id = ${lineUserId}
+          AND status = 'success'
+          AND user_message_id IS NOT NULL
+          AND assistant_message_id IS NOT NULL
+        ORDER BY created_at DESC, id DESC
+        LIMIT ${safeLimit}
+      )
+      SELECT u.content AS "userContent", a.content AS "assistantContent"
+      FROM recent_runs r
+      JOIN chat_messages u ON u.id = r.user_message_id AND u.role = 'user'
+      JOIN chat_messages a ON a.id = r.assistant_message_id AND a.role = 'assistant'
+      ORDER BY r.created_at ASC, r.id ASC
+    `;
 
-    return runs.reverse().flatMap((run) => {
-      const user = byId.get(run.userMessageId!);
-      const assistant = byId.get(run.assistantMessageId!);
-      if (user?.role !== "user" || assistant?.role !== "assistant") return [];
-      return [
-        { content: user.content, role: "user" as const },
-        { content: assistant.content, role: "assistant" as const }
-      ];
-    });
+    return rows.flatMap((row) => [
+      { content: row.userContent, role: "user" as const },
+      { content: row.assistantContent, role: "assistant" as const }
+    ]);
   }
 
   async findMessagesByIds(ids: string[]) {

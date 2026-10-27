@@ -101,23 +101,23 @@ test("General Chat gives routing one completed turn and generation at most four 
   assert.deepEqual(fixture.historyRequests, [{ completed: true, limit: 4 }]);
 });
 
-test("General Chat sends the calibrated 400-token bound and preserves a long completed model answer without another call", async () => {
+test("General Chat sends the calibrated 8192-token ceiling and preserves a long completed model answer without another call", async () => {
   const answer = "A complete sentence with context. ".repeat(20).trim();
   const requests = controlledOpenAi("GENERAL_CHAT", answer);
   const fixture = await createConciseChatFixture();
   const reply = await fixture.service.createBotReply({ lineUserId: "synthetic-eval-user", message: "Hello" });
-  assert.equal(requests[1].body.max_completion_tokens, 400);
+  assert.equal(requests[1].body.max_completion_tokens, 8192);
   assert.equal(reply.text, answer);
   assert.ok(reply.text.length > 300);
   assert.equal(requests.length, 2);
   assert.equal(jsonMetadata(fixture.messages[1].metadata).replyLength, answer.length);
 });
 
-for (const [intent, message, workflow] of [
-  ["ASK_BU_INFO", "Hello! How do I connect to BU Wi-Fi?", "knowledge_base"],
-  ["ASK_STUDY_MEMORY", "Expand the second point from my saved notes.", "study_memory"],
-  ["CREATE_TICKET", "Hi, the classroom air conditioner is broken.", "ticket"]
-]) {
+for (const [intent, message, workflow, expectsRawHistory] of [
+  ["ASK_BU_INFO", "Hello! How do I connect to BU Wi-Fi?", "knowledge_base", true],
+  ["ASK_STUDY_MEMORY", "Expand the second point from my saved notes.", "study_memory", false],
+  ["CREATE_TICKET", "Hi, the classroom air conditioner is broken.", "ticket", false]
+] as const) {
   test(`${intent}: actionable workflow keeps its detail and avoids General Chat generation`, async () => {
     const expected = "Required operational detail. ".repeat(20).trim();
     const requests = controlledOpenAi(intent, "Do not replace the verified workflow.");
@@ -127,7 +127,12 @@ for (const [intent, message, workflow] of [
     assert.equal(fixture.runs[0].intent, intent);
     assert.deepEqual(fixture.workflowCalls, [workflow]);
     assert.equal(requests.length, 1);
-    assert.equal(fixture.historyRequests[1].completed, false);
+    assert.deepEqual(
+      fixture.historyRequests,
+      expectsRawHistory
+        ? [{ completed: true, limit: 4 }, { completed: false, limit: 8 }]
+        : [{ completed: true, limit: 4 }]
+    );
   });
 }
 
@@ -147,8 +152,7 @@ test("an expired knowledge item produces BU Links service links instead of a bar
   const url = "https://bulinks.bu.ac.th/tuition-fees/";
   const fixture = await createConciseChatFixture({
     knowledgeMiss: true,
-    buLinksLookup: async () => ({ kind: "services", text: `Related pages:
-- Tuition: ${url}`, links: [{ title: "Tuition", url }] })
+    buLinksLookup: async () => ({ kind: "services", text: `Related pages:\n- Tuition: ${url}`, links: [{ title: "Tuition", url }] })
   });
   const reply = await fixture.service.createBotReply({ lineUserId: "synthetic-eval-user", message: "How much is tuition?" });
   assert.ok(reply.text.includes(url));
@@ -167,6 +171,7 @@ test("Static Guide returns complete instructions without routing or answer gener
   assert.match(reply.text, /Assignment due Friday: create one customer persona\./);
   assert.ok(reply.text.length > 200);
   assert.equal(jsonMetadata(fixture.updates[0].metadata).routerType, "hard_guard");
+  assert.deepEqual(fixture.historyRequests, []);
 });
 
 test("Progressive Detail preserves the follow-up and previous point at the shared response boundary", async () => {
@@ -188,6 +193,28 @@ test("Safety-critical messages reach response policy and are exempt from ordinar
   assert.equal(jsonMetadata(fixture.updates[0].metadata).safetyCritical, true);
   assert.equal(requests[1].body.max_completion_tokens, undefined);
   assert.equal(reply.text, answer);
+});
+
+test("Ticket hard guards skip router LLM calls unless safety-critical hints appear", async () => {
+  globalThis.fetch = async () => { throw new Error("Ordinary ticket hard guard must not call router"); };
+  const codeFixture = await createConciseChatFixture();
+  const codeReply = await codeFixture.service.createBotReply({ lineUserId: "synthetic-eval-user", message: "เช็คสถานะ BU-TICKET-0001" });
+  assert.match(codeReply.text, /BU-TICKET-0001/);
+  assert.equal(jsonMetadata(codeFixture.updates[0].metadata).routerType, "hard_guard");
+  assert.deepEqual(codeFixture.historyRequests, []);
+
+  const creatingFixture = await createConciseChatFixture({ sessionState: "CREATING_TICKET", workflowReply: "กรุณายืนยันข้อมูล Ticket" });
+  const creatingReply = await creatingFixture.service.createBotReply({ lineUserId: "synthetic-eval-user", message: "อาคาร A3 ชั้น 2 ห้อง 204 แอร์เสีย" });
+  assert.equal(creatingReply.text, "กรุณายืนยันข้อมูล Ticket");
+  assert.equal(jsonMetadata(creatingFixture.updates[0].metadata).routerType, "hard_guard");
+
+  const safetyAnswer = "Please move to safety immediately and contact emergency help.";
+  const safetyRequests = controlledOpenAi("GENERAL_CHAT", safetyAnswer, true);
+  const safetyFixture = await createConciseChatFixture({ sessionState: "CREATING_TICKET" });
+  const safetyReply = await safetyFixture.service.createBotReply({ lineUserId: "synthetic-eval-user", message: "I am about to hurt myself." });
+  assert.equal(safetyReply.text, safetyAnswer);
+  assert.equal(safetyFixture.runs[0].intent, "GENERAL_CHAT");
+  assert.equal(safetyRequests.length, 2);
 });
 
 test("Human handoff requests use shared conversational response without claiming an operational transfer", async () => {
@@ -221,44 +248,41 @@ test("Jev safety-critical output survives low ordinary intent probability withou
   assert.equal(calls, 1);
 });
 
-test("Completed history uses only success-linked user/assistant pairs, preserves workflow turns, and excludes orphans", async () => {
+test("Completed history uses a single SQL CTE join over success-linked user/assistant pairs", async () => {
   const { prisma } = await import("@/lib/prisma");
   const { ChatLogRepository } = await import("@/src/repositories/chat-log.repository");
+  const originalQueryRaw = prisma.$queryRaw;
   const originalFindRuns = prisma.botRun.findMany;
   const originalFindMessages = prisma.chatMessage.findMany;
-  let runQuery: unknown;
-  let messageQuery: unknown;
-  prisma.botRun.findMany = (async (query: unknown) => {
-    runQuery = query;
+  let queryCalls = 0;
+  let capturedSql = "";
+  let capturedValues: unknown[] = [];
+
+  prisma.botRun.findMany = (async () => { throw new Error("Must not issue separate botRun.findMany"); }) as unknown as typeof originalFindRuns;
+  prisma.chatMessage.findMany = (async () => { throw new Error("Must not issue separate chatMessage.findMany"); }) as unknown as typeof originalFindMessages;
+  prisma.$queryRaw = (async (strings: TemplateStringsArray, ...values: unknown[]) => {
+    queryCalls += 1;
+    capturedSql = strings.join("?");
+    capturedValues = values;
     return [
-      { userMessageId: "new-user", assistantMessageId: "new-answer" },
-      { userMessageId: "orphan-user", assistantMessageId: "missing-answer" },
-      { userMessageId: "old-user", assistantMessageId: "old-answer" }
+      { userContent: "Ticket status", assistantContent: "Completed ticket answer" },
+      { userContent: "Study-memory follow-up", assistantContent: "Completed study answer" }
     ];
-  }) as unknown as typeof originalFindRuns;
-  prisma.chatMessage.findMany = (async (query: unknown) => {
-    messageQuery = query;
-    return [
-      { id: "new-user", role: "user", content: "Study-memory follow-up" },
-      { id: "new-answer", role: "assistant", content: "Completed study answer" },
-      { id: "orphan-user", role: "user", content: "Unanswered request" },
-      { id: "old-user", role: "user", content: "Ticket status" },
-      { id: "old-answer", role: "assistant", content: "Completed ticket answer" },
-      { id: "failed-answer", role: "assistant", content: "Unlinked failed answer" }
-    ];
-  }) as unknown as typeof originalFindMessages;
+  }) as unknown as typeof originalQueryRaw;
+
   try {
     const history = await new ChatLogRepository().getRecentCompletedChatHistory("synthetic-eval-user", 4);
-    assert.deepEqual(runQuery, {
-      where: { lineUserId: "synthetic-eval-user", status: "success", userMessageId: { not: null }, assistantMessageId: { not: null } },
-      select: { userMessageId: true, assistantMessageId: true }, orderBy: { createdAt: "desc" }, take: 4
-    });
-    assert.deepEqual(messageQuery, { where: { id: { in: ["new-user", "new-answer", "orphan-user", "missing-answer", "old-user", "old-answer"] } } });
+    assert.equal(queryCalls, 1);
+    assert.match(capturedSql, /status\s*=\s*'success'/);
+    assert.match(capturedSql, /u\.role\s*=\s*'user'/);
+    assert.match(capturedSql, /a\.role\s*=\s*'assistant'/);
+    assert.deepEqual(capturedValues, ["synthetic-eval-user", 4]);
     assert.deepEqual(history, [
       { role: "user", content: "Ticket status" }, { role: "assistant", content: "Completed ticket answer" },
       { role: "user", content: "Study-memory follow-up" }, { role: "assistant", content: "Completed study answer" }
     ]);
   } finally {
+    prisma.$queryRaw = originalQueryRaw;
     prisma.botRun.findMany = originalFindRuns;
     prisma.chatMessage.findMany = originalFindMessages;
   }

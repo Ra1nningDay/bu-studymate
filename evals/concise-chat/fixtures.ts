@@ -15,6 +15,7 @@ export async function createConciseChatFixture(options: {
   workflowReply?: string;
   knowledgeService?: KnowledgeService;
   buLinksLookup?: BuLinksLookupFn;
+  sessionState?: ChatSession["state"];
 } = {}) {
   const { ChatOrchestrationService } = await import("@/src/services/chat-orchestration.service");
   const messages: CreateChatMessageData[] = [];
@@ -25,7 +26,7 @@ export async function createConciseChatFixture(options: {
   const session: ChatSession = {
     id: "synthetic-session",
     line_user_id: "synthetic-eval-user",
-    state: "IDLE",
+    state: options.sessionState ?? "IDLE",
     draft_data: {},
     created_at: "2026-10-03T00:00:00Z",
     updated_at: "2026-10-03T00:00:00Z"
@@ -42,11 +43,11 @@ export async function createConciseChatFixture(options: {
     },
     createChatMessage: async (data: CreateChatMessageData) => {
       messages.push(data);
-      return { id: `synthetic-message-${messages.length}` };
+      return { id: data.id ?? `synthetic-message-${messages.length}` };
     },
     createBotRun: async (data: CreateBotRunData) => {
       runs.push(data);
-      return { id: `synthetic-run-${runs.length}` };
+      return { id: data.id ?? `synthetic-run-${runs.length}` };
     },
     updateBotRun: async (_id: string, data: UpdateBotRunData) => {
       updates.push(data);
