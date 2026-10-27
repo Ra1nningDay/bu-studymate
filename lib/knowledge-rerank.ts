@@ -11,15 +11,17 @@ export async function rerankKnowledge(query: string, evidence: KnowledgeEvidence
     model: undefined as string | undefined,
     status: "fallback" as "applied" | "fallback" | "skipped"
   };
-  if (candidates.length <= 1) return { ...fallback, status: "skipped" as const };
+  if (candidates.length <= take) return { ...fallback, status: "skipped" as const };
   if (!env.OPENAI_API_KEY) return fallback;
+
+  const configuredModel = env.OPENAI_RERANK_MODEL || env.OPENAI_MODEL;
 
   try {
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: env.OPENAI_MODEL,
+        model: configuredModel,
         max_completion_tokens: 2048,
         response_format: { type: "json_schema", json_schema: {
           name: "knowledge_ranking", strict: true,
@@ -46,7 +48,7 @@ export async function rerankKnowledge(query: string, evidence: KnowledgeEvidence
       usage: z.object({ total_tokens: z.number().int().nonnegative() }).optional(),
       model: z.string().optional()
     }).parse(await response.json());
-    const metadata = { usage: data.usage, model: data.model || env.OPENAI_MODEL };
+    const metadata = { usage: data.usage, model: data.model || configuredModel };
     try {
       const choice = z.array(z.object({
         finish_reason: z.string(),

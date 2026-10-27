@@ -26,6 +26,8 @@ const envSchema = z.object({
   OPENAI_MODEL: z.string().default("gpt-6-luna"),
   OPENAI_AGENT_ROUTER_MODEL: z.string().default("gpt-6-luna"),
   OPENAI_WEB_SEARCH_MODEL: z.string().default("gpt-6-luna"),
+  OPENAI_QUERY_REWRITE_MODEL: z.string().default("gpt-6-luna"),
+  OPENAI_RERANK_MODEL: z.string().default("gpt-6-luna"),
   OPENROUTER_API_KEY: z.string().optional(),
   AGENT_ROUTER_MODE: z.enum(["openai", "shadow", "jev"]).default("jev"),
   JEV_ROUTER_MODEL: z.string().min(1).default("typesafe/jev-1.13"),
