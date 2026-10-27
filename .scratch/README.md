@@ -1,13 +1,15 @@
 # StudyMate Work Status
 
-Updated: 2026-10-24
+Updated: 2026-10-27
 
 This index owns local work status. Specs and tickets own scope and verification;
 [AGENTS.md](../AGENTS.md) owns working rules. A plan is not implementation proof.
 
 ## Current Handoff
 
-- Latest effort: BU Links live lookup ([bulinks-live-01](bulinks-live/issues/01-live-lookup.md)),
+- Latest effort: Chat Orchestration, RAG & SSE Streaming Latency ([chat-latency-01](chat-latency/issues/01-orchestration-rag-sse.md)),
+  resolved locally on 2026-10-27; not committed or deployed.
+  Previous effort: BU Links live lookup ([bulinks-live-01](bulinks-live/issues/01-live-lookup.md)),
   implemented locally on branch `feat/bulinks-live-lookup`, 2026-10-24; not merged or deployed.
   Previous effort: FAQ file import ([knowledge-rag-05](knowledge-rag/issues/05-faq-file-import.md)),
   migrated and imported on 2026-10-24; two retrieval gaps recorded in the ticket.
@@ -27,6 +29,7 @@ This index owns local work status. Specs and tickets own scope and verification;
 
 | Effort | Status | Record | Evidence boundary |
 |---|---|---|---|
+| Chat orchestration, RAG & SSE latency | Resolved locally, 2026-10-27; uncommitted | [chat-latency-01](chat-latency/issues/01-orchestration-rag-sse.md) | 260 unit tests across 8 suites (5 new latency/SSE + 47 knowledge + 20 concise-chat + 188 regressions), `pnpm typecheck`, `pnpm lint`, and `graphify update .` passed. Synthetic DB/fetch mocks; live DB/provider TTFT UAT and deployment remain separate. |
 | BU Links live lookup | Resolved locally, 2026-10-24; not merged or deployed | [bulinks-live-01](bulinks-live/issues/01-live-lookup.md) | 16 bulinks + 19 concise-chat + 46 knowledge tests (fake fetch), typecheck/lint passed. Live read-only GET smoke of bulinks.bu.ac.th and a six-question sample (real router and models, no DB writes) recorded; calendar and BU NEWS link-only; known limits in ticket. |
 | Users + RBAC admin login | Implemented locally, 2026-10-24; migration applied to the connected DB, not deployed | [users-rbac-01](users-rbac/issues/01-users-roles-admin-login.md) | Admin-auth + student-auth suites, typecheck/lint passed (fake repositories). Checked on a throwaway Postgres (counts, admin:create, login, viewer 403) and migration applied to the connected DB (0 students); no deployed run. |
 | Admin login hardening | Implemented locally, 2026-10-24; production secret not set | [admin-auth-01](admin-auth/issues/01-session-secret-and-login-limit.md) | 33 admin-auth tests (fake limiter/auth), typecheck/lint passed. No real login-limit or Vercel IP header check. |

@@ -1,6 +1,6 @@
 # BU StudyMate Interface Design
 
-Source inspected: 2026-10-13, current working tree.
+Source inspected: 2026-10-27, current working tree.
 Status: source-inspected visual/interaction baseline with separately labeled
 maintenance targets. Admin Overview, shared login/navigation and Web Chat interactions
 were verified locally with synthetic persistence at desktop/mobile viewports;
@@ -28,7 +28,7 @@ runs. Keep student answers focused and place operational detail in admin views.
 |---|---|---|
 | `/login` | [login](app/login/page.tsx) | 2-column admin sign-in: StudyMate mascot poster on the left, username/password form on the right. |
 | `/admin` | [overview](app/admin/page.tsx), [shell](app/admin/admin-shell.tsx) | Green reference-inspired sidebar/header, recorded KPIs, daily/intent charts, knowledge snapshot and attention preview. |
-| `/admin/chat` | [workspace](app/admin/chat/playground.tsx), [upload](app/admin/chat/study-upload.tsx) | Green reference layout: searchable history, mint user bubbles, assistant avatar, compact composer/upload and tabbed Execution Trace; responsive columns/stack. |
+| `/admin/chat` | [workspace](app/admin/chat/playground.tsx), [upload](app/admin/chat/study-upload.tsx) | Green reference layout: searchable history, mint user bubbles, assistant avatar, progressive SSE reply streaming, compact composer/upload and tabbed Execution Trace; responsive columns/stack. |
 | `/`, `/chat` | [root](app/page.tsx), [chat alias](app/chat/page.tsx) | Redirect to `/admin` and `/admin/chat`, respectively. |
 | `/admin/tickets` | [tickets page](app/admin/tickets/page.tsx) | Login/setup states, status badges and ticket management. |
 | `/admin/runs` | [runs page](app/admin/runs/page.tsx), [workspace](app/admin/runs/runs-workspace.tsx) | Emerald metric cards, 12-row paginated table and selected-run panel; desktop columns, mobile stacking. |
@@ -83,8 +83,9 @@ controls are keyboard-operable and source URLs only become links for HTTP(S).
 ## 4. Current Interactions and States
 
 - **Web Chat compose:** The Send button submits; Enter inserts a newline. Sending disables
-  send/upload/session actions and displays a typing state. This is a complete-response
-  HTTP interaction, not proof of token streaming.
+  send/upload/session actions, shows a typing indicator before the first streamed delta,
+  and progressively renders assistant tokens via SSE (`Accept: text/event-stream`) before
+  finalizing the saved reply, sources and Execution Trace selection on `done`.
 - **Upload:** Composer document control opens the PDF/DOCX chooser, optional course field and upload action. Show
   ingestion outcomes/OCR warnings from the server; an upload is not successful
   merely because a file was selected.

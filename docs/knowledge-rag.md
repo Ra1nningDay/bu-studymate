@@ -1,7 +1,9 @@
 # Campus knowledge: hybrid RAG
 
-Implemented locally, 2026-10-13. [Ticket](../.scratch/knowledge-rag/issues/01-hybrid-knowledge.md)
-records checks and deployment boundaries. No owner-approved corpus was supplied;
+Implemented locally, 2026-10-13; latency optimizations updated locally, 2026-10-27.
+[Ticket](../.scratch/knowledge-rag/issues/01-hybrid-knowledge.md) and
+[chat-latency-01](../.scratch/chat-latency/issues/01-orchestration-rag-sse.md)
+record checks and deployment boundaries. No owner-approved corpus was supplied;
 legacy/demo knowledge is preserved but is not automatically approved or indexed.
 
 ## Storage and answering
@@ -16,29 +18,34 @@ search with a GIN index. This is PostgreSQL full-text ranking, not BM25.
 Query embeddings use `text-embedding-3-small`, 1536 dimensions, through the
 existing server-side `OPENAI_API_KEY`. The query and passages use the same model.
 
-When eligible evidence and conversation history exist, Query Rewrite first uses
-the existing `OPENAI_MODEL` to turn the latest follow-up into a standalone search
-query. For example, after a Wi-Fi registration question, “แล้วใช้กับ iPhone ล่ะ”
-can become a Wi-Fi registration query for iPhone. The same rewritten query feeds
+When eligible evidence and conversation history exist, Query Rewrite uses
+`OPENAI_QUERY_REWRITE_MODEL` (default `gpt-6-luna`, falling back to `OPENAI_MODEL`)
+to turn follow-up questions into standalone search queries. For example, after a
+Wi-Fi registration question, “แล้วใช้กับ iPhone ล่ะ” can become a Wi-Fi
+registration query for iPhone. First turns and self-contained standalone queries
+without follow-up/anaphoric markers (`isStandaloneKnowledgeQuery`) skip rewriting
+and report `skipped` in the trace. When rewriting runs, the rewritten query feeds
 embedding, full-text/vector retrieval and reranking; generation still receives
-the original question/history. First turns skip rewriting. The model receives
-only the last eight messages, at most 1200 Unicode characters each, as untrusted
-topic context. The prompt preserves the latest question's constraints and
-instructs the model not to import asserted facts from history or change topics.
-This instruction is not proof of semantic fidelity; evaluate topic drift and
-Thai/English follow-ups with approved questions before claiming quality gains.
+the original question/history. The model receives only the last eight messages,
+at most 1200 Unicode characters each, as untrusted topic context. The prompt
+preserves the latest question's constraints and instructs the model not to import
+asserted facts from history or change topics. This instruction is not proof of
+semantic fidelity; evaluate topic drift and Thai/English follow-ups with approved
+questions before claiming quality gains.
 
-Rewrite makes one extra Chat Completions call with a ten-second timeout and a
-2048-token completion limit. Invalid/empty output, queries exceeding 7500 UTF-8
+Rewrite makes at most one Chat Completions call with a ten-second timeout and a
+1536-token completion limit. Invalid/empty output, queries exceeding 7500 UTF-8
 bytes, refusal, truncation, missing credentials and provider errors fall back to
 the original question. There is no rewrite retry or additional provider.
 
 Exact cosine search and keyword search each select at most 20 candidates;
 RRF (constant 60) merges ranks into at most 40 candidates. An LLM reranker using
-the existing `OPENAI_MODEL` and `OPENAI_API_KEY` selects and orders at most five
-original passages before generation. It makes one extra Chat Completions call
-when at least two candidates exist, with a ten-second timeout and a 2048-token
-completion limit. Structured output uses the
+`OPENAI_RERANK_MODEL` (default `gpt-6-luna`, falling back to `OPENAI_MODEL`) and
+`OPENAI_API_KEY` selects and orders at most five original passages before
+generation. When five or fewer candidates exist (`candidates.length <= 5`),
+reranking skips the LLM call and preserves RRF order directly. When six or more
+candidates exist, it makes one Chat Completions call with a ten-second timeout
+and a 2048-token completion limit. Structured output uses the
 [OpenAI JSON schema contract](https://developers.openai.com/api/docs/guides/structured-outputs?api-mode=chat);
 server checks enforce exactly the requested count of distinct supplied IDs.
 Refusal, truncation, invalid IDs/output, missing credentials and provider failure
@@ -56,14 +63,18 @@ An empty approved corpus skips rewrite, embedding, rerank and internal answer-pr
 
 Generation receives passage IDs, text, official URLs and validity dates. Structured
 output cites only supplied IDs; the server builds URLs from selected passages.
-Missing/invalid citations, insufficient evidence and provider failures are misses
-and retain the existing fresh-info fallback. Citation IDs prove source membership,
-not semantic entailment or current factual correctness. The existing web-search
-fallback still relies primarily on model instructions about official BU sources;
-this task does not implement a trusted live BU navigator. Web/LINE replies and
-run/message metadata preserve sources. Token totals include reported rewrite
-usage (including rejected output), query embeddings, reported rerank usage
-(including rejected rankings) and answer generation.
+When streaming is requested by web chat (`onTextDelta`), the JSON `"answer"` field
+is decoded progressively while gating `NO_VERIFIED_INFO_FOUND`, raw URLs and
+trailing source footers; uncited or invalid post-validation answers emit
+`onTextReset` before falling back to fresh-info lookup. Missing/invalid citations,
+insufficient evidence and provider failures are misses and retain the existing
+fresh-info fallback. Citation IDs prove source membership, not semantic entailment
+or current factual correctness. The existing web-search fallback still relies
+primarily on model instructions about official BU sources; this task does not
+implement a trusted live BU navigator. Web/LINE replies and run/message metadata
+preserve sources. Token totals include reported rewrite usage (including rejected
+output), query embeddings, reported rerank usage (including rejected rankings)
+and answer generation.
 New knowledge runs record Query Rewrite → Hybrid Retrieval → RRF Fusion →
 Reranker → LLM Generation → Output in the existing execution log. Web Chat shows
 short summaries, status and measured duration, with expandable original/rewritten
@@ -197,6 +208,7 @@ so FAQ items carry Thai equivalents of English terms (รหัสผ่าน f
 
 ```powershell
 pnpm test:knowledge
+pnpm test:chat-latency
 pnpm exec tsx --test lib/knowledge-trace.test.ts src/services/playground.test.ts
 pnpm test:knowledge:db
 pnpm typecheck

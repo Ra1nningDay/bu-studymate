@@ -23,7 +23,8 @@ The Playground uses the same `ChatOrchestrationService`, web channel and rate
 limits as the web chat API. `/chat` now redirects to `/admin/chat`.
 Each session gets a `web-chat-playground-<UUID>` identity;
 it never impersonates a LINE user or sends LINE replies. No schema migration
-or additional environment variable is needed.
+is needed; optional `OPENAI_QUERY_REWRITE_MODEL` and `OPENAI_RERANK_MODEL`
+default to `gpt-6-luna`.
 
 The document button beside Send opens lesson upload. Files and course context use the
 selected session's identity; an upload-first session is created before saving.
@@ -42,7 +43,7 @@ are real writes, and configured provider calls may cost money. A new session
 isolates conversation identity; it does not create a separate database or make
 operational writes a dry run. Existing LINE data is not imported into this view.
 
-## Trace coverage
+## Trace coverage and streaming
 
 Traces show linked run/message IDs, intent, router type/reason/confidence,
 selected target, recorded model/token totals, total latency, execution log,
@@ -55,8 +56,12 @@ select tabs. Recorded log entries expand to show details. The Bot Runs link pass
 the run ID to its existing page selection; selection there is limited to the loaded
 run page. Reports keep every trace section visible without tab selection.
 
-This version reads traces after a turn completes. It does not add live SSE,
-per-step timing, per-call token accounting, prompt editing or model switching.
+When `/admin/chat` sends `Accept: text/event-stream`, `/api/admin/playground/message`
+streams final-answer tokens progressively (`delta`, `reset`, `replace`) and emits
+`done` carrying `{ runId, reply, sources }` after database persistence completes,
+then refreshes saved session/trace data in the background. Execution Trace itself
+still loads the completed turn's saved record rather than live intermediate trace
+events, and prompt editing or UI model switching are not included.
 Reports read current database records rather than a cached export. A provider
 failure can leave an error run; failures before run creation may have no trace.
 After a send failure, inspect the transcript before manually retrying: the UI
@@ -67,6 +72,7 @@ never automatically repeats a message POST.
 ```powershell
 pnpm exec tsx --test src/services/playground.test.ts
 pnpm test:concise-chat
+pnpm test:chat-latency
 pnpm typecheck
 pnpm lint
 ```

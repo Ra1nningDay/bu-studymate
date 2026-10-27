@@ -1,6 +1,6 @@
 # BU StudyMate Architecture
 
-Source inspected: 2026-10-13, current working tree.
+Source inspected: 2026-10-27, current working tree.
 Status: source map of an existing application, including uncommitted changes.
 Playground local verification is recorded in [playground-01](.scratch/playground/issues/01-admin-playground.md).
 Real database/provider UAT and deployment remain unverified by this work.
@@ -23,23 +23,23 @@ PostgreSQL/Prisma, LINE integration and configured AI providers. Use
 
 | Area | Owner / source entry | Responsibility |
 |---|---|---|
-| Admin Web Chat | [chat workspace](app/admin/chat/playground.tsx), [upload](app/admin/chat/study-upload.tsx) | Saved sessions, composer, traces/reports and lesson upload. |
+| Admin Web Chat | [chat workspace](app/admin/chat/playground.tsx), [upload](app/admin/chat/study-upload.tsx), [SSE client](lib/chat-sse-client.ts) | Saved sessions, progressive SSE answer streaming, composer, traces/reports and lesson upload. |
 | Admin Overview | [overview service](src/services/admin-overview.service.ts), [repository](src/repositories/admin-overview.repository.ts) | Seven Bangkok calendar days of actual identity/run aggregates and current ticket/knowledge counts. |
 | HTTP entry points | [chat route](app/api/chat/route.ts), [LINE route](app/api/line/webhook/route.ts) | Delegate to controllers. |
-| Request boundaries | [chat controller](src/controllers/chat.controller.ts), [LINE controller](src/controllers/line-webhook.controller.ts) | Parse/validate input, consume limits, handle channel delivery; LINE signature check. |
-| Chat orchestration | [ChatOrchestrationService](src/services/chat-orchestration.service.ts) | Workflow guards, route selection, execution and stored run/message linkage. |
-| AI routing and answers | [agent router](lib/agent-router.ts), [AI adapter](lib/ai.ts), [fresh information](lib/fresh-info.ts) | Configured model calls and answer generation/retrieval. |
-| Campus knowledge | [knowledge service](src/services/knowledge.service.ts), [query rewrite](lib/knowledge-query.ts), [rerank adapter](lib/knowledge-rerank.ts), [hybrid guide](docs/knowledge-rag.md) | Rewrite follow-ups using recent history, retrieve approved current candidates with keyword/vector RRF, rerank into five passages, generate from cited evidence (appending cited FAQ action links) and report misses. |
+| Request boundaries | [chat controller](src/controllers/chat.controller.ts), [LINE controller](src/controllers/line-webhook.controller.ts) | Parse/validate input, consume limits, handle channel delivery (JSON or opt-in SSE for web); LINE signature check. |
+| Chat orchestration | [ChatOrchestrationService](src/services/chat-orchestration.service.ts) | Workflow guards, route selection, streaming callbacks, execution and parallel run/message linkage. |
+| AI routing and answers | [agent router](lib/agent-router.ts), [AI adapter](lib/ai.ts), [OpenAI stream reader](lib/openai-stream.ts), [fresh information](lib/fresh-info.ts) | Configured model calls, SSE delta extraction and answer generation/retrieval. |
+| Campus knowledge | [knowledge service](src/services/knowledge.service.ts), [query rewrite](lib/knowledge-query.ts), [rerank adapter](lib/knowledge-rerank.ts), [hybrid guide](docs/knowledge-rag.md) | Conditionally rewrite follow-ups using `OPENAI_QUERY_REWRITE_MODEL`, retrieve approved current candidates with keyword/vector RRF, rerank >5 candidates into five passages using `OPENAI_RERANK_MODEL`, generate from cited evidence (appending cited FAQ action links) and report misses. |
 | BU Links live lookup | [client](lib/bulinks.ts), [service](src/services/bulinks.service.ts), [presenter](src/presenters/bulinks.presenter.ts), [guide](docs/bulinks-live-lookup.md) | Fresh-info and knowledge-miss questions try live BU Links announcements and service-page links first, with no LLM; a null result or error falls back to web search. |
 | Study memory | [study service](src/services/study-memory.service.ts), [file ingestion](lib/study-file.ts) | Saved notes/materials, assignments, tutoring, file extraction/OCR. |
 | Knowledge admin | [workspace](app/admin/knowledge/knowledge-workspace.tsx), [controller](src/controllers/knowledge-admin.controller.ts), [service](src/services/knowledge-admin.service.ts) | Authenticated search/pagination, evidence availability, reviewed add/edit and individual source checks through shared ingestion. |
 | Admin Users | [page](app/admin/users/page.tsx), [repository](src/repositories/student-account.repository.ts) | Admin table of verified students with run/ticket counts, email search and delete (unbind) behind a type-the-email dialog ([controller](src/controllers/student-admin.controller.ts)). |
 | Facility tickets | [ticket service](src/services/ticket.service.ts) | Draft/session workflow, confirmation, creation and status lookup. |
-| Presentation | [web presenter](src/presenters/chat-response.presenter.ts), [LINE presenter](src/presenters/line-flex.presenter.ts) | Channel response shaping; LINE presenter wraps [Flex templates](lib/flex-messages.ts). |
+| Presentation | [web presenter](src/presenters/chat-response.presenter.ts), [SSE presenter](src/presenters/chat-stream.presenter.ts), [LINE presenter](src/presenters/line-flex.presenter.ts) | Channel response shaping and SSE frame encoding; LINE presenter wraps [Flex templates](lib/flex-messages.ts). |
 | Persistence | `src/repositories/`, [schema](prisma/schema.prisma), [Prisma client](lib/prisma.ts) | Prisma-backed reads/writes and persisted contracts. |
 | Configuration | [validated environment](src/config/env.ts) | Central application configuration; secret values stay outside documentation. |
 | Admin Playground | [controller](src/controllers/playground.controller.ts), [service](src/services/playground.service.ts), [guide](docs/playground.md) | Saved web test sessions, run traces and printable reports; present in the working tree. |
-| Evaluation | [eval guide](evals/README.md), [concise-chat checks](lib/concise-chat.test.ts) | Synthetic regression checks and separately configured provider evaluations. |
+| Evaluation | [eval guide](evals/README.md), [concise-chat checks](lib/concise-chat.test.ts), [latency/SSE checks](lib/chat-latency-sse.test.ts) | Synthetic regression checks and separately configured provider evaluations. |
 
 The layered convention is route → controller → service → repository, with
 presenters for channel output and `lib/` for adapters/facades. It is a maintenance
@@ -78,15 +78,21 @@ browser session identity, applies rate limits and calls `createBotReply` with
 channel `web`. The LINE controller verifies the request signature, extracts the
 LINE identity, applies limits and sends text or the returned Flex payload.
 
-`createBotReply` loads session/history, resolves workflow guards and the route,
-then creates user-message/run records before executing the chosen branch. It
-stores the assistant reply and completion metadata, or marks an existing run as
-failed. Errors before run creation may have no saved run. Router labels/flags
-are stored observations; they are not independent proof of external calls.
+`createBotReply` loads session and single-CTE completed history in parallel,
+resolves workflow guards and the route (skipping the LLM router on ticket
+hard-guards unless local safety-critical hints match), then loads bounded 8-turn
+raw history (only for `ASK_BU_INFO` / `ASK_FRESH_INFO`) alongside parallel
+user-message and run writes before executing the chosen branch. Post-execution
+persistence stores the assistant reply and completion metadata in parallel, or
+marks an existing run as failed. Errors before run creation may have no saved
+run. Router labels/flags are stored observations; they are not independent proof
+of external calls.
 
-Web sends receive complete JSON replies; do not infer token streaming from the
-typing indicator. File uploads use a separate controller path and
-`saveStudyFile`; they are not ordinary text-chat turns.
+Web chat (`/api/chat`) and Playground (`/api/admin/playground/message`) return
+complete JSON replies by default and stream opt-in SSE (`Accept: text/event-stream`
+emitting `delta`, `reset`, `replace`, `done`, `error`) during final answer
+generation. File uploads use a separate controller path and `saveStudyFile`;
+they are not ordinary text-chat turns.
 
 ## 3. Data and Identity Boundaries
 
@@ -98,18 +104,22 @@ typing indicator. File uploads use a separate controller path and
   Legacy rows are unapproved.
 - `KnowledgeChunk`: bounded passages, Thai/English full-text index and compatible
   pgvector embeddings. Repository filters evidence validity before keyword/vector
-  ranking; up to 40 fused candidates reach the LLM rerank adapter, which selects
-  at most five original passages and falls back to RRF order on failure. Service
-  supplies selected passages and validated source IDs to generation. With history,
-  the query rewrite adapter resolves follow-ups before embedding/retrieval/rerank,
-  falling back to the original query on failure. Generation retains the original
-  question/history. Service counts rewrite/rerank usage and reports their
-  status/models in the existing execution trace. New knowledge runs also retain
-  measured stage durations, query changes, bounded candidate snapshots and
-  before/selected ranks in existing run JSON. SQL supplies keyword/vector ranks;
-  RRF shares the retrieval SQL duration. Playground validates these optional
-  fields on read and Web Chat/report render expandable details. Old logs remain
-  readable. No eligible corpus skips these calls.
+  ranking; up to 40 fused candidates reach the LLM rerank adapter
+  (`OPENAI_RERANK_MODEL`, `max_completion_tokens: 2048`), which skips provider calls
+  when `<= 5` candidates exist, selects at most five original passages otherwise,
+  and falls back to RRF order on failure. Service supplies selected passages and
+  validated source IDs to generation. With history, the query rewrite adapter
+  (`OPENAI_QUERY_REWRITE_MODEL`, `max_completion_tokens: 1536`) resolves follow-ups
+  before embedding/retrieval/rerank while skipping standalone questions without
+  follow-up markers (`isStandaloneKnowledgeQuery`), falling back to the original
+  query on failure. Generation retains the original question/history. Service
+  counts rewrite/rerank usage and reports their status/models in the existing
+  execution trace. New knowledge runs also retain measured stage durations, query
+  changes, bounded candidate snapshots and before/selected ranks in existing run
+  JSON. SQL supplies keyword/vector ranks; RRF shares the retrieval SQL duration.
+  Playground validates these optional fields on read and Web Chat/report render
+  expandable details. Old logs remain readable. An empty approved corpus skips all
+  knowledge provider calls.
 - `ChatSession` and `Ticket`: workflow state/drafts and facility records.
 - `ChatMessage` and `BotRun`: conversation records and linked execution metadata.
 - `Notebook`, `UserMemory`, `StudyMaterial`, `MaterialChunk`, `Assignment`: saved learning context.
@@ -154,14 +164,18 @@ connections and can make real operational writes. A separate conversation
 identity does not make it a dry run.
 
 Playground's message controller calls the shared orchestrator with `channel=web`;
-the returned `runId` identifies the persisted turn. Read paths use
-`PlaygroundService` → `PlaygroundRepository` → the typed Playground presenter,
-scoped to validated `playground-<UUID>` sessions. The client restores its selected
-session from tab storage and reloads saved messages/runs. The report page reads
-those records afresh without invoking orchestration. No schema change or SSE
-contract was introduced. Completed-turn inspection, auth and report refresh were
-verified with in-memory persistence through real Next routes/rendering; see the
-ticket for checks and their boundaries.
+the returned `runId` identifies the persisted turn. When `Accept: text/event-stream`
+is sent, the controller streams progressive reply deltas and finishes with `done`
+carrying `{ runId, reply, sources }` after DB persistence completes; otherwise it
+returns JSON. Read paths use `PlaygroundService` → `PlaygroundRepository` → the
+typed Playground presenter, scoped to validated `playground-<UUID>` sessions. The
+client restores its selected session from tab storage and reloads saved
+messages/runs. The report page reads those records afresh without invoking
+orchestration. No schema change was introduced. Completed-turn inspection, auth,
+report refresh and SSE streaming were verified with synthetic persistence; see
+[playground-01](.scratch/playground/issues/01-admin-playground.md) and
+[chat-latency-01](.scratch/chat-latency/issues/01-orchestration-rag-sse.md) for
+checks and their boundaries.
 
 `/login` authenticates via the shared auth controller; `/admin/layout.tsx` renders
 the common sidebar/header. Data-reading pages additionally call `requireAdmin`
@@ -219,7 +233,7 @@ is needed for dashboard reads.
 
 | Request | Source path | Relevant verification |
 |---|---|---|
-| Casual chat or ambiguous message | Orchestrator → router/AI → chat-policy presenter | `pnpm test:concise-chat`; inspect fixed boundaries and recorded history behavior. |
+| Casual chat or ambiguous message | Orchestrator → router/AI → chat-policy presenter | `pnpm test:concise-chat`, `pnpm test:chat-latency`; inspect fixed boundaries and recorded history behavior. |
 | Official BU question | Router → knowledge service; miss may use fresh-info path (BU Links lookup first, then web search) | Inspect selected evidence and fallback; provider/UAT checks are separate from synthetic tests. |
 | Reviewed knowledge import / source check | CLI or authenticated check controller → ingestion service → repository / bounded source adapter | `pnpm test:knowledge`, isolated `pnpm test:knowledge:db`; real corpus approval and deployment remain separate. |
 | Facility issue and confirmation | Orchestrator → ticket service → repositories/presenter | Check draft/confirm/cancel/status sequence in the intended test environment. |
