@@ -40,15 +40,22 @@ export function Playground() {
   const [sessions, setSessions] = useState<PlaygroundSession[]>([]);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [input, setInput] = useState("");
-  const [busy, setBusy] = useState(true);
-  const [sending, setSending] = useState(false);
-  const [streamingReply, setStreamingReply] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [requestState, setRequestState] = useState({
+    busy: true,
+    sending: false,
+    streamingReply: false,
+    error: null as string | null
+  });
   const [query, setQuery] = useState("");
-  const [historyOpen, setHistoryOpen] = useState(true);
-  const [traceOpen, setTraceOpen] = useState(true);
+  const [panels, setPanels] = useState({ history: true, trace: true });
   const [collapsedDays, setCollapsedDays] = useState<Record<string, boolean>>({});
   const endRef = useRef<HTMLDivElement>(null);
+
+  const { busy, sending, streamingReply, error } = requestState;
+  const historyOpen = panels.history;
+  const traceOpen = panels.trace;
+  const setHistoryOpen = (open: boolean) => setPanels((prev) => ({ ...prev, history: open }));
+  const setTraceOpen = (open: boolean) => setPanels((prev) => ({ ...prev, trace: open }));
 
   useEffect(() => {
     let active = true;
@@ -67,13 +74,13 @@ export function Playground() {
         const data = await request<{ sessions: PlaygroundSession[] }>(`${api}/sessions`);
         if (active) setSessions(data.sessions);
       } catch (cause) {
-        if (active) setError(cause instanceof Error ? cause.message : "โหลดข้อมูลไม่สำเร็จ");
+        if (active) setRequestState((prev) => ({ ...prev, error: cause instanceof Error ? cause.message : "โหลดข้อมูลไม่สำเร็จ" }));
       } finally {
         if (active) {
           setConversation(initial);
           setSelectedRunId(initial.runs.at(-1)?.id ?? null);
           sessionStorage.setItem(storageKey, initial.sessionId);
-          setBusy(false);
+          setRequestState((prev) => ({ ...prev, busy: false }));
         }
       }
     }
@@ -98,15 +105,17 @@ export function Playground() {
   }
 
   async function openSession(sessionId: string) {
-    setBusy(true);
-    setError(null);
+    setRequestState((prev) => ({ ...prev, busy: true, error: null }));
     try {
       const loaded = await readSession(sessionId);
       sessionStorage.setItem(storageKey, sessionId);
       setSelectedRunId(loaded.runs.at(-1)?.id ?? null);
       setInput("");
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "เปิด session ไม่สำเร็จ"); }
-    finally { setBusy(false); }
+    } catch (cause) {
+      setRequestState((prev) => ({ ...prev, error: cause instanceof Error ? cause.message : "เปิด session ไม่สำเร็จ" }));
+    } finally {
+      setRequestState((prev) => ({ ...prev, busy: false }));
+    }
   }
 
   function startNew() {
@@ -115,12 +124,11 @@ export function Playground() {
     sessionStorage.setItem(storageKey, next.sessionId);
     setSelectedRunId(null);
     setInput("");
-    setError(null);
+    setRequestState((prev) => ({ ...prev, error: null }));
   }
 
   async function refresh() {
-    setBusy(true);
-    setError(null);
+    setRequestState((prev) => ({ ...prev, busy: true, error: null }));
     try {
       if (conversation) {
         const response = await fetch(`${api}/sessions/${conversation.sessionId}`, { cache: "no-store" });
@@ -132,8 +140,11 @@ export function Playground() {
         } else if (response.status !== 404) throw new Error("อ่านบทสนทนาไม่สำเร็จ");
       }
       await loadSessions();
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "โหลดข้อมูลไม่สำเร็จ"); }
-    finally { setBusy(false); }
+    } catch (cause) {
+      setRequestState((prev) => ({ ...prev, error: cause instanceof Error ? cause.message : "โหลดข้อมูลไม่สำเร็จ" }));
+    } finally {
+      setRequestState((prev) => ({ ...prev, busy: false }));
+    }
   }
 
   async function send(event: FormEvent) {
@@ -173,10 +184,12 @@ export function Playground() {
       });
     };
 
-    setBusy(true);
-    setSending(true);
-    setStreamingReply(false);
-    setError(null);
+    setRequestState({
+      busy: true,
+      sending: true,
+      streamingReply: false,
+      error: null
+    });
     setInput("");
     setConversation((current) => current ? {
       ...current,
@@ -206,7 +219,7 @@ export function Playground() {
       if (response.headers.get("content-type")?.toLowerCase().includes("text/event-stream")) {
         result = await consumeChatSseResponse<{ runId: string | null; reply: string; sources?: string[] }>(response, {
           onDelta: (delta) => {
-            setStreamingReply(true);
+            setRequestState((prev) => (prev.streamingReply ? prev : { ...prev, streamingReply: true }));
             upsertStreamingReply((existing) => ({
               id: replyId,
               role: "assistant",
@@ -216,11 +229,11 @@ export function Playground() {
             }));
           },
           onReset: () => {
-            setStreamingReply(false);
+            setRequestState((prev) => ({ ...prev, streamingReply: false }));
             upsertStreamingReply(() => null);
           },
           onReplace: (text, sources) => {
-            setStreamingReply(true);
+            setRequestState((prev) => (prev.streamingReply ? prev : { ...prev, streamingReply: true }));
             upsertStreamingReply((existing) => ({
               id: replyId,
               role: "assistant",
@@ -245,9 +258,12 @@ export function Playground() {
       if (result.runId) {
         setSelectedRunId(result.runId);
       }
-      setBusy(false);
-      setSending(false);
-      setStreamingReply(false);
+      setRequestState({
+        busy: false,
+        sending: false,
+        streamingReply: false,
+        error: null
+      });
 
       void (async () => {
         try {
@@ -279,12 +295,20 @@ export function Playground() {
           messages: current.messages.filter((msg) => msg.id !== optimisticMessage.id && msg.id !== replyId)
         } : null);
       }
-      setError(message);
+      setRequestState({
+        busy: false,
+        sending: false,
+        streamingReply: false,
+        error: message
+      });
     } finally {
       if (!sent) {
-        setBusy(false);
-        setSending(false);
-        setStreamingReply(false);
+        setRequestState((prev) => ({
+          ...prev,
+          busy: false,
+          sending: false,
+          streamingReply: false
+        }));
       }
     }
   }

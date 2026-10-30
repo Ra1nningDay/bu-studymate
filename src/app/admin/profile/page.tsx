@@ -17,7 +17,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
   const notice = notices[(Array.isArray(password) ? password[0] : password) ?? ""];
 
   return (
-    <main className="mx-auto max-w-7xl">
+    <main className="min-w-0">
       <header className="border-b border-slate-200 pb-6">
         <p className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-700">BU StudyMate</p>
         <h1 className="mt-2 text-3xl font-semibold text-bu-ink">Profile</h1>

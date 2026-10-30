@@ -20,7 +20,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
   }
 
   return (
-    <main className="mx-auto max-w-7xl">
+    <main className="min-w-0">
       <header className="flex flex-col gap-3 border-b border-slate-200 pb-6 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-700">BU StudyMate</p>
