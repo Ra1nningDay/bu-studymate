@@ -26,14 +26,14 @@ runs. Keep student answers focused and place operational detail in admin views.
 
 | Surface | Source | Existing presentation |
 |---|---|---|
-| `/login` | [login](app/login/page.tsx) | 2-column admin sign-in: StudyMate mascot poster on the left, username/password form on the right. |
-| `/admin` | [overview](app/admin/page.tsx), [shell](app/admin/admin-shell.tsx) | Green reference-inspired sidebar/header, recorded KPIs, daily/intent charts, knowledge snapshot and attention preview. |
-| `/admin/chat` | [workspace](app/admin/chat/playground.tsx), [upload](app/admin/chat/study-upload.tsx) | Green reference layout: searchable history, mint user bubbles, assistant avatar, progressive SSE reply streaming, compact composer/upload and tabbed Execution Trace; responsive columns/stack. |
-| `/`, `/chat` | [root](app/page.tsx), [chat alias](app/chat/page.tsx) | Redirect to `/admin` and `/admin/chat`, respectively. |
-| `/admin/tickets` | [tickets page](app/admin/tickets/page.tsx) | Login/setup states, status badges and ticket management. |
-| `/admin/runs` | [runs page](app/admin/runs/page.tsx), [workspace](app/admin/runs/runs-workspace.tsx) | Emerald metric cards, 12-row paginated table and selected-run panel; desktop columns, mobile stacking. |
-| `/admin/knowledge` | [knowledge workspace](app/admin/knowledge/knowledge-workspace.tsx) | Reference table/filter layout, four corpus cards, 10/20/50-row paging and General/Content/Chunks/Usage panel; inline reviewed editor and mobile stacking. |
-| `/admin/playground` | [alias](app/admin/playground/page.tsx), [guide](docs/playground.md) | Redirect to `/admin/chat`; old report paths redirect to new report paths. |
+| `/login` | [login](src/app/login/page.tsx) | 2-column admin sign-in: StudyMate mascot poster on the left, username/password form on the right. |
+| `/admin` | [overview](src/app/admin/page.tsx), [shell](src/app/admin/admin-shell.tsx) | Green reference-inspired sidebar/header, recorded KPIs, daily/intent charts, knowledge snapshot and attention preview. |
+| `/admin/chat` | [workspace](src/app/admin/chat/playground.tsx), [upload](src/app/admin/chat/study-upload.tsx) | Green reference layout: searchable history, mint user bubbles, assistant avatar, progressive SSE reply streaming, compact composer/upload and tabbed Execution Trace; responsive columns/stack. |
+| `/`, `/chat` | [root](src/app/page.tsx), [chat alias](src/app/chat/page.tsx) | Redirect to `/admin` and `/admin/chat`, respectively. |
+| `/admin/tickets` | [tickets page](src/app/admin/tickets/page.tsx) | Login/setup states, status badges and ticket management. |
+| `/admin/runs` | [runs page](src/app/admin/runs/page.tsx), [workspace](src/app/admin/runs/runs-workspace.tsx) | Emerald metric cards, 12-row paginated table and selected-run panel; desktop columns, mobile stacking. |
+| `/admin/knowledge` | [knowledge workspace](src/app/admin/knowledge/knowledge-workspace.tsx) | Reference table/filter layout, four corpus cards, 10/20/50-row paging and General/Content/Chunks/Usage panel; inline reviewed editor and mobile stacking. |
+| `/admin/playground` | [alias](src/app/admin/playground/page.tsx), [guide](docs/playground.md) | Redirect to `/admin/chat`; old report paths redirect to new report paths. |
 | LINE | [presenter](src/presenters/line-flex.presenter.ts), [templates](lib/flex-messages.ts) | Greeting, study packs, assignments, study answers and ticket confirmation. |
 
 The standalone web tester has been consolidated into the saved-session workspace.
@@ -43,7 +43,7 @@ The browser does not render a full LINE Flex card; verify LINE delivery separate
 
 ## 3. Existing Visual Conventions
 
-Use [tailwind.config.ts](tailwind.config.ts) and [app/globals.css](app/globals.css)
+Use [tailwind.config.ts](tailwind.config.ts) and [src/app/globals.css](src/app/globals.css)
 as the source of values; this table is a navigation snapshot, not a new theme.
 
 | Token / role | Current value |

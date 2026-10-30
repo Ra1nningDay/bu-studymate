@@ -23,23 +23,23 @@
 
 ```
 bu-studymate/
-├── app/
-│   ├── api/                   # Thin Route Handlers (HTTP entry points only)
-│   │   ├── chat/              # Web chat and file upload endpoints
-│   │   ├── line/              # LINE webhook & imagemap endpoints
-│   │   └── admin/             # Admin ticket status management
-│   ├── admin/                 # Admin dashboard pages (React Server Components)
-│   └── chat/                  # Web chat client interface
 ├── src/
+│   ├── app/                   # Next.js App Router (pages, layouts, thin route handlers)
+│   │   ├── api/               # Thin Route Handlers (HTTP entry points only)
+│   │   │   ├── chat/          # Web chat and file upload endpoints
+│   │   │   ├── line/          # LINE webhook & imagemap endpoints
+│   │   │   └── admin/         # Admin ticket status management
+│   │   ├── admin/             # Admin dashboard pages (React Server Components)
+│   │   └── chat/              # Web chat client interface
 │   ├── config/                # Centralized environment validation (Zod env.ts)
 │   ├── controllers/           # HTTP controllers (request parsing, DTO validation)
 │   ├── dtos/                  # Data Transfer Objects & Zod validation schemas
 │   ├── services/              # Pure Business Logic, state machines & AI orchestration
 │   ├── presenters/            # UI formatting, LINE Flex templates & Web response shaping
 │   ├── repositories/          # Data Access Layer (Prisma queries)
+│   ├── lib/                   # External SDK clients (line.ts, prisma.ts, ai.ts) & facades
 │   └── data/                  # Static seed data (bu-knowledge.ts)
 ├── evals/                     # Promptfoo LLM Evaluation & Regression Test Suite
-├── lib/                       # External SDK clients (line.ts, prisma.ts, ai.ts) & facades
 ├── prisma/                    # Database schema and migrations
 └── scripts/                   # Operational scripts (seed-knowledge, rich-menu upload)
 ```

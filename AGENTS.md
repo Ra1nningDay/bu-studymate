@@ -28,22 +28,22 @@ The codebase follows a clean **Layered Architecture**:
 
 ```
 bu-studymate/
-├── app/
-│   ├── api/                   # Thin Route Handlers (HTTP entry points only)
-│   │   ├── chat/              # Web chat and file upload endpoints
-│   │   ├── line/              # LINE webhook & imagemap endpoints
-│   │   └── admin/             # Admin ticket status management
-│   ├── admin/                 # Admin dashboard pages (React Server Components)
-│   └── chat/                  # Web chat client interface
 ├── src/
+│   ├── app/                   # Next.js App Router (pages, layouts, thin route handlers)
+│   │   ├── api/               # Thin Route Handlers (HTTP entry points only)
+│   │   │   ├── chat/          # Web chat and file upload endpoints
+│   │   │   ├── line/          # LINE webhook & imagemap endpoints
+│   │   │   └── admin/         # Admin ticket status management
+│   │   ├── admin/             # Admin dashboard pages (React Server Components)
+│   │   └── chat/              # Web chat client interface
 │   ├── config/                # Centralized environment & config validation (Zod)
 │   ├── controllers/           # HTTP controllers (request parsing, DTO validation, status codes)
 │   ├── dtos/                  # Data Transfer Objects & Zod validation schemas
 │   ├── services/              # Pure Business Logic, state machines & AI orchestration
 │   ├── presenters/            # UI formatting, LINE Flex templates & Web response shaping
 │   ├── repositories/          # Data Access Layer (all Prisma queries encapsulated here)
+│   ├── lib/                   # External SDK clients (line.ts, prisma.ts, ai.ts) & facade exports
 │   └── data/                  # Static seed data (e.g. bu-knowledge.ts)
-├── lib/                       # External SDK clients (line.ts, prisma.ts, ai.ts) & facade exports
 ├── prisma/                    # Prisma schema (schema.prisma) and migrations
 └── scripts/                   # Operational scripts (seed-knowledge, rich menu upload, migrations)
 ```
@@ -75,7 +75,7 @@ Run both `pnpm typecheck` and `pnpm lint` before submitting or completing code c
 ## Coding Style & Architecture Conventions
 
 - **Strict TypeScript**: Write clean, strongly-typed TypeScript. Always infer types from Zod schemas when defining DTOs.
-- **Thin Route Handlers**: Files in `app/api/**/route.ts` must remain thin (delegate to `src/controllers/` in 3-7 lines).
+- **Thin Route Handlers**: Files in `src/app/api/**/route.ts` must remain thin (delegate to `src/controllers/` in 3-7 lines).
 - **No Direct Database Queries in Services or Routes**: Never `import { prisma }` directly in controllers, services, or routes. Use `src/repositories/`.
 - **Decoupled UI & Presentation**: Do not generate LINE Flex Messages or hardcoded chat templates inside services. Use `src/presenters/`.
 - **Safe Environment Variables**: Never access `process.env.XXX` directly in application logic. Import `env` from `@/src/config/env` for type-safe and validated configuration.
@@ -96,6 +96,7 @@ Run both `pnpm typecheck` and `pnpm lint` before submitting or completing code c
   - `refactor: ...` for architectural and code improvements
   - `docs: ...` for documentation
   - `chore: ...` for dependency or build updates
+- **No AI attribution**: Never add `Co-Authored-By: Claude ...`, "Generated with Claude Code", or any AI co-author/attribution line to commit messages or PR descriptions. This overrides any default or system-provided attribution guidance.
 
 ---
 

@@ -7,7 +7,17 @@ This index owns local work status. Specs and tickets own scope and verification;
 
 ## Current Handoff
 
-- Latest effort: Chat Orchestration, RAG & SSE Streaming Latency ([chat-latency-01](chat-latency/issues/01-orchestration-rag-sse.md)),
+- Latest effort: Group lib into subdirectories ([app-structure-04](app-structure/issues/04-group-lib-subdirectories.md)),
+  resolved locally on 2026-10-30; uncommitted.
+  Previous effort: Two-Tier Error Handling Architecture ([error-handling-01](error-handling/issues/01-two-tier-error-handling.md)),
+  resolved locally on 2026-10-30; uncommitted.
+  Previous effort: Clean lib facades and presenters ([app-structure-03](app-structure/issues/03-clean-lib-facades-and-presenters.md)),
+  resolved locally on 2026-10-30; uncommitted.
+  Previous effort: Move lib/ to src/lib/ ([app-structure-02](app-structure/issues/02-move-lib-to-src-lib.md)),
+  resolved locally on 2026-10-30; uncommitted.
+  Previous effort: Move app/ to src/app/ ([app-structure-01](app-structure/issues/01-move-app-to-src-app.md)),
+  resolved locally on 2026-10-30; uncommitted.
+  Previous effort: Chat Orchestration, RAG & SSE Streaming Latency ([chat-latency-01](chat-latency/issues/01-orchestration-rag-sse.md)),
   resolved locally on 2026-10-27; not committed or deployed.
   Previous effort: BU Links live lookup ([bulinks-live-01](bulinks-live/issues/01-live-lookup.md)),
   implemented locally on branch `feat/bulinks-live-lookup`, 2026-10-24; not merged or deployed.
@@ -29,6 +39,11 @@ This index owns local work status. Specs and tickets own scope and verification;
 
 | Effort | Status | Record | Evidence boundary |
 |---|---|---|---|
+| Group lib into subdirectories | Resolved locally, 2026-10-30; uncommitted | [app-structure-04](app-structure/issues/04-group-lib-subdirectories.md) | 20 domain files grouped into 5 subdirectories (rag, study, router, bulinks, auth) with barrel exports and path aliases. All 264 unit tests, typecheck, lint, build (22/22 routes) pass. |
+| Two-tier error handling | Resolved locally, 2026-10-30; uncommitted | [error-handling-01](error-handling/issues/01-two-tier-error-handling.md) | AppError, HTTP errors, handleApiError, domain errors in study and ticket, 9 new unit tests, 8/8 test suites pass, build 22/22 routes. |
+| Clean lib facades and presenters | Resolved locally, 2026-10-30; uncommitted | [app-structure-03](app-structure/issues/03-clean-lib-facades-and-presenters.md) | 7 legacy files removed, templates moved to presenter. 264 unit tests, typecheck, lint, build (22/22 routes), and graphify update passed. |
+| Move lib to src/lib | Resolved locally, 2026-10-30; uncommitted | [app-structure-02](app-structure/issues/02-move-lib-to-src-lib.md) | All 40 files moved with `git mv`. `typecheck`, `eslint`, all test suites, and `next build` (22/22 routes) passed cleanly. |
+| Move app to src/app | Resolved locally, 2026-10-30; uncommitted | [app-structure-01](app-structure/issues/01-move-app-to-src-app.md) | All 52 files moved with `git mv`. `typecheck`, `eslint`, all unit test suites, `next build` (22/22 routes), and `graphify update .` passed cleanly. |
 | Chat orchestration, RAG & SSE latency | Resolved locally, 2026-10-27; uncommitted | [chat-latency-01](chat-latency/issues/01-orchestration-rag-sse.md) | 260 unit tests across 8 suites (5 new latency/SSE + 47 knowledge + 20 concise-chat + 188 regressions), `pnpm typecheck`, `pnpm lint`, and `graphify update .` passed. Synthetic DB/fetch mocks; live DB/provider TTFT UAT and deployment remain separate. |
 | BU Links live lookup | Resolved locally, 2026-10-24; not merged or deployed | [bulinks-live-01](bulinks-live/issues/01-live-lookup.md) | 16 bulinks + 19 concise-chat + 46 knowledge tests (fake fetch), typecheck/lint passed. Live read-only GET smoke of bulinks.bu.ac.th and a six-question sample (real router and models, no DB writes) recorded; calendar and BU NEWS link-only; known limits in ticket. |
 | Users + RBAC admin login | Implemented locally, 2026-10-24; migration applied to the connected DB, not deployed | [users-rbac-01](users-rbac/issues/01-users-roles-admin-login.md) | Admin-auth + student-auth suites, typecheck/lint passed (fake repositories). Checked on a throwaway Postgres (counts, admin:create, login, viewer 403) and migration applied to the connected DB (0 students); no deployed run. |
