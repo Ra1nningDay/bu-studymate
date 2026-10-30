@@ -9,7 +9,7 @@ import { loadEnvConfig } from "@next/env";
 loadEnvConfig(process.cwd());
 
 async function main() {
-  const { prisma } = await import("../lib/prisma");
+  const { prisma } = await import("../src/lib/prisma");
 
   console.log("🔍 Finding distinct (lineUserId, courseName) pairs...");
 

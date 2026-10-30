@@ -23,6 +23,22 @@
       }
     ],
     "paths": {
+      "@/lib/*": [
+        "./src/lib/*",
+        "./src/lib/rag/*",
+        "./src/lib/study/*",
+        "./src/lib/router/*",
+        "./src/lib/bulinks/*",
+        "./src/lib/auth/*"
+      ],
+      "@/src/lib/*": [
+        "./src/lib/*",
+        "./src/lib/rag/*",
+        "./src/lib/study/*",
+        "./src/lib/router/*",
+        "./src/lib/bulinks/*",
+        "./src/lib/auth/*"
+      ],
       "@/*": [
         "./*"
       ]

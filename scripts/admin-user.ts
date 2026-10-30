@@ -15,4 +15,4 @@ async function main() {
 
 main()
   .catch((error) => { console.error(error.message); process.exitCode = 1; })
-  .finally(async () => { const { prisma } = await import("../lib/prisma"); await prisma.$disconnect(); });
+  .finally(async () => { const { prisma } = await import("../src/lib/prisma"); await prisma.$disconnect(); });

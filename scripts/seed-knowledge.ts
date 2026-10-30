@@ -4,7 +4,7 @@ import { buKnowledgeRecords } from "../src/data/bu-knowledge";
 loadEnvConfig(process.cwd());
 
 async function main() {
-  const { prisma } = await import("../lib/prisma");
+  const { prisma } = await import("../src/lib/prisma");
 
   for (const record of buKnowledgeRecords) {
     await prisma.knowledgeItem.upsert({
@@ -23,6 +23,6 @@ main()
     process.exit(1);
   })
   .finally(async () => {
-    const { prisma } = await import("../lib/prisma");
+    const { prisma } = await import("../src/lib/prisma");
     await prisma.$disconnect();
   });

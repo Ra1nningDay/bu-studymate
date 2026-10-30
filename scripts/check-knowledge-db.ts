@@ -10,7 +10,7 @@ async function main() {
   const { env } = await import("../src/config/env");
   const { KnowledgeRepository } = await import("../src/repositories/knowledge.repository");
   const { KnowledgeManifestSchema } = await import("../src/dtos/knowledge.dto");
-  const { tokenizeKnowledge, knowledgeContentHash } = await import("../lib/knowledge-index");
+  const { tokenizeKnowledge, knowledgeContentHash } = await import("../src/lib/rag/knowledge-index");
   const baseUrl = new URL(env.DIRECT_URL || env.DATABASE_URL);
   baseUrl.searchParams.set("schema", "public");
   const base = new PrismaClient({ datasourceUrl: baseUrl.toString() });

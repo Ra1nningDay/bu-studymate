@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { RunTrace } from "@/app/admin/chat/run-trace";
+import { RunTrace } from "@/src/app/admin/chat/run-trace";
 import type { PlaygroundConversation, PlaygroundRun } from "@/src/dtos/playground.dto";
 
 // tsx uses classic JSX for this Next.js config.

@@ -285,7 +285,7 @@ test("rankServicePages needs more than one common matched word and ignores fille
 });
 
 // Snapshot of the real bulinks.bu.ac.th page list (152 pages), taken through BuLinksClient.listPages().
-const realPages: BuLinksPage[] = (JSON.parse(readFileSync("lib/fixtures/bulinks-pages.json", "utf8")) as Array<Omit<BuLinksPage, "id">>)
+const realPages: BuLinksPage[] = (JSON.parse(readFileSync("src/lib/bulinks/fixtures/bulinks-pages.json", "utf8")) as Array<Omit<BuLinksPage, "id">>)
   .map((entry, index) => ({ id: index + 1, ...entry }));
 const slugsOf = (message: string) => rankServicePages(message, realPages).map((p) => p.slug);
 
