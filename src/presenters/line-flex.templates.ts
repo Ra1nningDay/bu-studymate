@@ -1,5 +1,4 @@
-import type { SavedStudyNote } from "@/lib/study-memory";
-import type { getAssignments } from "@/lib/study-memory";
+import type { SavedStudyNote, StudyMemoryService } from "@/src/services/study-memory.service";
 
 function getPublicAssetUrl(path: string) {
   const appUrl =
@@ -355,7 +354,7 @@ export function createStudyNoteFlex(note: SavedStudyNote) {
   return flex;
 }
 
-export function createAssignmentsFlex(assignments: Awaited<ReturnType<typeof getAssignments>>) {
+export function createAssignmentsFlex(assignments: Awaited<ReturnType<StudyMemoryService["getAssignments"]>>) {
   if (assignments.length === 0) {
     return null;
   }

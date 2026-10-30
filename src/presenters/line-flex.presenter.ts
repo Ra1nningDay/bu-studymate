@@ -3,7 +3,7 @@ import {
   createGreetingRichMessage,
   createStudyAnswerFlex,
   createStudyNoteFlex
-} from "@/lib/flex-messages";
+} from "./line-flex.templates";
 import type { TicketDraftDto } from "@/src/dtos/ticket.dto";
 
 export class LineFlexPresenter {

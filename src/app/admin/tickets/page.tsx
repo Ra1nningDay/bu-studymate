@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "../require-admin";
-import { listTickets, ticketStatuses } from "@/lib/ticket";
+import { ticketService, ticketStatuses } from "@/src/services/ticket.service";
 import type { TicketStatus } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -51,7 +51,7 @@ export default async function TicketsPage({ searchParams }: { searchParams: Prom
 
   let tickets;
   try {
-    tickets = await listTickets();
+    tickets = await ticketService.listTickets();
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to load tickets";
     return <SetupNotice message={message} />;
@@ -59,9 +59,8 @@ export default async function TicketsPage({ searchParams }: { searchParams: Prom
 
 
   return (
-    <main className="">
-      <div className="mx-auto max-w-7xl">
-        <header className="flex flex-col gap-3 border-b border-slate-200 pb-6 sm:flex-row sm:items-end sm:justify-between">
+    <main className="min-w-0">
+      <header className="flex flex-col gap-3 border-b border-slate-200 pb-6 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-700">
               BU StudyMate
@@ -168,7 +167,6 @@ export default async function TicketsPage({ searchParams }: { searchParams: Prom
             </table>
           </div>
         </section>
-      </div>
     </main>
   );
 }

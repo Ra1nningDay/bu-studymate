@@ -1,6 +1,8 @@
 import type { ChatResponseDto } from "@/src/dtos/chat.dto";
-import type { RateLimitResult } from "@/lib/rate-limit";
-import { formatRateLimitMessage } from "@/lib/rate-limit";
+import {
+  formatRateLimitMessage,
+  type RateLimitResult
+} from "@/src/services/rate-limit.service";
 
 export class ChatResponsePresenter {
   formatWebChatSuccess({

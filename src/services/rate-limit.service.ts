@@ -113,3 +113,7 @@ export class RateLimitService {
 }
 
 export const rateLimitService = new RateLimitService();
+
+export function formatRateLimitMessage(result: RateLimitResult): string {
+  return rateLimitService.formatMessage(result);
+}
