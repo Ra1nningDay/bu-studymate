@@ -2,6 +2,7 @@ import "pdf-parse/worker";
 import mammoth from "mammoth";
 import { PDFParse } from "pdf-parse";
 import { recognize } from "tesseract.js";
+import { UnsupportedFileTypeError } from "@/src/services/study.errors";
 
 export type StudyMaterialSourceType = "pdf" | "docx" | "ocr_pdf";
 
@@ -187,5 +188,5 @@ export async function extractStudyMaterialFile({
     return extractDocx(buffer);
   }
 
-  throw new Error("Unsupported study material file type. Please upload a PDF or DOCX file.");
+  throw new UnsupportedFileTypeError();
 }

@@ -24,6 +24,7 @@ import { saveStudyFile } from "@/lib/study-file";
 import { adminAuthService } from "@/src/services/admin-auth.service";
 import { accessDenied, isSameOrigin } from "@/src/controllers/admin-auth.controller";
 import { ticketService, type TicketService } from "@/src/services/ticket.service";
+import { handleApiError } from "@/src/errors";
 
 function getFormString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -169,10 +170,7 @@ export class ChatController {
         warnings: savedFile.warnings
       });
     } catch (error) {
-      return NextResponse.json(
-        { error: error instanceof Error ? error.message : "Failed to save study file" },
-        { status: 400 }
-      );
+      return handleApiError(error);
     }
   }
 }

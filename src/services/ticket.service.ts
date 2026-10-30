@@ -14,6 +14,7 @@ import {
 import { extractTicketDraftFromLLM } from "@/lib/ai";
 import type { ChatSession, Ticket, TicketStatus } from "@/lib/types";
 import type { TicketDraftDto } from "@/src/dtos/ticket.dto";
+import { InvalidTicketStatusError } from "./ticket.errors";
 
 export const ticketStatuses: TicketStatus[] = [
   "PENDING",
@@ -276,7 +277,7 @@ export class TicketService {
 
   async updateTicketStatus(id: string, status: TicketStatus): Promise<Ticket> {
     if (!ticketStatuses.includes(status)) {
-      throw new Error("Unsupported ticket status");
+      throw new InvalidTicketStatusError(status);
     }
 
     const ticket = await this.ticketRepo.updateStatus(id, status);

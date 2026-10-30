@@ -2,7 +2,14 @@ import {
   extractStudyMaterialFile,
   type StudyMaterialSourceType
 } from "@/lib/study-material-ingest";
-import { saveStudyNote, type SavedStudyNote } from "@/lib/study-memory";
+import {
+  studyMemoryService,
+  type SavedStudyNote
+} from "@/src/services/study-memory.service";
+import {
+  FileTooLargeError,
+  TextExtractionError
+} from "@/src/services/study.errors";
 
 export type SavedStudyFile = {
   fileName: string;
@@ -44,17 +51,17 @@ export async function saveStudyFile({
   mimeType?: string | null;
 }): Promise<SavedStudyFile> {
   if (buffer.byteLength > maxStudyFileBytes) {
-    throw new Error(`File is too large. Maximum size is ${Math.floor(maxStudyFileBytes / 1024 / 1024)} MB.`);
+    throw new FileTooLargeError(maxStudyFileBytes, buffer.byteLength);
   }
 
   const safeFileName = fileName?.trim() || "uploaded-document";
   const extracted = await extractStudyMaterialFile({ buffer, fileName: safeFileName, mimeType });
 
   if (!extracted.rawText.trim()) {
-    throw new Error("Could not extract readable text from this file.");
+    throw new TextExtractionError();
   }
 
-  const note = await saveStudyNote(
+  const note = await studyMemoryService.saveStudyNote(
     lineUserId,
     courseName?.trim() || inferCourseNameFromStudyFile(safeFileName),
     extracted.rawText,
