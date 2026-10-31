@@ -1,4 +1,5 @@
 import { requireAdmin } from "../require-admin";
+import { AdminPageHeader } from "../admin-page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -18,11 +19,11 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
 
   return (
     <main className="min-w-0">
-      <header className="border-b border-slate-200 pb-6">
-        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-700">BU StudyMate</p>
-        <h1 className="mt-2 text-3xl font-semibold text-bu-ink">Profile</h1>
-        <p className="mt-2 text-sm text-slate-600">บัญชีที่ใช้เข้าสู่ระบบผู้ดูแลและการเปลี่ยนรหัสผ่าน</p>
-      </header>
+      <AdminPageHeader
+        title="Admin Profile"
+        description="ข้อมูลบัญชีผู้ดูแลระบบและการเปลี่ยนรหัสผ่านเพื่อความปลอดภัย"
+        border
+      />
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">

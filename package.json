@@ -41,11 +41,15 @@
   "dependencies": {
     "@napi-rs/canvas": "0.1.80",
     "@next/env": "15.5.19",
+    "@prisma/adapter-pg": "6.19.3",
     "@prisma/client": "^6.19.3",
+    "@xyflow/react": "^12.12.0",
+    "elkjs": "^0.12.1",
     "lucide-react": "^1.55.0",
     "mammoth": "^1.12.0",
     "next": "^15.0.0",
     "pdf-parse": "^2.4.5",
+    "pg": "^8.23.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "sharp": "0.34.5",
@@ -55,6 +59,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.5",
     "@types/node": "^22.7.4",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "autoprefixer": "^10.4.20",

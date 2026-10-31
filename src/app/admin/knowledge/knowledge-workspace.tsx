@@ -5,6 +5,7 @@ import Link from "next/link";
 import { BookOpen, CheckCircle2, FileText, Plus, RefreshCw, Search, AlertTriangle, Clock3, Play, X, ChevronLeft, ChevronRight, PencilLine, Trash2 } from "lucide-react";
 import type { KnowledgeAdminList } from "@/src/services/knowledge-admin.service";
 import type { KnowledgeFilters } from "@/src/dtos/knowledge-admin.dto";
+import { AdminPageHeader } from "../admin-page-header";
 
 type Item = KnowledgeAdminList["items"][number];
 type Draft = {
@@ -314,12 +315,22 @@ export function KnowledgeWorkspace({ initialData }: { initialData: KnowledgeAdmi
   ];
 
   return <main className="space-y-5">
-    <div className="flex flex-wrap items-start justify-between gap-4">
-      <div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-emerald-700">BU StudyMate</p>
-        <h1 className="mt-1 text-[28px] font-bold tracking-tight">Knowledge Base</h1>
-        <p className="mt-1 text-sm text-slate-500">จัดการบทความ ความรู้ และแหล่งข้อมูลที่ใช้ตอบคำถามของ StudyMate</p></div>
-      <div className="flex flex-wrap items-center gap-3"><Link href="/admin/chat" title="ทดสอบคำถามและดูการค้นคืนใน Web Chat / Execution Trace" className={`${buttonClass} flex items-center gap-2`}><Play aria-hidden="true" className="h-4 w-4 text-emerald-700" />Retrieval Playground</Link><button type="button" disabled={busy} onClick={() => open(null, true)} className={`${primaryClass} flex items-center gap-2`}><Plus aria-hidden="true" className="h-4 w-4" />เพิ่มบทความ</button></div>
-    </div>
+    <AdminPageHeader
+      title="Knowledge Base"
+      description="จัดการบทความ คลังความรู้มหาวิทยาลัย และเอกสารที่ใช้เป็นแหล่งอ้างอิงของบอท"
+      actions={
+        <>
+          <Link href="/admin/chat" title="ทดสอบคำถามและดูการค้นคืนใน Web Chat / Execution Trace" className={`${buttonClass} flex items-center gap-2`}>
+            <Play aria-hidden="true" className="h-4 w-4 text-emerald-700" />
+            Retrieval Playground
+          </Link>
+          <button type="button" disabled={busy} onClick={() => open(null, true)} className={`${primaryClass} flex items-center gap-2`}>
+            <Plus aria-hidden="true" className="h-4 w-4" />
+            เพิ่มบทความ
+          </button>
+        </>
+      }
+    />
     <div aria-live="polite" aria-atomic="true">{error && <p role="alert" className="break-words rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
       {notice && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
       {busy && <p role="status" className="mt-2 text-sm text-slate-500">กำลังดำเนินการ…</p>}</div>
@@ -408,7 +419,7 @@ export function KnowledgeWorkspace({ initialData }: { initialData: KnowledgeAdmi
               ].map(([label, value]) => <div key={label} className="grid grid-cols-[105px_minmax(0,1fr)] gap-2"><dt className="leading-5 text-slate-500">{label}</dt><dd className="break-words leading-5 text-slate-700">{value}</dd></div>)}
                 <div className="grid grid-cols-[105px_minmax(0,1fr)] gap-2"><dt className="text-slate-500">สถานะ</dt><dd><StatusBadge item={selected} /></dd></div>
               </dl>
-              <div className="mt-5 border-t border-slate-100 pt-4"><h3 className="text-xs font-semibold">พรีวิวเนื้อหา</h3><div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3"><div className="flex items-center justify-between text-[10px] text-slate-500"><span>บทความ · {selected.chunkCount} passages</span><BookOpen aria-hidden="true" className="h-3.5 w-3.5" /></div><div className="mt-3 border border-slate-100 bg-white p-5 shadow-sm"><p className="text-[10px] font-semibold uppercase tracking-widest text-emerald-700">BU StudyMate</p><h4 className="mt-3 break-words text-lg font-bold leading-7">{selected.title}</h4><div className="my-4 h-0.5 w-12 bg-emerald-600" /><p className="line-clamp-6 whitespace-pre-wrap break-words text-xs leading-6 text-slate-600">{selected.content}</p></div><button onClick={() => void selectTab("เนื้อหา")} className="mt-3 text-xs font-semibold text-emerald-700 underline">อ่านเนื้อหาทั้งหมด</button></div></div>
+              <div className="mt-5 border-t border-slate-100 pt-4"><h3 className="text-xs font-semibold">พรีวิวเนื้อหา</h3><div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3"><div className="flex items-center justify-between text-[10px] text-slate-500"><span>บทความ · {selected.chunkCount} passages</span><BookOpen aria-hidden="true" className="h-3.5 w-3.5" /></div><div className="mt-3 border border-slate-100 bg-white p-5 shadow-sm"><p className="text-[10px] font-semibold uppercase tracking-widest text-emerald-700">BU Knowledge</p><h4 className="mt-3 break-words text-lg font-bold leading-7">{selected.title}</h4><div className="my-4 h-0.5 w-12 bg-emerald-600" /><p className="line-clamp-6 whitespace-pre-wrap break-words text-xs leading-6 text-slate-600">{selected.content}</p></div><button onClick={() => void selectTab("เนื้อหา")} className="mt-3 text-xs font-semibold text-emerald-700 underline">อ่านเนื้อหาทั้งหมด</button></div></div>
             </>}
             {tab === "เนื้อหา" && <><h3 className="text-sm font-semibold">เนื้อหาบทความ</h3><div className="mt-3 whitespace-pre-wrap break-words rounded-lg bg-slate-50 p-4 text-sm leading-7">{selected.content}</div>{selected.keywords.length > 0 && <div className="mt-4 flex flex-wrap gap-2">{selected.keywords.map((word, index) => <span key={`${index}-${word}`} className="break-all rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-600">{word}</span>)}</div>}</>}
             {tab === "Chunks" && <div className="space-y-3">{busy ? <p className="text-sm text-slate-500">กำลังอ่าน passages…</p> : chunks === null ? <button onClick={() => void selectTab("Chunks")} className={buttonClass}>อ่าน passages อีกครั้ง</button> : chunks.length ? chunks.map((chunk) => <article key={chunk.id} className="rounded-lg border border-slate-200 p-3"><h3 className="text-xs font-semibold text-emerald-700">Passage {chunk.ordinal + 1}</h3><p className="mt-1 break-all text-[10px] text-slate-500">{chunk.embeddingModel}</p><p className="mt-3 whitespace-pre-wrap break-words text-xs leading-6">{chunk.content}</p></article>) : <p className="text-sm text-slate-500">ยังไม่มี passages ที่สร้างไว้สำหรับบทความนี้</p>}</div>}

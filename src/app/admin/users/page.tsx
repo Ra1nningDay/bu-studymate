@@ -1,6 +1,7 @@
 import { requireAdmin } from "../require-admin";
 import { DeleteStudentButton } from "./delete-student-button";
 import { studentAccountRepository, type StudentRow } from "@/src/repositories/student-account.repository";
+import { AdminPageHeader } from "../admin-page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -21,20 +22,20 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
 
   return (
     <main className="min-w-0">
-      <header className="flex flex-col gap-3 border-b border-slate-200 pb-6 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-700">BU StudyMate</p>
-          <h1 className="mt-2 text-3xl font-semibold text-bu-ink">Users</h1>
-          <p className="mt-2 text-sm text-slate-600">Students who verified a bumail.net account and linked LINE.</p>
-        </div>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <form method="GET" className="flex gap-2">
-            <input name="q" defaultValue={query} placeholder="Search email" aria-label="Search email" className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/15" />
-            <button className="rounded-md bg-bu-ink px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700">Search</button>
-          </form>
-          <div className="rounded-md border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm font-medium text-cyan-800">{students.length} students</div>
-        </div>
-      </header>
+      <AdminPageHeader
+        title="Users"
+        description="รายชื่อนักศึกษาที่ยืนยันบัญชี @bumail.net และเชื่อมต่อกับ LINE แล้ว"
+        border
+        actions={
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <form method="GET" className="flex gap-2">
+              <input name="q" defaultValue={query} placeholder="Search email" aria-label="Search email" className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/15" />
+              <button className="rounded-md bg-bu-ink px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-700">Search</button>
+            </form>
+            <div className="rounded-md border border-cyan-200 bg-cyan-50 px-3 py-1.5 text-xs font-medium text-cyan-800">{students.length} students</div>
+          </div>
+        }
+      />
 
       <section className="mt-6 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
         <div className="overflow-x-auto">

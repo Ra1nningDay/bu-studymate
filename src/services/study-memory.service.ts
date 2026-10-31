@@ -15,6 +15,7 @@ import { generateStudyAnswer } from "@/lib/study-answer";
 import { extractStudyNote } from "@/lib/study-extract";
 import type { StudyMaterialSourceType } from "@/lib/study-material-ingest";
 import { prisma } from "@/lib/prisma";
+import { invalidateOverviewCorpusCounts } from "./admin-overview.service";
 
 export type SavedStudyNote = {
   assignments: Array<{
@@ -286,6 +287,8 @@ export class StudyMemoryService {
         lineUserId
       }))
     });
+
+    invalidateOverviewCorpusCounts();
 
     return {
       assignments: extracted.assignments.map((assignment) => ({

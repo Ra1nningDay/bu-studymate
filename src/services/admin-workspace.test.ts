@@ -6,17 +6,17 @@ import type { TicketService } from "./ticket.service";
 import type { AdminOverviewRepository } from "@/src/repositories/admin-overview.repository";
 import type { saveStudyFile } from "@/lib/study-file";
 import { standardAdminFixture } from "./test-support/admin-auth-fixture";
+import { analyticsDateRange } from "@/lib/analytics-date-range";
 
 let Chat: typeof import("@/src/controllers/chat.controller").ChatController;
 let Ticket: typeof import("@/src/controllers/ticket.controller").TicketController;
 let Overview: typeof import("./admin-overview.service").AdminOverviewService;
-let windowFor: typeof import("./admin-overview.service").overviewWindow;
 
 before(async () => {
   process.env.DATABASE_URL ??= "postgresql://fixture:fixture@localhost:5432/fixture_unused";
   ({ ChatController: Chat } = await import("@/src/controllers/chat.controller"));
   ({ TicketController: Ticket } = await import("@/src/controllers/ticket.controller"));
-  ({ AdminOverviewService: Overview, overviewWindow: windowFor } = await import("./admin-overview.service"));
+  ({ AdminOverviewService: Overview } = await import("./admin-overview.service"));
 });
 
 async function fixture() {
@@ -139,8 +139,8 @@ function rawOverview(): RawOverview {
 
 test("dashboard uses seven Bangkok calendar days across UTC midnight", () => {
   const now = new Date("2026-10-11T18:00:00Z");
-  assert.equal(windowFor(now).start.toISOString(), "2026-10-05T17:00:00.000Z");
-  assert.equal(windowFor(now).end, now);
+  assert.equal(analyticsDateRange({}, now).start.toISOString(), "2026-10-05T17:00:00.000Z");
+  assert.equal(analyticsDateRange({}, now).end.toISOString(), "2026-10-12T17:00:00.000Z");
 });
 
 test("dashboard distinguishes unique identities from turns and fills missing days with zero", async () => {
@@ -167,6 +167,18 @@ test("dashboard empty state has unknown success/latency, not a made-up healthy r
   assert.equal(result.days.length, 7);
 });
 
+test("dashboard custom dates reach storage and control chart length", async () => {
+  const range = analyticsDateRange({ from: "2026-10-12", to: "2026-10-12" });
+  const service = new Overview({ read: async (start, end) => {
+    assert.equal(start.toISOString(), "2026-10-11T17:00:00.000Z");
+    assert.equal(end.toISOString(), "2026-10-12T17:00:00.000Z");
+    return rawOverview();
+  } });
+  const result = await service.read(new Date(), range);
+  assert.deepEqual(result.days, [{ day: "2026-10-12", count: 2 }]);
+  await assert.rejects(service.read(new Date(), analyticsDateRange({ from: "invalid" })), /YYYY-MM-DD/);
+});
+
 test("top intents combine the remaining counts and retain the same total", async () => {
   const data = rawOverview();
   data.intents = Array.from({ length: 8 }, (_, index) => ({ intent: `intent-${index}`, _count: { id: index + 1 } }));
@@ -175,4 +187,30 @@ test("top intents combine the remaining counts and retain the same total", async
   assert.equal(result.topIntents.length, 6);
   assert.deepEqual(result.topIntents.at(-1), { name: "อื่น ๆ", count: 6 });
   assert.equal(result.topIntents.reduce((sum, item) => sum + item.count, 0), result.totalRuns);
+});
+
+
+test("corpus snapshot uses cached reader when available and falls back to repository", async () => {
+  let cachedCalls = 0;
+  let repoCalls = 0;
+  const repo = {
+    read: async () => rawOverview(),
+    readCorpusCounts: async () => {
+      repoCalls += 1;
+      return { knowledgeItems: 10, studyMaterials: 2, chunks: 15 };
+    }
+  };
+  const serviceWithCache = new Overview(
+    { read: repo.read },
+    async () => {
+      cachedCalls += 1;
+      return { knowledgeItems: 99, studyMaterials: 8, chunks: 40 };
+    }
+  );
+  assert.deepEqual(await serviceWithCache.readCorpusSnapshot(), { knowledgeItems: 99, studyMaterials: 8, chunks: 40 });
+  assert.equal(cachedCalls, 1);
+
+  const serviceWithCustomRepo = new Overview(repo);
+  assert.deepEqual(await serviceWithCustomRepo.readCorpusSnapshot(), { knowledgeItems: 10, studyMaterials: 2, chunks: 15 });
+  assert.equal(repoCalls, 1);
 });

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { ChevronDown, CircleDot, Copy, Cpu, Database, ExternalLink, FileText, TriangleAlert } from "lucide-react";
 import type { PlaygroundConversation, PlaygroundRun } from "@/src/dtos/playground.dto";
@@ -53,7 +54,7 @@ export function RunTrace({ run, conversation, interactive = false }: { run: Play
         <div className="rounded-lg bg-slate-50 p-3 text-xs leading-6"><h3 className="font-semibold">เหตุผลที่เลือกเส้นทาง</h3><p className="mt-1 whitespace-pre-wrap break-words text-slate-600">{run.routerReason ?? "ไม่ได้บันทึก"}</p><p className="mt-3 text-slate-500">Web search: {run.usedWebSearch ? "yes" : "no"} · Study memory: {run.usedStudyMemory ? "yes" : "no"} · Ticket flow: {run.usedTicketFlow ? "yes" : "no"}</p></div>
         {run.errorCode && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-xs text-rose-800">Error: {run.errorCode}</p>}
         <p className="text-[11px] leading-5 text-slate-500">{run.executionLog.some((entry) => entry.rag) ? "RRF ใช้เวลาร่วมกับ Hybrid Retrieval (SQL) · Reranker แสดงลำดับ ไม่มี relevance score · Tokens แสดงยอดรวมที่ provider รายงาน" : "แสดงข้อมูลหลังจบเทิร์น ยังไม่ได้บันทึกเวลารายขั้น คะแนนแหล่งข้อมูล และ tokens แยก input/output"}</p>
-        <a href={`/admin/runs?run=${encodeURIComponent(run.id)}`} className="flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-3 text-xs font-medium hover:bg-emerald-50 focus-visible:outline-emerald-700"><ExternalLink aria-hidden="true" className="h-4 w-4" />ดูรายละเอียดในหน้า Bot Runs</a>
+        <Link href={`/admin/runs?run=${encodeURIComponent(run.id)}`} className="flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-3 text-xs font-medium hover:bg-emerald-50 focus-visible:outline-emerald-700"><ExternalLink aria-hidden="true" className="h-4 w-4" />ดูรายละเอียดในหน้า Bot Runs</Link>
       </div>}
       {tab === "messages" && <div className="space-y-3">{messages.map((message) => <article key={message.id} className={`rounded-xl p-3 ${message.role === "user" ? "bg-emerald-50" : "bg-slate-50"}`}><h3 className="text-xs font-semibold">{message.role === "user" ? "ผู้ใช้" : "StudyMate"}</h3><p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 [overflow-wrap:anywhere]">{message.text}</p></article>)}{!messages.length && <p className="text-sm text-slate-500">ไม่มีข้อความที่เชื่อมกับเทิร์นนี้</p>}</div>}
       {tab === "sources" && <div><h3 className="mb-3 text-sm font-semibold">แหล่งข้อมูลของคำตอบ</h3>{sources.length ? <ChatSources sources={sources} /> : <p className="text-xs text-slate-500">ไม่มีแหล่งข้อมูลที่บันทึก</p>}</div>}

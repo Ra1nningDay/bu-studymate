@@ -1,9 +1,24 @@
 import { prisma } from "@/lib/prisma";
 
+export interface OverviewCorpusCounts {
+  knowledgeItems: number;
+  studyMaterials: number;
+  chunks: number;
+}
+
 export class AdminOverviewRepository {
-  async read(start: Date, end: Date) {
+  async readCorpusCounts(): Promise<OverviewCorpusCounts> {
+    const [knowledgeItems, studyMaterials, chunks] = await Promise.all([
+      prisma.knowledgeItem.count(),
+      prisma.studyMaterial.count(),
+      prisma.materialChunk.count()
+    ]);
+    return { knowledgeItems, studyMaterials, chunks };
+  }
+
+  async readRangeMetrics(start: Date, end: Date) {
     const createdAt = { gte: start, lt: end };
-    const [conversations, daily, statuses, intents, latency, openTickets, knowledgeItems, studyMaterials, chunks, tickets, failures] = await Promise.all([
+    const [conversations, daily, statuses, intents, latency, openTickets, tickets, failures] = await Promise.all([
       prisma.$queryRaw<Array<{ count: number }>>`
         SELECT COUNT(DISTINCT line_user_id)::int AS count FROM chat_messages
         WHERE role = 'user' AND created_at >= ${start} AND created_at < ${end}`,
@@ -16,9 +31,6 @@ export class AdminOverviewRepository {
       prisma.botRun.groupBy({ by: ["intent"], where: { createdAt }, _count: { id: true } }),
       prisma.botRun.aggregate({ where: { createdAt, status: "success" }, _avg: { latencyMs: true } }),
       prisma.ticket.count({ where: { status: { in: ["PENDING", "IN_PROGRESS"] } } }),
-      prisma.knowledgeItem.count(),
-      prisma.studyMaterial.count(),
-      prisma.materialChunk.count(),
       prisma.ticket.findMany({
         where: { status: { in: ["PENDING", "IN_PROGRESS"] } },
         orderBy: { updatedAt: "desc" }, take: 5,
@@ -29,7 +41,15 @@ export class AdminOverviewRepository {
         select: { id: true, intent: true, errorCode: true, createdAt: true }
       })
     ]);
-    return { conversations, daily, statuses, intents, latency, openTickets, knowledgeItems, studyMaterials, chunks, tickets, failures };
+    return { conversations, daily, statuses, intents, latency, openTickets, tickets, failures };
+  }
+
+  async read(start: Date, end: Date) {
+    const [range, corpus] = await Promise.all([
+      this.readRangeMetrics(start, end),
+      this.readCorpusCounts()
+    ]);
+    return { ...range, ...corpus };
   }
 }
 

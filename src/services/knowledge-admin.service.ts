@@ -6,6 +6,7 @@ import type { KnowledgeSave, KnowledgeFilters, KnowledgeBulk } from "@/src/dtos/
 import { knowledgeActionLinkSchema, officialKnowledgeUrlSchema, type ActionLink } from "@/src/dtos/knowledge.dto";
 import { knowledgeRepository, type KnowledgeRepository, type KnowledgeMetadataUpdate } from "@/src/repositories/knowledge.repository";
 import { knowledgeIngestionService, type KnowledgeIngestionService } from "./knowledge-ingestion.service";
+import { invalidateOverviewCorpusCounts } from "./admin-overview.service";
 
 export class KnowledgeAdminError extends Error {
   constructor(message: string, public status: number) { super(message); }
@@ -58,7 +59,11 @@ export class KnowledgeAdminService {
 
   async bulk(input: KnowledgeBulk) {
     try {
-      if (input.action === "delete") return { count: await this.repo.deleteAdminDocuments(input.selection) };
+      if (input.action === "delete") {
+        const count = await this.repo.deleteAdminDocuments(input.selection);
+        invalidateOverviewCorpusCounts();
+        return { count };
+      }
       const records = await this.repo.findBulkDocuments(input.selection.map((item) => item.id));
       if (records.length !== input.selection.length || records.some((item) =>
         new Date(input.selection.find((selected) => selected.id === item.id)?.updatedAt ?? "").getTime() !== item.updatedAt.getTime())) {
@@ -114,7 +119,11 @@ export class KnowledgeAdminService {
     } else if (await this.repo.findIndexedDocument(document.title)) {
       throw new KnowledgeAdminError("ชื่อบทความนี้มีอยู่แล้ว กรุณาเลือกแก้ไขจากรายการ", 409);
     }
-    try { return await this.ingestion.importReviewedDocument({ ...document, actionLinks }, id ?? null); }
+    try {
+      const saved = await this.ingestion.importReviewedDocument({ ...document, actionLinks }, id ?? null);
+      invalidateOverviewCorpusCounts();
+      return saved;
+    }
     catch (error) {
       const message = error instanceof Error ? error.message : "";
       if (/Document identity changed|older approval|newer approval|changed during import/.test(message)) {

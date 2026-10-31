@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "../require-admin";
 import { ticketService, ticketStatuses } from "@/src/services/ticket.service";
+import { AdminPageHeader } from "../admin-page-header";
 import type { TicketStatus } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -26,12 +27,7 @@ function SetupNotice({ message }: { message: string }) {
   return (
     <main className="flex items-center justify-center py-8">
       <div className="w-full max-w-2xl rounded-lg border border-amber-200 bg-white p-6 shadow-sm">
-        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-700">
-          BU StudyMate
-        </p>
-        <h1 className="mt-3 text-2xl font-semibold text-bu-ink">
-          Admin dashboard needs database setup
-        </h1>
+        <h1 className="text-2xl font-semibold text-bu-ink">Database setup required</h1>
         <p className="mt-3 text-sm leading-6 text-slate-600">
           Add <code>DATABASE_URL</code> and <code>DIRECT_URL</code> in{" "}
           <code>.env.local</code>, run the database schema, then restart the dev
@@ -60,36 +56,24 @@ export default async function TicketsPage({ searchParams }: { searchParams: Prom
 
   return (
     <main className="min-w-0">
-      <header className="flex flex-col gap-3 border-b border-slate-200 pb-6 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-700">
-              BU StudyMate
-            </p>
-            <h1 className="mt-2 text-3xl font-semibold text-bu-ink">
-              Support tickets
-            </h1>
-            <p className="mt-2 text-sm text-slate-600">
-              View LINE-reported classroom and facility issues, then update their status.
-            </p>
-          </div>
+      <AdminPageHeader
+        title="Support Tickets"
+        description="รายการแจ้งปัญหาห้องเรียนและสถานที่จาก LINE เพื่อตรวจสอบและอัปเดตสถานะ"
+        border
+        actions={
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <Link
-              href="/admin"
-              className="inline-flex items-center justify-center rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-            >
-              Home
-            </Link>
-            <Link
               href="/admin/runs"
-              className="inline-flex items-center justify-center rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-bu-cyan/40 hover:text-bu-cyan"
+              className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-bu-cyan/40 hover:text-bu-cyan"
             >
               Open runs
             </Link>
-            <div className="rounded-md border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm font-medium text-cyan-800">
+            <div className="rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-1.5 text-xs font-medium text-cyan-800">
               {tickets.length} active records
             </div>
           </div>
-        </header>
+        }
+      />
 
         <section className="mt-6 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
