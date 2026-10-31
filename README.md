@@ -7,15 +7,15 @@
 
 ## What It Does
 
-**BU StudyMate** is an AI-powered student assistant designed to streamline campus life and academic learning for Bangkok University (BU) students:
+**BU StudyMate** is a LINE Official Account and web assistant for Bangkok University (BU) students, handling campus inquiries, study assistance, and facility reporting in one place:
 
-1. 🎓 **Verified Campus Knowledge (12 Core Categories):** Answers questions about registration, dropping courses, tuition payments, scholarships (กยศ./กรอ.), Surat Osathanugrah library, inter-campus shuttle vans, infirmary & insurance, dress codes, and campus facilities.
-2. 🔧 **Classroom & Facility Ticketing:** Detects reported issues (e.g. broken AC, faulty projectors, lost items), gathers details, creates formal tickets (`BU-TICKET-xxxx`), and tracks resolution status.
-3. 📝 **Study Memory & AI Tutor:** Ingests lecture notes, PDFs, and DOCX files (with Thai OCR fallback), extracts key concepts and homework deadlines, and provides tutor interactions (Friend Explain, Flashcards, Practice Questions, Exam Summaries).
-4. 🌐 **Fresh Info & Web Search:** Intelligently routes time-sensitive queries (holidays, academic calendar, admission deadlines) to verified web search.
-5. 📊 **Admin Portal:** Sign in once at `/login` for `/admin` Overview, Bot Runs and ticket management. Overview uses actual recorded metrics. See [Admin workspace guide](docs/admin-workspace.md).
-6. 🧪 **Admin Web Chat:** Test without LINE at `/admin/chat`, inspect saved traces, resume sessions, upload lessons and open printable reports. Requires an admin account (`pnpm admin:create`); uses the configured database and AI providers with real writes. `/chat` and `/admin/playground` redirect here. See [chat/trace guide](docs/playground.md).
-7. 🧪 **Automated LLM Evaluation:** Integrated Promptfoo benchmark suite to continuously evaluate router accuracy, prevent hallucination, and guard prompt quality.
+- **Campus Knowledge Base**: Covers registration, add/drop periods, tuition, scholarships (กยศ./กรอ.), library hours, shuttle schedules, and dress codes across 12 BU categories.
+- **Classroom & Facility Reporting**: Extracts incident details from chat (e.g., broken AC, projector faults) and creates trackable repair tickets (`BU-TICKET-xxxx`).
+- **Study Companion & Note Summarizer**: Ingests lecture slides, PDFs, and notes (including Thai OCR) to generate summaries, flashcards, practice quizzes, and deadline reminders.
+- **Live Search**: Fetches up-to-date information for time-sensitive queries like academic calendars, announcements, and holidays.
+- **Admin Workspace (`/admin`)**: Dashboard for tracking facility tickets, review logs, and real-time usage metrics. See [Admin workspace guide](docs/admin-workspace.md).
+- **Testing Playground (`/admin/chat`)**: Web-based testing environment for inspecting traces, replaying sessions, and testing file uploads without LINE. See [chat/trace guide](docs/playground.md).
+- **Prompt & Evaluation Suite**: Automated benchmarks via Promptfoo to validate router accuracy and prevent regressions.
 
 ---
 

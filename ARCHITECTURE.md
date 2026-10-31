@@ -128,6 +128,15 @@ they are not ordinary text-chat turns.
   (both unique). Written only by the Google sign-in callback; see
   [student-auth spec](.scratch/student-auth/spec.md).
 
+The read-only `/admin/agent/workflow` page checks `requireAdmin()` before using
+the existing `listBotRunReviews` read facade, date filters and pagination. It
+does not execute workflows or call providers. The source-derived routing map is
+separate from saved run evidence. Workflow, Bot Runs and Playground share
+`presentExecutionLog` for validating legacy JSON, optional timings/status and
+bounded RAG detail before rendering. The existing `KnowledgeTraceDetails`
+component presents passage ranks, queries and literal evidence. Runs accepts
+`view=trace` for direct evidence links; navigation retains filters/page/run.
+
 Student sign-in: the LINE text `ยืนยันนักศึกษา` makes
 [the webhook controller](src/controllers/line-webhook.controller.ts) reply with a
 `/student/login?link=<signed token>` button (10 minutes, holds the `lineUserId`).
@@ -151,6 +160,20 @@ calls require their own environment and verification; source inspection does
 not prove that a deployed database matches the schema.
 
 ## 4. Presentation, Admin and Integrations
+
+Admin analytics share `src/lib/analytics-date-range.ts` for validated inclusive
+Bangkok date windows (`from`/`to`, default seven days, max 366). Overview passes
+the window into `AdminOverviewService`/`AdminOverviewRepository`; Runs applies it
+to both list and count before pagination. Cost calls `AnalyticsCostService` →
+`AnalyticsCostRepository` to aggregate token logs plus positive residual legacy
+`BotRun.metadata.tokensUsed` totals. Linked log timestamps follow run creation;
+unlinked usage follows log creation. Legacy usage lacks per-model input/output
+splits and stays unpriced. Existing saved estimates are summed only for supported
+models with token breakdowns; unsupported/fallback-priced logs stay unpriced.
+The repository detects an absent additive log table and reads legacy totals
+without mutations. Missing data, zero and read errors are distinct. Current
+ticket/knowledge snapshots are independent of analytics dates. See
+[analytics-dates-01](.scratch/analytics-dates/issues/01-real-usage-date-filters.md).
 
 The same orchestrator serves authenticated admin Web Chat and LINE; delivery differs. Web
 shows saved reply text, source links and per-turn metadata.
@@ -179,7 +202,11 @@ checks and their boundaries.
 
 `/login` authenticates via the shared auth controller; `/admin/layout.tsx` renders
 the common sidebar/header. Data-reading pages additionally call `requireAdmin`
-before queries, since layout rendering does not serialize child data access.
+before queries, since layout rendering does not serialize child data access and
+soft navigation does not re-render the shared layout. `requireAdmin` memoizes the
+session lookup with React `cache()` per request only, so layout and page share one
+user/role query without caching sessions across requests. `admin/loading.tsx`
+is the route loading boundary for admin pages.
 Ticket mutations, Playground APIs and legacy web chat/upload APIs check the same
 cookie and same-origin writes. Missing configuration closes access. Password query
 strings and the legacy header no longer authorize any admin surface. Root/old web
@@ -223,11 +250,18 @@ evidence keeps an invalid fingerprint and cannot be promoted by metadata edits.
 Text, sources and approval/validity dates are preserved; no schema was added.
 
 Overview counts/aggregates run in `AdminOverviewRepository`, including parameterized
-SQL for distinct message identities and daily Bangkok buckets. The service fills
-the seven-day series and derives run success/intent percentages. Successful run
-ratio is not Resolution Rate; stored knowledge counts are not source health.
-Read errors show an explicit unavailable state. No schema or paid provider call
-is needed for dashboard reads.
+SQL for distinct message identities and daily Bangkok buckets. `src/lib/prisma.ts`
+wires `@prisma/adapter-pg` (`pg` pool `max: 5`, stripping Prisma-only `pgbouncer`
+URL flags) so every query over Supabase's transaction pooler executes in a single
+network round-trip without prepared-statement collisions. The service fills
+the range series, derives run success/intent percentages, and caches global
+corpus counts (`knowledge_items`, `study_materials`, `material_chunks`) via
+`unstable_cache` (60s TTL, tag `admin-overview-counts`, invalidated on knowledge
+and study-material writes). `/admin` wraps the overview body and Knowledge
+Snapshot panel in `<Suspense>` boundaries so header and date filters stream
+immediately. Successful run ratio is not Resolution Rate; stored knowledge
+counts are not source health. Read errors show an explicit unavailable state.
+No schema or paid provider call is needed for dashboard reads.
 
 ## 5. Request / Path / Verify Examples
 

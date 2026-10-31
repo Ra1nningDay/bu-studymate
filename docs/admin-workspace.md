@@ -11,7 +11,7 @@ A user without `admin` or `viewer` (for example a student) cannot sign in. The s
 only the user id and an expiry; every request re-reads the user and roles from the database, so
 disabling a user (`disabled_at`) or changing roles takes effect immediately. The header shows the signed-in email and role and links to `/admin/profile`, where any admin or viewer can
 change their own password (current password required, 10 to 1024 characters, rate limited). Changing it does
-not sign out other devices; their cookies expire after eight hours. There is no screen for managing other users yet.
+not sign out other devices; their cookies expire after 30 days. There is no screen for managing other users yet.
 
 ```powershell
 pnpm admin:create you@example.com admin     # new user: prints a random password once
@@ -21,8 +21,8 @@ pnpm admin:reset you@example.com            # prints a new random password once
 ```
 
 Set `ADMIN_SESSION_SECRET` (32+ characters) to enable the workspace; without it `/login` shows setup
-guidance. Production requires HTTPS. Cookies are signed, HttpOnly, SameSite=Strict and expire after
-eight hours. Restart the server after changing configuration.
+guidance. Production requires HTTPS. Cookies are signed, HttpOnly, SameSite=Lax and expire after
+30 days. Restart the server after changing configuration.
 Login is limited to 10 attempts per 15 minutes and 30 per hour per client IP (HTTP 429). The client IP is read from `x-forwarded-for`, which is only trustworthy behind Vercel (or another proxy that overwrites it); to log every admin out, rotate `ADMIN_SESSION_SECRET`.
 
 ### Rollout runbook
@@ -41,6 +41,8 @@ Login is limited to 10 attempts per 15 minutes and 30 per hour per client IP (HT
 | `/admin` | Overview from actual database aggregates. |
 | `/admin/chat` | Non-LINE chat, saved sessions, traces, reports and lesson upload. |
 | `/admin/runs` | Bot run review and filtering. |
+| `/admin/agent/workflow` | Read-only node graph (React Flow + ELK, left-to-right) of the source-confirmed routing/RAG/fresh-info flow. Run Trace lights only recorded nodes/edges; System Architecture shows the whole topology. Node Inspector lists inputs/outputs from source and recorded latency/errors; missing data is Unknown or Not Recorded. No live execution. |
+| `/admin/analytics/costs` | Recorded token totals and available saved cost estimates. |
 | `/admin/knowledge` | Campus article search, reviewed add/edit and source checks. |
 | `/admin/tickets` | Ticket review and status updates. |
 | `/admin/chat/report/{sessionId}` | Printable saved conversation report. |
@@ -59,8 +61,32 @@ LINE webhooks keep their separate signature-based authentication.
 
 ## Overview definitions
 
-The seven-day window starts at midnight in Bangkok six days before today and
-ends at the server read time. It includes LINE and web test traffic.
+The admin shell uses a neutral sidebar and a white work sheet with explicitly
+loaded Thai/Latin typography. The existing prototype destinations are grouped
+under `In development`; expand that section to reach them. No destination was
+deleted. Sidebar collapse preferences and `Ctrl+B` / `Cmd+B` remain available.
+Overview and Bot Runs share a divided metric strip; on phones it uses two
+columns. The intent breakdown is a compact ranked list rather than a donut.
+See [admin-natural-01](../.scratch/admin-natural/issues/01-visual-refinement.md)
+for the visual refinement and its verification boundary.
+
+Overview, Runs and Cost default to seven Bangkok calendar days including today.
+Select start/end dates to inspect another period (up to 366 days). The shared
+`from=YYYY-MM-DD&to=YYYY-MM-DD` URL filters include the entire final Bangkok day;
+storage uses `[start, next-day midnight)`. Invalid ranges do not query storage.
+LINE and web test traffic are included. Run filters/page/detail links preserve
+dates, while applying filters resets to page 1. Overview links to Runs keep the
+selected dates. Ticket and knowledge snapshots remain current counts.
+
+All three pages use the same DateRangeFilter below the header and above metrics,
+with equal date/control sizes and a separate helper line. Quick presets select
+7/30/90/365 days ending on Bangkok today; the matching range is highlighted.
+Bot Runs has a separate additional-filter form. Date/preset changes retain its
+applied status/intent/channel/target/web-search filters; additional-filter changes
+and Reset retain the dates. Both forms restart pagination. Search and model
+remain limited to the loaded page. See
+[analytics-dates-02](../.scratch/analytics-dates/issues/02-consistent-date-filter.md)
+for layout and interaction evidence.
 
 - **Total Conversations:** distinct `lineUserId` values with a user message in
   the window. This is an identity count, not individual conversation sessions.
@@ -82,6 +108,26 @@ ends at the server read time. It includes LINE and web test traffic.
 Database failures show a read error rather than invented zero/healthy metrics.
 No Resolution Rate, prior-period percentage changes, global search or settings
 screen is included. Knowledge management is described below.
+
+## Token and cost definitions
+
+Cost reads `ai_token_logs` and legacy `BotRun.metadata.tokensUsed` without writing
+or backfilling records. For a run with detailed logs, only a positive remaining
+legacy total is added, avoiding overlap and preserving partially logged usage.
+Linked logs follow their run's creation time; standalone usage follows its own
+timestamp. Without the additive token-log table, legacy totals remain readable.
+
+Legacy totals combine multiple steps/models and lack input/output splits, so their
+price remains unknown. Logs for unsupported models or without token splits are
+also unpriced; the page counts those tokens separately. Available saved estimates
+are summed without repricing history and converted with the displayed fixed
+`USD_TO_THB_RATE`. They are partial estimates, not a provider invoice or current
+exchange-rate quote. Prompt Cached Token Rate uses recorded cached/prompt tokens,
+not semantic cache hits. No cache savings or previous-month growth is invented.
+
+Read failures show an alert; empty periods show zero tokens, not sample metrics.
+See [analytics-dates-01](../.scratch/analytics-dates/issues/01-real-usage-date-filters.md)
+for verification and limits.
 
 ## Campus knowledge management
 

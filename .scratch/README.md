@@ -7,7 +7,11 @@ This index owns local work status. Specs and tickets own scope and verification;
 
 ## Current Handoff
 
-- Latest effort: Group lib into subdirectories ([app-structure-04](app-structure/issues/04-group-lib-subdirectories.md)),
+- Latest effort: Shared analytics DateRangeFilter ([analytics-dates-02](analytics-dates/issues/02-consistent-date-filter.md)),
+  resolved locally on 2026-10-31; uncommitted. Shared layout/presets and URL preservation verified; not deployed.
+  Previous effort: Recorded analytics and date filters ([analytics-dates-01](analytics-dates/issues/01-real-usage-date-filters.md)),
+  resolved locally on 2026-10-31; uncommitted. Read-only real usage and synthetic UI verified; not deployed.
+  Previous effort: Group lib into subdirectories ([app-structure-04](app-structure/issues/04-group-lib-subdirectories.md)),
   resolved locally on 2026-10-30; uncommitted.
   Previous effort: Two-Tier Error Handling Architecture ([error-handling-01](error-handling/issues/01-two-tier-error-handling.md)),
   resolved locally on 2026-10-30; uncommitted.
@@ -39,6 +43,13 @@ This index owns local work status. Specs and tickets own scope and verification;
 
 | Effort | Status | Record | Evidence boundary |
 |---|---|---|---|
+| Agent Workflow explorer | Claimed, 2026-10-31 | [agent-workflow-01](agent-workflow/issues/01-workflow-explorer.md) | Approved read-only routing map and saved-run evidence; verification pending. |
+| Admin navigation performance | Resolved locally, 2026-10-31; uncommitted | [admin-perf plan](admin-perf/plan.md) | Tickets 01-06 resolved: @prisma/adapter-pg (478ms -> 98ms/query), React cache() requireAdmin (1 lookup/request), admin/loading.tsx skeleton, Overview Suspense streaming + 60s corpus count cache, internal next/link conversions. 87 tests, Playwright 1440/768/390 checks, typecheck/lint and graph passed. |
+| Shared analytics date filter | Resolved locally, 2026-10-31; uncommitted | [analytics-dates-02](analytics-dates/issues/02-consistent-date-filter.md) | One DateRangeFilter, 7/30/90/365 presets, independent Runs forms; typecheck/lint, 24 regressions, production fixture and geometry/interaction checks at 1440/1280/768/390 passed. No live DB/provider UAT or deployment. |
+| Brand favicon | Resolved locally, 2026-10-31; uncommitted | [admin-natural-03](admin-natural/issues/03-favicon.md) | Versioned 32px PNG plus ICO fallback; actual port 3000 HTTP/hash checks passed and user confirmed the icon appeared. |
+| Sidebar brand logo | Resolved locally, 2026-10-31; uncommitted | [admin-natural-02](admin-natural/issues/02-sidebar-logo.md) | Production fixture, desktop/mobile image and control checks, lint and graph passed. Repo typecheck blocked by unrelated analytics-cost test mocks. |
+| Recorded analytics and date filters | Resolved locally, 2026-10-31; uncommitted | [analytics-dates-01](analytics-dates/issues/01-real-usage-date-filters.md) | 24 tests, typecheck/lint, graph, read-only PostgreSQL/SQL fixtures, production UI at 1440/768/390 and isolated full-app build passed. Legacy prices remain unknown; no deployment. |
+| Admin visual refinement | Resolved locally, 2026-10-31; uncommitted | [admin-natural-01](admin-natural/issues/01-visual-refinement.md) | Shared shell, Overview and Bot Runs; typecheck/lint, 11 regressions, production-fixture build, interaction checks and 1440/768/390 app inspection passed. Synthetic data, no real DB/provider UAT or deployment. |
 | Group lib into subdirectories | Resolved locally, 2026-10-30; uncommitted | [app-structure-04](app-structure/issues/04-group-lib-subdirectories.md) | 20 domain files grouped into 5 subdirectories (rag, study, router, bulinks, auth) with barrel exports and path aliases. All 264 unit tests, typecheck, lint, build (22/22 routes) pass. |
 | Two-tier error handling | Resolved locally, 2026-10-30; uncommitted | [error-handling-01](error-handling/issues/01-two-tier-error-handling.md) | AppError, HTTP errors, handleApiError, domain errors in study and ticket, 9 new unit tests, 8/8 test suites pass, build 22/22 routes. |
 | Clean lib facades and presenters | Resolved locally, 2026-10-30; uncommitted | [app-structure-03](app-structure/issues/03-clean-lib-facades-and-presenters.md) | 7 legacy files removed, templates moved to presenter. 264 unit tests, typecheck, lint, build (22/22 routes), and graphify update passed. |

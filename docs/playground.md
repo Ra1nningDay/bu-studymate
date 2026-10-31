@@ -4,7 +4,7 @@ Sign in at `/login` with your admin email and password (see the admin workspace 
 `/admin/playground` redirects to this shared Web Chat screen. See the
 [admin workspace guide](admin-workspace.md) for routing and metric definitions.
 The page and its APIs require authentication, including conversation reports.
-Credentials are submitted by POST; a signed, HttpOnly, SameSite=Strict cookie
+Credentials are submitted by POST; a signed, HttpOnly, SameSite=Lax cookie
 expires after eight hours. Production cookies require HTTPS. Without an admin
 password the Playground stays closed. Restart the server after changing config.
 
