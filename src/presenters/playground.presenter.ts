@@ -1,5 +1,5 @@
 import type { Prisma } from "@prisma/client";
-import type { PlaygroundConversation, PlaygroundSession } from "@/src/dtos/playground.dto";
+import type { ExecutionLogEntry, PlaygroundConversation, PlaygroundSession } from "@/src/dtos/playground.dto";
 import type { PlaygroundRepository } from "@/src/repositories/playground.repository";
 import { KnowledgeTraceDataSchema, TraceStatusSchema } from "@/src/dtos/playground.dto";
 
@@ -13,6 +13,22 @@ function string(value: unknown) {
 
 function number(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+export function presentExecutionLog(value: unknown): ExecutionLogEntry[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry: unknown) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [];
+    const record = entry as Record<string, unknown>;
+    const action = string(record.action);
+    const duration = number(record.durationMs);
+    const status = TraceStatusSchema.safeParse(record.status);
+    const rag = KnowledgeTraceDataSchema.safeParse(record.rag);
+    return action ? [{ action, ...(typeof record.details === "string" ? { details: record.details } : {}),
+      ...(duration !== null && duration >= 0 ? { durationMs: duration } : {}),
+      ...(status.success ? { status: status.data } : {}),
+      ...(rag.success ? { rag: rag.data } : {}) }] : [];
+  });
 }
 
 export function presentPlaygroundSession(session: {
@@ -43,7 +59,6 @@ export function presentPlaygroundConversation(
     }),
     runs: data.runs.map((run) => {
       const metadata = object(run.metadata);
-      const logs = Array.isArray(metadata.executionLog) ? metadata.executionLog : [];
       return {
         id: run.id,
         userMessageId: run.userMessageId,
@@ -65,17 +80,7 @@ export function presentPlaygroundConversation(
         usedWebSearch: run.usedWebSearch,
         usedStudyMemory: run.usedStudyMemory,
         usedTicketFlow: run.usedTicketFlow,
-        executionLog: logs.flatMap((entry) => {
-          if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [];
-          const action = string(entry.action);
-          const duration = number(entry.durationMs);
-          const status = TraceStatusSchema.safeParse(entry.status);
-          const rag = KnowledgeTraceDataSchema.safeParse(entry.rag);
-          return action ? [{ action, ...(typeof entry.details === "string" ? { details: entry.details } : {}),
-            ...(duration !== null && duration >= 0 ? { durationMs: duration } : {}),
-            ...(status.success ? { status: status.data } : {}),
-            ...(rag.success ? { rag: rag.data } : {}) }] : [];
-        })
+        executionLog: presentExecutionLog(metadata.executionLog)
       };
     })
   };

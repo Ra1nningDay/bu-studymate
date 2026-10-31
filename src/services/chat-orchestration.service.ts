@@ -32,6 +32,10 @@ import {
   ticketService,
   type TicketService
 } from "@/src/services/ticket.service";
+import {
+  tokenUsageRepository,
+  type TokenUsageRepository
+} from "@/src/repositories/token-usage.repository";
 import type { ChatSession } from "@/lib/types";
 import { formatOutOfScopeReply } from "@/src/presenters/chat-policy.presenter";
 import type { ExecutionLogEntry } from "@/src/dtos/playground.dto";
@@ -214,7 +218,12 @@ const deterministicMenuMessages = new Set([
 function asReply(
   text: string,
   sources?: AnswerSource[],
-  usage?: { total_tokens: number },
+  usage?: {
+    total_tokens: number;
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    cached_tokens?: number;
+  },
   model?: string,
   flexMessage?: any,
   executionLog?: ExecutionLogEntry[]
@@ -229,13 +238,15 @@ export class ChatOrchestrationService {
     private studySvc: StudyMemoryService = studyMemoryService,
     private knowledgeSvc: KnowledgeService = knowledgeService,
     private flexPresenter: LineFlexPresenter = lineFlexPresenter,
-    private buLinksLookup?: BuLinksLookupFn
+    private buLinksLookup?: BuLinksLookupFn,
+    private tokenUsageRepo: TokenUsageRepository = tokenUsageRepository
   ) {}
 
-  private freshInfoLogEntry(reply: FreshInfoAnswer): ExecutionLogEntry {
+  private freshInfoLogEntry(reply: FreshInfoAnswer, started: number): ExecutionLogEntry {
+    const timing = { status: "applied" as const, durationMs: Math.round(performance.now() - started) };
     return reply.origin === "bulinks"
-      ? { action: "BU Links Lookup", details: reply.links?.map((link) => link.url).join(", ") }
-      : { action: "Search Fresh Info (Web Search)", details: reply.model ? `Model: ${reply.model}` : undefined };
+      ? { action: "BU Links Lookup", ...timing, details: reply.links?.map((link) => link.url).join(", ") }
+      : { action: "Search Fresh Info (Web Search)", ...timing, details: reply.model ? `Model: ${reply.model}` : undefined };
   }
 
   private canResolveWithoutRouter(trimmedMessage: string): boolean {
@@ -420,6 +431,7 @@ export class ChatOrchestrationService {
     history,
     lineUserId,
     route,
+    routerMs,
     session,
     stream,
     trimmedMessage
@@ -427,6 +439,7 @@ export class ChatOrchestrationService {
     history: Array<{ content: string; role: "assistant" | "user" }>;
     lineUserId: string;
     route: ResolvedRoute;
+    routerMs: number;
     session: ChatSession;
     stream?: BotReplyStreamCallbacks;
     trimmedMessage: string;
@@ -452,6 +465,8 @@ export class ChatOrchestrationService {
     const executionLog: ExecutionLogEntry[] = [
       {
         action: "Agent Router Decision",
+        status: route.routerType === "agent_router" || route.routerType === "hard_guard" ? "applied" : "fallback",
+        durationMs: routerMs,
         details: `Intent: ${route.intent}, Target: ${route.selectedTarget}${routerModel ? ` · Model: ${routerModel}` : ""}`
       }
     ];
@@ -602,18 +617,20 @@ export class ChatOrchestrationService {
         executionLog
       );
     } else if (intent === "ASK_FRESH_INFO") {
+      const freshStarted = performance.now();
       const fresh = await answerFreshInfoFromVerifiedSources(trimmedMessage, history, this.buLinksLookup, streamHooks);
       reply = fresh;
-      executionLog.push(this.freshInfoLogEntry(fresh));
+      executionLog.push(this.freshInfoLogEntry(fresh, freshStarted));
       reply.executionLog = executionLog;
     } else if (intent === "ASK_BU_INFO") {
       const knowledgeAnswer = await this.knowledgeSvc.answerQuestion(trimmedMessage, history, streamHooks);
       executionLog.push(...(knowledgeAnswer.trace ?? []));
       if (knowledgeAnswer.isMiss) {
         executionLog.push({ action: "Knowledge Base Miss - Falling back to Web Search" });
+        const freshStarted = performance.now();
         const fresh = await answerFreshInfoFromVerifiedSources(trimmedMessage, history, this.buLinksLookup, streamHooks);
         reply = fresh;
-        executionLog.push(this.freshInfoLogEntry(fresh));
+        executionLog.push(this.freshInfoLogEntry(fresh, freshStarted));
         if (knowledgeAnswer.usage && reply.usage) {
           reply.usage.total_tokens += knowledgeAnswer.usage.total_tokens;
         } else if (knowledgeAnswer.usage) {
@@ -682,6 +699,7 @@ export class ChatOrchestrationService {
       );
     } else {
       const actionName = intent === "UNKNOWN" ? "Generate Clarification Question (OpenAI)" : "Generate General Chat Reply (OpenAI)";
+      const chatStarted = performance.now();
       const aiResponse = await generateGeneralChatReply(trimmedMessage, history, {
         onTextDelta,
         policy: intent === "UNKNOWN" ? "clarification" : "general",
@@ -689,6 +707,8 @@ export class ChatOrchestrationService {
       });
       executionLog.push({
         action: actionName,
+        status: "applied",
+        durationMs: Math.round(performance.now() - chatStarted),
         details: aiResponse.model ? `Model: ${aiResponse.model}` : undefined
       });
       reply = asReply(
@@ -708,10 +728,8 @@ export class ChatOrchestrationService {
       reply.text += "\n\nแหล่งข้อมูล:\n" + sourcesList;
     }
 
-    if (intent === "ASK_BU_INFO") {
-      executionLog.push({ action: "Output", durationMs: Math.round(performance.now() - outputStarted),
-        status: "applied", details: `เตรียมคำตอบพร้อม ${reply.sources?.length ?? 0} citations` });
-    }
+    executionLog.push({ action: "Output", durationMs: Math.round(performance.now() - outputStarted),
+      status: "applied", details: `เตรียมคำตอบพร้อม ${reply.sources?.length ?? 0} citations` });
 
     if (stream) {
       if (!streamedText) {
@@ -754,7 +772,9 @@ export class ChatOrchestrationService {
         : this.chatLogRepo.getRecentCompletedChatHistory(lineUserId, 4)
     ]);
 
+    const routeStarted = performance.now();
     const route = await this.resolveRoute({ history: completedHistory, session, trimmedMessage });
+    const routerMs = Math.round(performance.now() - routeStarted);
     const intent = route.intent;
     const userMessageId = crypto.randomUUID();
 
@@ -807,6 +827,7 @@ export class ChatOrchestrationService {
         history,
         lineUserId,
         route,
+        routerMs,
         session,
         stream,
         trimmedMessage
@@ -861,9 +882,55 @@ export class ChatOrchestrationService {
         })
       ]);
 
+      const tokenLogs = [];
+      const routeUsage = route.usage as { total_tokens: number; prompt_tokens?: number; completion_tokens?: number; cached_tokens?: number } | undefined;
+      if (routeUsage && routeUsage.total_tokens > 0) {
+        tokenLogs.push({
+          botRunId: run!.id,
+          provider: "openai",
+          model: route.model || "gpt-4o-mini",
+          step: "router",
+          promptTokens: routeUsage.prompt_tokens,
+          completionTokens: routeUsage.completion_tokens,
+          cachedTokens: routeUsage.cached_tokens,
+          totalTokens: routeUsage.total_tokens
+        });
+      }
+      const replyUsage = reply.usage as { total_tokens: number; prompt_tokens?: number; completion_tokens?: number; cached_tokens?: number } | undefined;
+      if (replyUsage && replyUsage.total_tokens > 0) {
+        tokenLogs.push({
+          botRunId: run!.id,
+          provider: "openai",
+          model: reply.model || finalModel || "gpt-4o-mini",
+          step: "answer",
+          promptTokens: replyUsage.prompt_tokens,
+          completionTokens: replyUsage.completion_tokens,
+          cachedTokens: replyUsage.cached_tokens,
+          totalTokens: replyUsage.total_tokens
+        });
+      }
+      if (tokenLogs.length > 0) {
+        this.tokenUsageRepo.recordUsages(tokenLogs).catch((err) => {
+          console.error("Failed to record token usage logs:", err);
+        });
+      }
+
       return { ...reply, runId: run!.id };
     } catch (error) {
       if (run?.id) {
+        if (route.usage && route.usage.total_tokens > 0) {
+          const routeUsage = route.usage as { total_tokens: number; prompt_tokens?: number; completion_tokens?: number; cached_tokens?: number };
+          this.tokenUsageRepo.recordUsage({
+            botRunId: run.id,
+            provider: "openai",
+            model: route.model || "gpt-4o-mini",
+            step: "router",
+            promptTokens: routeUsage.prompt_tokens,
+            completionTokens: routeUsage.completion_tokens,
+            cachedTokens: routeUsage.cached_tokens,
+            totalTokens: routeUsage.total_tokens
+          }).catch(() => {});
+        }
         await this.chatLogRepo.updateBotRun(run.id, {
           errorCode: error instanceof Error ? error.name : "UNKNOWN_ERROR",
           latencyMs: Date.now() - startedAt,

@@ -157,7 +157,13 @@ test("an expired knowledge item produces BU Links service links instead of a bar
   const reply = await fixture.service.createBotReply({ lineUserId: "synthetic-eval-user", message: "How much is tuition?" });
   assert.ok(reply.text.includes(url));
   const log = reply.executionLog ?? [];
-  assert.deepEqual(log.find((entry) => entry.action === "BU Links Lookup"), { action: "BU Links Lookup", details: url });
+  const lookup = log.find((entry) => entry.action === "BU Links Lookup");
+  assert.deepEqual({ ...lookup, durationMs: undefined }, { action: "BU Links Lookup", status: "applied", durationMs: undefined, details: url });
+  assert.ok(typeof lookup?.durationMs === "number" && lookup.durationMs >= 0);
+  for (const action of ["Agent Router Decision", "Output"]) {
+    const step = log.find((entry) => entry.action === action);
+    assert.ok(step?.status && typeof step.durationMs === "number", action);
+  }
   assert.ok(!log.some((entry) => entry.action === "Search Fresh Info (Web Search)"));
   assert.equal(requests.filter((request) => request.body.tools?.length).length, 0);
 });

@@ -1,0 +1,23 @@
+.agent-workflow { font-variant-numeric: tabular-nums; }
+.wf-canvas { height: 400px; min-height: 320px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fbfdfc; }
+.wf-canvas .react-flow__node { cursor: pointer; }
+.wf-canvas .react-flow__node:focus-visible .wf-node { outline: 2px solid #047857; outline-offset: 3px; }
+.wf-handle { opacity: 0; pointer-events: none; }
+.wf-node, .wf-swatch { border: 1px solid #cbd5e1; border-radius: 8px; background: #f8fafc; color: #475569; }
+.wf-node { display: flex; align-items: center; gap: 8px; width: 168px; height: 64px; padding: 0 10px; transition: opacity 120ms; }
+.wf-node[data-dim="true"] { opacity: 0.45; }
+.wf-node[data-selected="true"] { outline: 2px solid #334155; outline-offset: 2px; }
+.wf-node-icon { width: 18px; height: 18px; flex-shrink: 0; }
+.wf-badge { flex-shrink: 0; padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; background: rgb(255 255 255 / 0.7); }
+.wf-node[data-state="success"], .wf-swatch[data-state="success"] { border-color: #047857; background: #d1fae5; color: #065f46; }
+.wf-node[data-state="fallback"], .wf-swatch[data-state="fallback"] { border-color: #b45309; background: #fffbeb; color: #92400e; }
+.wf-node[data-state="failed"], .wf-swatch[data-state="failed"] { border-color: #be123c; background: #fff1f2; color: #9f1239; }
+.wf-node[data-state="skipped"], .wf-swatch[data-state="skipped"] { border-style: dashed; border-color: #64748b; background: white; color: #475569; }
+.wf-node[data-state="unknown"], .wf-swatch[data-state="unknown"] { border-color: #0369a1; background: #f0f9ff; color: #075985; }
+.wf-node[data-state="unrecorded"], .wf-swatch[data-state="unrecorded"] { border-style: dashed; border-color: #94a3b8; background: white; color: #475569; }
+.wf-swatch { display: inline-block; width: 14px; height: 14px; border-radius: 4px; }
+.wf-edge { fill: none; }
+.wf-edge-label { fill: #475569; font-size: 10px; paint-order: stroke; stroke: #fbfdfc; stroke-width: 4px; stroke-linejoin: round; }
+.workflow-steps { display: grid; gap: 12px; }
+.workflow-steps li { position: relative; }
+.workflow-steps li + li::before { content: ""; position: absolute; height: 12px; width: 1px; background: #cbd5e1; left: 20px; top: -12px; }
