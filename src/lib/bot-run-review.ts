@@ -1,7 +1,10 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { analyticsDateRange } from "@/lib/analytics-date-range";
 
 export type BotRunReviewFilters = {
+  from?: string | null;
+  to?: string | null;
   channel?: string | null;
   intent?: string | null;
   status?: string | null;
@@ -83,6 +86,11 @@ function isActiveFilter(value?: string | null) {
 
 export async function listBotRunReviews(filters: BotRunReviewFilters = {}, page: number = 1, limit: number = 50) {
   const where: Prisma.BotRunWhereInput = {};
+  if (filters.from || filters.to) {
+    const range = analyticsDateRange({ from: filters.from ?? undefined, to: filters.to ?? undefined });
+    if (range.error) throw new Error(range.error);
+    where.createdAt = { gte: range.start, lt: range.end };
+  }
 
   if (isActiveFilter(filters.status)) {
     where.status = filters.status ?? undefined;
