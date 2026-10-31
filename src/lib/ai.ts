@@ -7,7 +7,8 @@ import {
   consumeResponsesStream,
   extractJsonAnswerPrefix,
   isEventStreamResponse,
-  type ResponsesApiPayload
+  type ResponsesApiPayload,
+  type StreamTokenUsage
 } from "@/lib/openai-stream";
 
 const systemPrompt = `You are BU StudyMate, a friendly Bangkok University AI assistant.
@@ -511,16 +512,29 @@ export async function generateGeneralChatReply(
 
   const data = (await response.json()) as {
     choices?: Array<{ message?: { content?: string }; finish_reason?: string }>;
-    usage?: { total_tokens: number };
+    usage?: {
+      total_tokens: number;
+      prompt_tokens?: number;
+      completion_tokens?: number;
+      prompt_tokens_details?: { cached_tokens?: number };
+    };
     model?: string;
   };
 
   const text = data.choices?.[0]?.message?.content?.trim();
   const finalText = text || fallback;
   options.onTextDelta?.(finalText);
+  const usage: StreamTokenUsage | undefined = data.usage
+    ? {
+        total_tokens: data.usage.total_tokens,
+        prompt_tokens: data.usage.prompt_tokens,
+        completion_tokens: data.usage.completion_tokens,
+        cached_tokens: data.usage.prompt_tokens_details?.cached_tokens
+      }
+    : undefined;
   return {
     text: finalText,
-    usage: data.usage,
+    usage,
     model: data.model || env.OPENAI_MODEL,
     finishReason: data.choices?.[0]?.finish_reason
   };
@@ -529,7 +543,7 @@ export async function generateGeneralChatReply(
 type KnowledgeAnswerResult = {
   text: string;
   sources: AnswerSource[];
-  usage: { total_tokens: number } | undefined;
+  usage: StreamTokenUsage | undefined;
   model: string | undefined;
   actionLinks?: ActionLink[];
 };
@@ -592,7 +606,7 @@ export async function rewriteKnowledgeAnswer({
   }
 
   let rawContent: string;
-  let usage: { total_tokens: number } | undefined;
+  let usage: StreamTokenUsage | undefined;
   let model: string | undefined;
   let emittedLength = 0;
 
@@ -625,11 +639,23 @@ export async function rewriteKnowledgeAnswer({
   } else {
     const data = (await response.json()) as {
       choices?: Array<{ message?: { content?: string } }>;
-      usage?: { total_tokens: number };
+      usage?: {
+        total_tokens: number;
+        prompt_tokens?: number;
+        completion_tokens?: number;
+        prompt_tokens_details?: { cached_tokens?: number };
+      };
       model?: string;
     };
     rawContent = data.choices?.[0]?.message?.content ?? "";
-    usage = data.usage;
+    usage = data.usage
+      ? {
+          total_tokens: data.usage.total_tokens,
+          prompt_tokens: data.usage.prompt_tokens,
+          completion_tokens: data.usage.completion_tokens,
+          cached_tokens: data.usage.prompt_tokens_details?.cached_tokens
+        }
+      : undefined;
     model = data.model;
   }
 

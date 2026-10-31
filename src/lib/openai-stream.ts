@@ -50,6 +50,13 @@ export async function readSseDataEvents(
   }
 }
 
+export interface StreamTokenUsage {
+  total_tokens: number;
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  cached_tokens?: number;
+}
+
 export async function consumeChatCompletionStream(
   response: Response,
   onDelta?: (delta: string) => void
@@ -57,7 +64,7 @@ export async function consumeChatCompletionStream(
   content: string;
   finishReason?: string;
   model?: string;
-  usage?: { total_tokens: number };
+  usage?: StreamTokenUsage;
 }> {
   if (!response.body) {
     return { content: "" };
@@ -66,7 +73,7 @@ export async function consumeChatCompletionStream(
   let content = "";
   let finishReason: string | undefined;
   let model: string | undefined;
-  let usage: { total_tokens: number } | undefined;
+  let usage: StreamTokenUsage | undefined;
 
   await readSseDataEvents(response.body, (payload) => {
     let chunk: {
@@ -75,7 +82,12 @@ export async function consumeChatCompletionStream(
         finish_reason?: string | null;
       }>;
       model?: string;
-      usage?: { total_tokens?: number } | null;
+      usage?: {
+        total_tokens?: number;
+        prompt_tokens?: number;
+        completion_tokens?: number;
+        prompt_tokens_details?: { cached_tokens?: number };
+      } | null;
     };
     try {
       chunk = JSON.parse(payload);
@@ -85,7 +97,12 @@ export async function consumeChatCompletionStream(
 
     if (chunk.model) model = chunk.model;
     if (typeof chunk.usage?.total_tokens === "number") {
-      usage = { total_tokens: chunk.usage.total_tokens };
+      usage = {
+        total_tokens: chunk.usage.total_tokens,
+        prompt_tokens: chunk.usage.prompt_tokens,
+        completion_tokens: chunk.usage.completion_tokens,
+        cached_tokens: chunk.usage.prompt_tokens_details?.cached_tokens
+      };
     }
     const choice = chunk.choices?.[0];
     if (choice?.finish_reason) {
@@ -250,7 +267,7 @@ export type ResponsesApiPayload = {
     type?: string;
   }>;
   output_text?: string;
-  usage?: { total_tokens: number };
+  usage?: StreamTokenUsage;
   model?: string;
 };
 
@@ -265,13 +282,20 @@ export async function consumeResponsesStream(
   let outputText = "";
   let completed: ResponsesApiPayload | undefined;
   let model: string | undefined;
-  let usage: { total_tokens: number } | undefined;
+  let usage: StreamTokenUsage | undefined;
 
   await readSseDataEvents(response.body, (payload) => {
     let event: {
       type?: string;
       delta?: string;
-      response?: ResponsesApiPayload;
+      response?: ResponsesApiPayload & {
+        usage?: {
+          total_tokens?: number;
+          prompt_tokens?: number;
+          completion_tokens?: number;
+          prompt_tokens_details?: { cached_tokens?: number };
+        };
+      };
     };
     try {
       event = JSON.parse(payload);
@@ -286,7 +310,15 @@ export async function consumeResponsesStream(
       completed = event.response;
     } else if (event.response) {
       if (event.response.model) model = event.response.model;
-      if (event.response.usage) usage = event.response.usage;
+      if (event.response.usage) {
+        const u = event.response.usage;
+        usage = {
+          total_tokens: u.total_tokens ?? 0,
+          prompt_tokens: u.prompt_tokens,
+          completion_tokens: u.completion_tokens,
+          cached_tokens: u.prompt_tokens_details?.cached_tokens
+        };
+      }
     }
   });
 
