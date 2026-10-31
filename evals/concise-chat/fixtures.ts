@@ -5,7 +5,7 @@ import type { StudyMemoryService } from "@/src/services/study-memory.service";
 import type { KnowledgeService } from "@/src/services/knowledge.service";
 import type { CreateAiTokenLogData, TokenUsageRepository } from "@/src/repositories/token-usage.repository";
 
-import type { BuLinksLookupFn } from "@/lib/fresh-info";
+import type { BuLinksLookupFn } from "@/src/services/chat/workflows/fresh-info.workflow";
 
 export type ConversationMessage = { content: string; role: "assistant" | "user" };
 
@@ -17,8 +17,10 @@ export async function createConciseChatFixture(options: {
   knowledgeService?: KnowledgeService;
   buLinksLookup?: BuLinksLookupFn;
   sessionState?: ChatSession["state"];
+  studyService?: StudyMemoryService;
+  ticketService?: TicketService;
 } = {}) {
-  const { ChatOrchestrationService } = await import("@/src/services/chat-orchestration.service");
+  const { ChatOrchestrationService } = await import("@/src/services/chat/chat-orchestration.service");
   const messages: CreateChatMessageData[] = [];
   const runs: CreateBotRunData[] = [];
   const updates: UpdateBotRunData[] = [];
@@ -82,7 +84,7 @@ export async function createConciseChatFixture(options: {
     }
   } as unknown as KnowledgeService;
   return {
-    service: new ChatOrchestrationService(logRepository, tickets, study, options.knowledgeService ?? knowledge, undefined, options.buLinksLookup ?? (async () => null), tokenUsage),
+    service: new ChatOrchestrationService(logRepository, options.ticketService ?? tickets, options.studyService ?? study, options.knowledgeService ?? knowledge, undefined, options.buLinksLookup ?? (async () => null), tokenUsage),
     messages,
     runs,
     updates,

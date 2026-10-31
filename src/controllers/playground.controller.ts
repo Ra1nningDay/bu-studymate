@@ -3,7 +3,7 @@ import { PlaygroundMessageSchema, PlaygroundSessionIdSchema } from "@/src/dtos/p
 import { adminAuthService } from "@/src/services/admin-auth.service";
 import { accessDenied, isSameOrigin } from "@/src/controllers/admin-auth.controller";
 import { playgroundService } from "@/src/services/playground.service";
-import { chatOrchestrationService } from "@/src/services/chat-orchestration.service";
+import { chatOrchestrationService } from "@/src/services/chat/chat-orchestration.service";
 import { rateLimitService, messageRateLimitConfig } from "@/src/services/rate-limit.service";
 import { createSseChatResponse, wantsEventStream } from "@/src/presenters/chat-stream.presenter";
 import { normalizeWebSessionId } from "@/lib/web-session";

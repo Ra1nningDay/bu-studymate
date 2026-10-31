@@ -11,9 +11,9 @@ import {
   lineFlexPresenter,
   type LineFlexPresenter
 } from "@/src/presenters/line-flex.presenter";
-import { generateStudyAnswer } from "@/lib/study-answer";
-import { extractStudyNote } from "@/lib/study-extract";
-import type { StudyMaterialSourceType } from "@/lib/study-material-ingest";
+import { generateStudyAnswer } from "@/src/lib/study/study-answer";
+import { extractStudyNote } from "@/src/lib/study/study-extract";
+import type { StudyMaterialSourceType } from "@/src/lib/study/study-material-ingest";
 import { prisma } from "@/lib/prisma";
 import { invalidateOverviewCorpusCounts } from "./admin-overview.service";
 

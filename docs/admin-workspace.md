@@ -208,7 +208,7 @@ Upload results display locally; chat reports cover saved text turns.
 ## Checks
 
 ```powershell
-pnpm exec tsx --test src/services/admin-workspace.test.ts src/services/playground.test.ts lib/concise-chat.test.ts
+pnpm exec tsx --test src/services/admin-workspace.test.ts src/services/playground.test.ts src/services/chat/concise-chat.test.ts
 pnpm exec tsx --test src/services/knowledge-admin.test.ts lib/knowledge-rag.test.ts
 pnpm typecheck
 pnpm lint

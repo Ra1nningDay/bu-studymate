@@ -1,8 +1,8 @@
 import { KnowledgeManifestSchema, type KnowledgeDocument } from "@/src/dtos/knowledge.dto";
 import { knowledgeRepository, type KnowledgeRepository } from "@/src/repositories/knowledge.repository";
-import { embedKnowledge, knowledgeEmbeddingModel } from "@/lib/knowledge-embedding";
-import { knowledgeContentHash, knowledgeEmbeddingText, splitKnowledgeContent } from "@/lib/knowledge-index";
-import { fetchKnowledgeSource } from "@/lib/knowledge-source";
+import { embedKnowledge, knowledgeEmbeddingModel } from "@/src/lib/rag/knowledge-embedding";
+import { knowledgeContentHash, knowledgeEmbeddingText, splitKnowledgeContent } from "@/src/lib/rag/knowledge-index";
+import { fetchKnowledgeSource } from "@/src/lib/rag/knowledge-source";
 
 export class KnowledgeIngestionService {
   constructor(

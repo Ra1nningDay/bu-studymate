@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isAiConfigured } from "@/lib/ai";
+import { isAiConfigured } from "@/src/lib/ai/config";
 import {
   ChatRequestSchema,
   type ChatResponseDto
@@ -7,7 +7,7 @@ import {
 import {
   chatOrchestrationService,
   type ChatOrchestrationService
-} from "@/src/services/chat-orchestration.service";
+} from "@/src/services/chat/chat-orchestration.service";
 import {
   rateLimitService,
   messageRateLimitConfig,
@@ -20,7 +20,7 @@ import {
 } from "@/src/presenters/chat-response.presenter";
 import { createSseChatResponse, wantsEventStream } from "@/src/presenters/chat-stream.presenter";
 import { normalizeWebSessionId } from "@/lib/web-session";
-import { saveStudyFile } from "@/lib/study-file";
+import { saveStudyFile } from "@/src/lib/study/study-file";
 import { adminAuthService } from "@/src/services/admin-auth.service";
 import { accessDenied, isSameOrigin } from "@/src/controllers/admin-auth.controller";
 import { ticketService, type TicketService } from "@/src/services/ticket.service";

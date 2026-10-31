@@ -246,7 +246,7 @@ test("Jev safety-critical output survives low ordinary intent probability withou
       safetyPolicy: { type: "choice", choice: "safety_critical" }
     } });
   };
-  const { classifyWithAgentRouter } = await import("@/lib/agent-router");
+  const { classifyWithAgentRouter } = await import("@/src/lib/router/agent-router");
   const decision = await classifyWithAgentRouter("I am in immediate danger.");
   assert.equal(decision.intent, "GENERAL_CHAT");
   assert.equal(decision.selectedTarget, "general_chat");

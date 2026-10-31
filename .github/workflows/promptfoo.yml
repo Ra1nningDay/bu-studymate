@@ -5,7 +5,10 @@ on:
     branches: [ master, main ]
     paths:
       - 'evals/**'
-      - 'lib/agent-router.ts'
+      - 'src/lib/router/**'
+      - 'src/lib/ai/**'
+      - 'src/services/chat/**'
+      - 'src/dtos/ai-usage.dto.ts'
       - 'src/data/bu-knowledge.ts'
       - '.github/workflows/promptfoo.yml'
   workflow_dispatch: # Allows manual trigger from GitHub Actions tab

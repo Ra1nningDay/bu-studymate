@@ -1,7 +1,7 @@
 import {
   extractStudyMaterialFile,
   type StudyMaterialSourceType
-} from "@/lib/study-material-ingest";
+} from "@/src/lib/study/study-material-ingest";
 import {
   studyMemoryService,
   type SavedStudyNote

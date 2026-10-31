@@ -5,8 +5,8 @@ import { afterEach, before, test } from "node:test";
 // swallows that error into a fallback, so the failure is silent in production. Pin that no request sends one
 // and that each Chat Completions call carries its task-calibrated max_completion_tokens ceiling.
 let env: typeof import("@/src/config/env").env;
-let generateStudyAnswer: typeof import("@/lib/study-answer").generateStudyAnswer;
-let extractStudyNote: typeof import("@/lib/study-extract").extractStudyNote;
+let generateStudyAnswer: typeof import("@/src/lib/study/study-answer").generateStudyAnswer;
+let extractStudyNote: typeof import("@/src/lib/study/study-extract").extractStudyNote;
 let extractTicketDraftFromLLM: typeof import("@/lib/ai").extractTicketDraftFromLLM;
 const originalFetch = globalThis.fetch;
 const originalProcessKey = process.env.OPENAI_API_KEY;
@@ -16,8 +16,8 @@ before(async () => {
   process.env.OPENAI_API_KEY = "synthetic-key";
   ({ env } = await import("@/src/config/env"));
   env.OPENAI_API_KEY = "synthetic-key";
-  ({ generateStudyAnswer } = await import("@/lib/study-answer"));
-  ({ extractStudyNote } = await import("@/lib/study-extract"));
+  ({ generateStudyAnswer } = await import("@/src/lib/study/study-answer"));
+  ({ extractStudyNote } = await import("@/src/lib/study/study-extract"));
   ({ extractTicketDraftFromLLM } = await import("@/lib/ai"));
 });
 afterEach(() => {

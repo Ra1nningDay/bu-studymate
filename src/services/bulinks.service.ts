@@ -1,5 +1,5 @@
-import { buLinksClient, type BuLinksClient, type BuLinksPage } from "@/lib/bulinks";
-import { tokenizeKnowledge } from "@/lib/knowledge-index";
+import { buLinksClient, type BuLinksClient, type BuLinksPage } from "@/src/lib/bulinks/bulinks";
+import { tokenizeKnowledge } from "@/src/lib/rag/knowledge-index";
 import { officialKnowledgeUrlSchema } from "@/src/dtos/knowledge.dto";
 import { formatAnnouncements, formatServiceLinks, type BuLinksLang } from "@/src/presenters/bulinks.presenter";
 
@@ -14,7 +14,7 @@ const topicPatterns: Array<[BuLinksTopic, RegExp]> = [
   ["news", /ข่าว|news/],
   ["calendar", /ปฏิทิน(?!การศึกษา)|(?<!academic )calendar|\bevents?\b/]
 ];
-// The academic calendar and holidays are answered by the web-search calendar handling in lib/fresh-info.ts.
+// The academic calendar and holidays are answered by the chat fresh-info workflow's web-search calendar handling.
 const academicCalendarPattern = /ปฏิทินการศึกษา|academic calendar|วันหยุด|holiday/;
 // announcement covers the general feed: university plus student affairs.
 const categories = {

@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { before, test } from "node:test";
-import type { ChatOrchestrationService } from "./chat-orchestration.service";
+import type { ChatOrchestrationService } from "./chat/chat-orchestration.service";
 import type { RateLimitService } from "./rate-limit.service";
 import type { TicketService } from "./ticket.service";
 import type { AdminOverviewRepository } from "@/src/repositories/admin-overview.repository";
-import type { saveStudyFile } from "@/lib/study-file";
+import type { saveStudyFile } from "@/src/lib/study/study-file";
 import { standardAdminFixture } from "./test-support/admin-auth-fixture";
 import { analyticsDateRange } from "@/lib/analytics-date-range";
 

@@ -1,6 +1,6 @@
 # BU StudyMate Architecture
 
-Source inspected: 2026-10-27, current working tree.
+Source inspected: 2026-10-27; chat module ownership refreshed 2026-10-31, current working tree.
 Status: source map of an existing application, including uncommitted changes.
 Playground local verification is recorded in [playground-01](.scratch/playground/issues/01-admin-playground.md).
 Real database/provider UAT and deployment remain unverified by this work.
@@ -27,26 +27,30 @@ PostgreSQL/Prisma, LINE integration and configured AI providers. Use
 | Admin Overview | [overview service](src/services/admin-overview.service.ts), [repository](src/repositories/admin-overview.repository.ts) | Seven Bangkok calendar days of actual identity/run aggregates and current ticket/knowledge counts. |
 | HTTP entry points | [chat route](src/app/api/chat/route.ts), [LINE route](src/app/api/line/webhook/route.ts) | Delegate to controllers. |
 | Request boundaries | [chat controller](src/controllers/chat.controller.ts), [LINE controller](src/controllers/line-webhook.controller.ts) | Parse/validate input, consume limits, handle channel delivery (JSON or opt-in SSE for web); LINE signature check. |
-| Chat orchestration | [ChatOrchestrationService](src/services/chat-orchestration.service.ts) | Workflow guards, route selection, streaming callbacks, execution and parallel run/message linkage. |
-| AI routing and answers | [agent router](src/lib/agent-router.ts), [AI adapter](src/lib/ai.ts), [OpenAI stream reader](src/lib/openai-stream.ts), [fresh information](src/lib/fresh-info.ts) | Configured model calls, SSE delta extraction and answer generation/retrieval. |
-| Campus knowledge | [knowledge service](src/services/knowledge.service.ts), [query rewrite](src/lib/knowledge-query.ts), [rerank adapter](src/lib/knowledge-rerank.ts), [hybrid guide](docs/knowledge-rag.md) | Conditionally rewrite follow-ups using `OPENAI_QUERY_REWRITE_MODEL`, retrieve approved current candidates with keyword/vector RRF, rerank >5 candidates into five passages using `OPENAI_RERANK_MODEL`, generate from cited evidence (appending cited FAQ action links) and report misses. |
-| BU Links live lookup | [client](src/lib/bulinks.ts), [service](src/services/bulinks.service.ts), [presenter](src/presenters/bulinks.presenter.ts), [guide](docs/bulinks-live-lookup.md) | Fresh-info and knowledge-miss questions try live BU Links announcements and service-page links first, with no LLM; a null result or error falls back to web search. |
-| Study memory | [study service](src/services/study-memory.service.ts), [file ingestion](src/lib/study-file.ts) | Saved notes/materials, assignments, tutoring, file extraction/OCR. |
+| Chat orchestration | [ChatOrchestrationService](src/services/chat/chat-orchestration.service.ts), [ownership map](src/services/chat/README.md) | Turn lifecycle, history/session loading, explicit workflow dispatch, final streaming reconciliation and run/message/usage linkage. |
+| Routing and workflows | [chat guards/resolution](src/services/chat/routing/chat-route.ts), [agent classifier](src/lib/router/agent-router.ts), [workflows](src/services/chat/workflows/knowledge.workflow.ts) | Hard guards and safety precedence, classifier policy, Knowledge/Fresh Info/Study/Ticket/General Chat branch execution. |
+| AI answers | [AI exports](src/lib/ai/index.ts), [OpenAI stream reader](src/lib/openai-stream.ts) | Task-specific adapters and colocated prompts for general chat, knowledge answers, web search and ticket extraction; shared source/context helpers. |
+| Campus knowledge | [knowledge service](src/services/knowledge.service.ts), [query rewrite](src/lib/rag/knowledge-query.ts), [rerank adapter](src/lib/rag/knowledge-rerank.ts), [hybrid guide](docs/knowledge-rag.md) | Conditionally rewrite follow-ups using `OPENAI_QUERY_REWRITE_MODEL`, retrieve approved current candidates with keyword/vector RRF, rerank >5 candidates into five passages using `OPENAI_RERANK_MODEL`, generate from cited evidence (appending cited FAQ action links) and report misses. |
+| BU Links live lookup | [client](src/lib/bulinks/bulinks.ts), [service](src/services/bulinks.service.ts), [presenter](src/presenters/bulinks.presenter.ts), [guide](docs/bulinks-live-lookup.md) | Fresh-info and knowledge-miss questions try live BU Links announcements and service-page links first, with no LLM; a null result or error falls back to web search. |
+| Study memory | [study service](src/services/study-memory.service.ts), [file ingestion](src/lib/study/study-file.ts) | Saved notes/materials, assignments, tutoring, file extraction/OCR. |
 | Knowledge admin | [workspace](src/app/admin/knowledge/knowledge-workspace.tsx), [controller](src/controllers/knowledge-admin.controller.ts), [service](src/services/knowledge-admin.service.ts) | Authenticated search/pagination, evidence availability, reviewed add/edit and individual source checks through shared ingestion. |
 | Admin Users | [page](src/app/admin/users/page.tsx), [repository](src/repositories/student-account.repository.ts) | Admin table of verified students with run/ticket counts, email search and delete (unbind) behind a type-the-email dialog ([controller](src/controllers/student-admin.controller.ts)). |
 | Facility tickets | [ticket service](src/services/ticket.service.ts) | Draft/session workflow, confirmation, creation and status lookup. |
-| Presentation | [web presenter](src/presenters/chat-response.presenter.ts), [SSE presenter](src/presenters/chat-stream.presenter.ts), [LINE presenter](src/presenters/line-flex.presenter.ts) | Channel response shaping and SSE frame encoding; LINE presenter wraps [Flex templates](src/lib/flex-messages.ts). |
+| Presentation | [web presenter](src/presenters/chat-response.presenter.ts), [SSE presenter](src/presenters/chat-stream.presenter.ts), [LINE presenter](src/presenters/line-flex.presenter.ts) | Channel response shaping and SSE frame encoding; LINE presenter wraps [Flex templates](src/presenters/line-flex.templates.ts). |
 | Persistence | `src/repositories/`, [schema](prisma/schema.prisma), [Prisma client](src/lib/prisma.ts) | Prisma-backed reads/writes and persisted contracts. |
 | Configuration | [validated environment](src/config/env.ts) | Central application configuration; secret values stay outside documentation. |
 | Admin Playground | [controller](src/controllers/playground.controller.ts), [service](src/services/playground.service.ts), [guide](docs/playground.md) | Saved web test sessions, run traces and printable reports; present in the working tree. |
-| Evaluation | [eval guide](evals/README.md), [concise-chat checks](src/lib/concise-chat.test.ts), [latency/SSE checks](src/lib/chat-latency-sse.test.ts) | Synthetic regression checks and separately configured provider evaluations. |
+| Evaluation | [eval guide](evals/README.md), [concise-chat checks](src/services/chat/concise-chat.test.ts), [latency/SSE checks](src/services/chat/chat-latency-sse.test.ts), [workflow checks](src/services/chat/chat-workflows.test.ts) | Synthetic regression checks and separately configured provider evaluations. |
 
 The layered convention is route → controller → service → repository, with
 presenters for channel output and `src/lib/` for adapters/facades. It is a maintenance
 rule, not proof that every legacy file follows it: orchestration/controllers still
 contain some text formatting, and older admin pages use their own auth checks.
-Keep future changes scoped to the appropriate owner rather than restructuring
-unrelated code while following this map.
+Chat workflow text extracted from orchestration lives in
+`src/presenters/chat-workflow.presenter.ts`; shared chat contracts live in
+`src/services/chat/chat-contracts.ts`. Domain imports use their explicit folder
+paths; `@/lib/*` resolves only to `src/lib/*`. See the chat ownership map before
+editing a workflow. Keep future changes scoped to the appropriate owner.
 
 ## 2. Chat Request Path
 
@@ -146,7 +150,7 @@ OpenID Connect flow and, in the callback, accepts only a Google ID token with
 (default `bumail.net`) before binding and setting the `studymate-student` cookie
 (lax, 8 hours). Tokens are HMAC-signed with `STUDENT_AUTH_SECRET`
 ([signed-token.ts](src/services/signed-token.ts)); Google calls live in
-[src/lib/google-oidc.ts](src/lib/google-oidc.ts). Google Cloud setup: OAuth client type Web,
+[src/lib/auth/google-oidc.ts](src/lib/auth/google-oidc.ts). Google Cloud setup: OAuth client type Web,
 redirect URI `<APP_URL>/api/student/auth/google/callback`, env `GOOGLE_CLIENT_ID`,
 `GOOGLE_CLIENT_SECRET`, `STUDENT_AUTH_SECRET`. On LINE, text, file and follow events from a `lineUserId` with no `StudentAccount` get a
 verify card instead of any bot reply (skipped when student auth is not configured); web `/chat`

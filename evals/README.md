@@ -2,6 +2,12 @@
 
 โฟลเดอร์นี้รวบรวมการตั้งค่าและชุดคำถามสำหรับทำ **Automated LLM Evaluation, Benchmark และ Regression Testing** ด้วย [Promptfoo](https://promptfoo.dev/)
 
+Source ownership: [chat execution map](../src/services/chat/README.md),
+[orchestrator](../src/services/chat/chat-orchestration.service.ts),
+[classifier](../src/lib/router/agent-router.ts), and
+[task-specific AI exports](../src/lib/ai/index.ts). Offline chat regressions live
+in `src/services/chat/`; the provider configs below can make real model calls.
+
 ## P1 production knowledge candidate baseline
 
 `pnpm eval:p1` รันคำถามตัวอย่าง 40 เคสจาก 8 หมวด P1 (Finance, Registrar,

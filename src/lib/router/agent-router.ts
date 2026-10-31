@@ -1,6 +1,6 @@
 import { aiTokenUsageSchema, type AiTokenUsage, type AiUsageEntry } from "@/src/dtos/ai-usage.dto";
 import { z } from "zod";
-import type { Intent } from "@/lib/intent";
+import type { Intent } from "@/src/lib/router/intent";
 import { env } from "@/src/config/env";
 
 const routerIntents = [

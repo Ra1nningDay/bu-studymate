@@ -1,5 +1,7 @@
 import type { AiTokenUsage, AiUsageEntry } from "@/src/dtos/ai-usage.dto";
-import { createWebSearchResponse, type AnswerSource } from "@/lib/ai";
+import { createWebSearchResponse } from "@/src/lib/ai/web-search";
+import type { AnswerSource } from "@/src/lib/ai/types";
+import type { ExecutionLogEntry } from "@/src/dtos/playground.dto";
 import { formatUnverifiedBuReply } from "@/src/presenters/chat-policy.presenter";
 import { buLinksService, type BuLinksLookup } from "@/src/services/bulinks.service";
 
@@ -145,3 +147,23 @@ export async function answerFreshInfoFromVerifiedSources(
 }
 
 export const freshInfoTestInternals = {};
+
+function freshInfoLogEntry(reply: FreshInfoAnswer, started: number): ExecutionLogEntry {
+  const timing = { status: "applied" as const, durationMs: Math.round(performance.now() - started) };
+  return reply.origin === "bulinks"
+    ? { action: "BU Links Lookup", ...timing, details: reply.links?.map((link) => link.url).join(", ") }
+    : { action: "Search Fresh Info (Web Search)", ...timing, details: reply.model ? `Model: ${reply.model}` : undefined };
+}
+
+export async function executeFreshInfoWorkflow(
+  message: string,
+  history: Array<{ content: string; role: "assistant" | "user" }>,
+  executionLog: ExecutionLogEntry[],
+  lookup?: BuLinksLookupFn,
+  stream?: { onTextDelta?: (delta: string) => void; onTextReset?: () => void }
+): Promise<FreshInfoAnswer & { executionLog: ExecutionLogEntry[] }> {
+  const started = performance.now();
+  const reply = await answerFreshInfoFromVerifiedSources(message, history, lookup, stream);
+  executionLog.push(freshInfoLogEntry(reply, started));
+  return Object.assign(reply, { executionLog });
+}

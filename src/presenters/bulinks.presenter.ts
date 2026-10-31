@@ -1,4 +1,4 @@
-import type { BuLinksPost } from "@/lib/bulinks";
+import type { BuLinksPost } from "@/src/lib/bulinks/bulinks";
 
 type Link = { title: string; url: string };
 export type BuLinksLang = "th" | "en";

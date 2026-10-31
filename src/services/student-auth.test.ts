@@ -68,7 +68,7 @@ describe("signed token", () => {
 
 const appUrl = "https://app.test";
 
-function flow(options: { claims?: Partial<import("@/lib/google-oidc").GoogleIdClaims>; bind?: string; exchangeFails?: boolean } = {}) {
+function flow(options: { claims?: Partial<import("@/src/lib/auth/google-oidc").GoogleIdClaims>; bind?: string; exchangeFails?: boolean } = {}) {
   const binds: { lineUserId: string; email: string }[] = [];
   const state = { nonce: "" };
   const service = new Service({

@@ -1,7 +1,7 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { knowledgeEmbeddingModel, knowledgeVectorSchema } from "@/lib/knowledge-embedding";
-import { knowledgeContentHash, tokenizeKnowledge } from "@/lib/knowledge-index";
+import { knowledgeEmbeddingModel, knowledgeVectorSchema } from "@/src/lib/rag/knowledge-embedding";
+import { knowledgeContentHash, tokenizeKnowledge } from "@/src/lib/rag/knowledge-index";
 import type { ActionLink, KnowledgeDocument } from "@/src/dtos/knowledge.dto";
 import type { KnowledgeFilters, KnowledgeSelection } from "@/src/dtos/knowledge-admin.dto";
 import type { KnowledgeItem } from "@/lib/types";

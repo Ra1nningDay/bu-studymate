@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { before, test } from "node:test";
 import type { PlaygroundService } from "./playground.service";
-import type { ChatOrchestrationService } from "./chat-orchestration.service";
+import type { ChatOrchestrationService } from "./chat/chat-orchestration.service";
 import type { RateLimitService } from "./rate-limit.service";
 import type { PlaygroundConversation } from "@/src/dtos/playground.dto";
 import { standardAdminFixture } from "./test-support/admin-auth-fixture";

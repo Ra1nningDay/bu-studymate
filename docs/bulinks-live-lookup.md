@@ -17,7 +17,7 @@ If the lookup returns `null` or throws, the earlier OpenAI web-search fallback r
   `academic ` and `ปฏิทินการศึกษา` are not activities-calendar signals; `events` needs word boundaries.
 - Academic-calendar and holiday questions (`ปฏิทินการศึกษา`, `academic calendar`, `วันหยุด`, `holiday`) return `null`
   unless the message also names the activities calendar or events, so the web-search calendar handling in
-  `lib/fresh-info.ts` still runs for them.
+  `src/services/chat/workflows/fresh-info.workflow.ts` still runs for them.
 - A detected topic with no usable result (no posts and no fixed link) falls through to service-page ranking.
 - Replies follow the language of the question: Thai if the message has a Thai letter, otherwise English (English
   header, `More:`, footer, services preamble and `en-GB` Bangkok-time dates). Thai copy is unchanged.

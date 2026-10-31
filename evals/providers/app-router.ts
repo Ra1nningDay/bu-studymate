@@ -1,4 +1,4 @@
-import { classifyWithAgentRouter } from "@/lib/agent-router";
+import { classifyWithAgentRouter } from "@/src/lib/router/agent-router";
 
 interface ProviderResponse {
   output?: any;

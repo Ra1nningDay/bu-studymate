@@ -11,7 +11,7 @@ import {
   lineFlexPresenter,
   type LineFlexPresenter
 } from "@/src/presenters/line-flex.presenter";
-import { extractTicketDraftFromLLM } from "@/lib/ai";
+import { extractTicketDraftFromLLM } from "@/src/lib/ai/ticket-extract";
 import type { ChatSession, Ticket, TicketStatus } from "@/lib/types";
 import type { TicketDraftDto } from "@/src/dtos/ticket.dto";
 import { InvalidTicketStatusError } from "./ticket.errors";

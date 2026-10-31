@@ -12,7 +12,7 @@ import type { TicketService } from "@/src/services/ticket.service";
 import { standardAdminFixture } from "@/src/services/test-support/admin-auth-fixture";
 
 let env: typeof import("@/src/config/env").env;
-let ChatOrchestrationService: typeof import("@/src/services/chat-orchestration.service").ChatOrchestrationService;
+let ChatOrchestrationService: typeof import("@/src/services/chat/chat-orchestration.service").ChatOrchestrationService;
 let PlaygroundController: typeof import("@/src/controllers/playground.controller").PlaygroundController;
 let ChatController: typeof import("@/src/controllers/chat.controller").ChatController;
 let rewriteKnowledgeAnswer: typeof import("@/lib/ai").rewriteKnowledgeAnswer;
@@ -45,7 +45,7 @@ before(async () => {
   ({ env } = await import("@/src/config/env"));
   env.OPENAI_API_KEY = "synthetic-key";
   env.AGENT_ROUTER_MODE = "openai";
-  ({ ChatOrchestrationService } = await import("@/src/services/chat-orchestration.service"));
+  ({ ChatOrchestrationService } = await import("@/src/services/chat/chat-orchestration.service"));
   ({ PlaygroundController } = await import("@/src/controllers/playground.controller"));
   ({ ChatController } = await import("@/src/controllers/chat.controller"));
   ({ rewriteKnowledgeAnswer, createWebSearchResponse } = await import("@/lib/ai"));

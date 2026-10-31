@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
-import { knowledgeContentHash, knowledgeEmbeddingText, splitKnowledgeContent, tokenizeKnowledge } from "@/lib/knowledge-index";
-import { embedKnowledge, knowledgeEmbeddingModel } from "@/lib/knowledge-embedding";
-import { fetchKnowledgeSource } from "@/lib/knowledge-source";
+import { knowledgeContentHash, knowledgeEmbeddingText, splitKnowledgeContent, tokenizeKnowledge } from "@/src/lib/rag/knowledge-index";
+import { embedKnowledge, knowledgeEmbeddingModel } from "@/src/lib/rag/knowledge-embedding";
+import { fetchKnowledgeSource } from "@/src/lib/rag/knowledge-source";
 import type { KnowledgeSave, KnowledgeFilters, KnowledgeBulk } from "@/src/dtos/knowledge-admin.dto";
 import { knowledgeActionLinkSchema, officialKnowledgeUrlSchema, type ActionLink } from "@/src/dtos/knowledge.dto";
 import { knowledgeRepository, type KnowledgeRepository, type KnowledgeMetadataUpdate } from "@/src/repositories/knowledge.repository";

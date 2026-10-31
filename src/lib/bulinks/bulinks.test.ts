@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { afterEach, before, test } from "node:test";
-import { BuLinksClient, decodeWpText, type BuLinksPage, type BuLinksPost } from "@/lib/bulinks";
+import { BuLinksClient, decodeWpText, type BuLinksPage, type BuLinksPost } from "@/src/lib/bulinks/bulinks";
 import { formatAnnouncements, formatServiceLinks } from "@/src/presenters/bulinks.presenter";
 import { BuLinksService, detectBuLinksTopics, rankServicePages, type BuLinksTopic } from "@/src/services/bulinks.service";
 
@@ -334,11 +334,11 @@ test("English questions get English copy and en-GB Bangkok dates; Thai copy is u
 
 // Fresh-info wiring: the lookup runs before, and instead of, the web search.
 const originalFetch = globalThis.fetch;
-let answerFreshInfoFromVerifiedSources: typeof import("@/lib/fresh-info").answerFreshInfoFromVerifiedSources;
+let answerFreshInfoFromVerifiedSources: typeof import("@/src/services/chat/workflows/fresh-info.workflow").answerFreshInfoFromVerifiedSources;
 before(async () => {
   process.env.DATABASE_URL ??= "postgresql://fixture:fixture@localhost:5432/fixture_unused";
   process.env.OPENAI_API_KEY = "synthetic-key";
-  ({ answerFreshInfoFromVerifiedSources } = await import("@/lib/fresh-info"));
+  ({ answerFreshInfoFromVerifiedSources } = await import("@/src/services/chat/workflows/fresh-info.workflow"));
 });
 afterEach(() => { globalThis.fetch = originalFetch; });
 

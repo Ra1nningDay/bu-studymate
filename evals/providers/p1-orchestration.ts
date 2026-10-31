@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { ChatOrchestrationService } from "@/src/services/chat-orchestration.service";
+import { ChatOrchestrationService } from "@/src/services/chat/chat-orchestration.service";
 import { KnowledgeService } from "@/src/services/knowledge.service";
 import { TicketService } from "@/src/services/ticket.service";
 import type { StudyMemoryService } from "@/src/services/study-memory.service";

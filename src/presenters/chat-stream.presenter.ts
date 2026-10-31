@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import type { AnswerSource } from "@/lib/ai";
-import type { BotReply, BotReplyStreamCallbacks } from "@/src/services/chat-orchestration.service";
+import type { AnswerSource } from "@/src/lib/ai/types";
+import type { BotReply, BotReplyStreamCallbacks } from "@/src/services/chat/chat-contracts";
 
 export function wantsEventStream(request: Request): boolean {
   return Boolean(request.headers.get("accept")?.toLowerCase().includes("text/event-stream"));

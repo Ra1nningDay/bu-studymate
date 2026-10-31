@@ -2,9 +2,9 @@ import type { ExecutionLogEntry } from "@/src/dtos/playground.dto";
 
 /**
  * Workflow graph confirmed against source on 2026-10-31:
- * ChatOrchestrationService.hardGuardRoute/resolveRoute/executeBotReply,
+ * services/chat/routing/chat-route.ts and services/chat/workflows/,
  * classifyWithAgentRouter (src/lib/router/agent-router.ts), KnowledgeService,
- * answerFreshInfoFromVerifiedSources (src/lib/fresh-info.ts).
+ * answerFreshInfoFromVerifiedSources (services/chat/workflows/fresh-info.workflow.ts).
  * Do not add a node or edge unless that code path exists.
  */
 export type WorkflowNodeKind = "input" | "guard" | "router" | "agent" | "retrieval" | "llm" | "tool" | "output";
@@ -34,7 +34,7 @@ export const NODE_HEIGHT = 64;
 export const workflowNodes: WorkflowNodeDef[] = [
   { id: "user_query", label: "User Query", kind: "input", icon: "message", source: "src/controllers/chat.controller.ts · line-webhook.controller.ts",
     description: "ข้อความจาก Web Chat หรือ LINE ที่ผ่านการตรวจรูปแบบแล้ว", inputs: "ข้อความผู้ใช้ (LINE / Web)", outputs: "ข้อความที่ trim แล้วส่งเข้า ChatOrchestrationService" },
-  { id: "agent_router", label: "Guards & Router", kind: "router", icon: "branch", actions: ["Agent Router Decision"], source: "ChatOrchestrationService.hardGuardRoute · src/lib/router/agent-router.ts",
+  { id: "agent_router", label: "Guards & Router", kind: "router", icon: "branch", actions: ["Agent Router Decision"], source: "src/services/chat/routing/chat-route.ts · src/lib/router/agent-router.ts",
     description: "ตรวจ hard guard ก่อน (เมนู greeting, รีเซ็ต/ยกเลิก, สถานะสร้าง ticket, /addnote, รหัส ticket) ถ้าไม่ตรงจึงให้ Agent Router จำแนก intent/target ด้วย Jev (สำรองด้วย OpenAI) และตรวจนโยบายความมั่นใจ/ความปลอดภัย",
     inputs: "ข้อความ + สถานะ session + ประวัติ 2 ข้อความล่าสุด", outputs: "intent, selectedTarget, confidence, reason, needsWebSearch, safetyCritical" },
   { id: "query_rewrite", label: "Query Rewrite", kind: "llm", icon: "sparkles", actions: ["Query Rewrite"], source: "src/services/knowledge.service.ts · src/lib/rag",
@@ -45,17 +45,17 @@ export const workflowNodes: WorkflowNodeDef[] = [
     description: "ขั้นบันทึกผลรวมอันดับ เวลาถูกนับรวมใน Hybrid Retrieval (SQL) จึงไม่มีเวลาแยก", inputs: "ผลค้น keyword + vector", outputs: "Candidates ที่เรียงตาม RRF" },
   { id: "reranker", label: "Reranker", kind: "llm", icon: "list", actions: ["Reranker"], source: "src/lib/rag (rerankKnowledge)",
     description: "จัดอันดับ candidates ใหม่ด้วย LLM ถ้าล้มเหลวใช้ลำดับ RRF", inputs: "คำถาม + candidates", outputs: "ข้อความหลักฐานที่เลือก (สูงสุด 5)" },
-  { id: "llm_generation", label: "LLM Generation", kind: "llm", icon: "sparkles", actions: ["LLM Generation"], source: "KnowledgeService.answerQuestion",
+  { id: "llm_generation", label: "LLM Generation", kind: "llm", icon: "sparkles", actions: ["LLM Generation"], source: "KnowledgeService.answerQuestion · src/lib/ai/knowledge-answer.ts",
     description: "สร้างคำตอบจากหลักฐานพร้อม citations ถ้าไม่มีหลักฐานจะถือว่าไม่พบ", inputs: "หลักฐานที่เลือก + ประวัติ", outputs: "คำตอบพร้อม citations หรือ NO_VERIFIED_INFO_FOUND" },
-  { id: "bulinks_lookup", label: "BU Links Lookup", kind: "tool", icon: "link", actions: ["BU Links Lookup"], source: "src/lib/fresh-info.ts · src/services/bulinks.service.ts",
+  { id: "bulinks_lookup", label: "BU Links Lookup", kind: "tool", icon: "link", actions: ["BU Links Lookup"], source: "src/services/chat/workflows/fresh-info.workflow.ts · src/services/bulinks.service.ts",
     description: "ลองค้นประกาศ/หน้าบริการจาก BU Links สดก่อน โดยไม่ใช้ LLM", inputs: "ข้อความผู้ใช้", outputs: "ข้อความพร้อมลิงก์ หรือไม่มีผล (ไปต่อที่ Web Search)" },
-  { id: "web_search", label: "Web Search", kind: "tool", icon: "globe", actions: ["Search Fresh Info (Web Search)"], source: "src/lib/fresh-info.ts",
+  { id: "web_search", label: "Web Search", kind: "tool", icon: "globe", actions: ["Search Fresh Info (Web Search)"], source: "src/services/chat/workflows/fresh-info.workflow.ts · src/lib/ai/web-search.ts",
     description: "ค้นข้อมูลล่าสุดด้วย web search ผ่านแหล่งที่ตรวจแล้ว", inputs: "ข้อความ + ประวัติ", outputs: "คำตอบพร้อมแหล่งข้อมูล" },
-  { id: "study_memory", label: "Study Memory", kind: "agent", icon: "book", targets: ["study_memory"], source: "src/services/study-memory.service.ts",
+  { id: "study_memory", label: "Study Memory", kind: "agent", icon: "book", targets: ["study_memory"], source: "src/services/chat/workflows/study.workflow.ts · src/services/study-memory.service.ts",
     description: "บันทึกโน้ต ดูสมุดโน้ต/งานที่ได้รับ และตอบจากบทเรียนของผู้ใช้", inputs: "LINE user + ข้อความ", outputs: "ข้อความ/Flex ที่อ้างอิงข้อมูลบทเรียน" },
-  { id: "ticket", label: "Support Tickets", kind: "agent", icon: "ticket", targets: ["ticket"], source: "src/services/ticket.service.ts",
+  { id: "ticket", label: "Support Tickets", kind: "agent", icon: "ticket", targets: ["ticket"], source: "src/services/chat/workflows/ticket.workflow.ts · src/services/ticket.service.ts",
     description: "ดำเนินขั้นตอนแจ้งปัญหา ยืนยัน หรือค้นสถานะ ticket", inputs: "LINE user + ข้อความ + ticket session", outputs: "ข้อความ/Flex ของ ticket" },
-  { id: "general_chat", label: "Chat & Policy", kind: "agent", icon: "chat", targets: ["general_chat", "out_of_scope", "unknown"], source: "chat-orchestration.service.ts · src/lib/ai.ts",
+  { id: "general_chat", label: "Chat & Policy", kind: "agent", icon: "chat", targets: ["general_chat", "out_of_scope", "unknown"], source: "src/services/chat/workflows/general-chat.workflow.ts · src/lib/ai/general-chat.ts",
     description: "สนทนาทั่วไป ถามให้ชัดเจน ตอบตามขอบเขต หรือแสดงคำแนะนำ/รีเซ็ต", inputs: "ข้อความ + ประวัติ", outputs: "คำตอบทั่วไป/คำถามขอรายละเอียด/ข้อความตามขอบเขต" },
   { id: "output", label: "Output", kind: "output", icon: "output", actions: ["Output"], source: "ChatOrchestrationService.executeBotReply",
     description: "ต่อรายการแหล่งข้อมูลท้ายคำตอบ ส่งเข้า stream และบันทึกคำตอบ", inputs: "คำตอบจาก branch ที่เลือก", outputs: "ข้อความตอบกลับ + citations" }

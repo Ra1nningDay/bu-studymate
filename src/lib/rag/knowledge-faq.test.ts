@@ -6,7 +6,7 @@ import { KnowledgeDocumentSchema, KnowledgeManifestSchema, knowledgeActionLinkSc
 let KnowledgeIngestionService: typeof import("@/src/services/knowledge-ingestion.service").KnowledgeIngestionService;
 let KnowledgeService: typeof import("@/src/services/knowledge.service").KnowledgeService;
 let rewrite: typeof import("@/lib/ai").rewriteKnowledgeAnswer;
-let buildFaqManifest: typeof import("@/lib/knowledge-faq").buildFaqManifest;
+let buildFaqManifest: typeof import("@/src/lib/rag/knowledge-faq").buildFaqManifest;
 let appendActionLinks: typeof import("@/src/presenters/knowledge-answer.presenter").appendActionLinks;
 let env: typeof import("@/src/config/env").env;
 const originalFetch = globalThis.fetch;
@@ -21,7 +21,7 @@ before(async () => {
   ({ KnowledgeIngestionService } = await import("@/src/services/knowledge-ingestion.service"));
   ({ KnowledgeService } = await import("@/src/services/knowledge.service"));
   ({ rewriteKnowledgeAnswer: rewrite } = await import("@/lib/ai"));
-  ({ buildFaqManifest } = await import("@/lib/knowledge-faq"));
+  ({ buildFaqManifest } = await import("@/src/lib/rag/knowledge-faq"));
   ({ appendActionLinks } = await import("@/src/presenters/knowledge-answer.presenter"));
 });
 afterEach(() => { globalThis.fetch = originalFetch; });

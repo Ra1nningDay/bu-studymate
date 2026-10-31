@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import {
   chatOrchestrationService,
   type ChatOrchestrationService
-} from "@/src/services/chat-orchestration.service";
+} from "@/src/services/chat/chat-orchestration.service";
 import {
   lineFlexPresenter,
   type LineFlexPresenter
@@ -26,7 +26,7 @@ import {
   studentAuthService,
   type StudentAuthService
 } from "@/src/services/student-auth.service";
-import type { SavedStudyFile } from "@/lib/study-file";
+import type { SavedStudyFile } from "@/src/lib/study/study-file";
 
 function formatSavedStudyFileReply(file: SavedStudyFile) {
   const lines = [
@@ -190,7 +190,7 @@ export class LineWebhookController {
     void showLineLoadingAnimation(lineUserId, 60);
 
     try {
-      const { saveStudyFile } = await import("@/lib/study-file");
+      const { saveStudyFile } = await import("@/src/lib/study/study-file");
       const buffer = await getLineMessageContent(messageId);
       const savedFile = await saveStudyFile({
         buffer,

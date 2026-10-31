@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { before, test } from "node:test";
 import { KnowledgeSaveSchema } from "@/src/dtos/knowledge-admin.dto";
-import { knowledgeContentHash } from "@/lib/knowledge-index";
+import { knowledgeContentHash } from "@/src/lib/rag/knowledge-index";
 import type { KnowledgeRepository } from "@/src/repositories/knowledge.repository";
 import type { KnowledgeIngestionService } from "./knowledge-ingestion.service";
 import { standardAdminFixture } from "./test-support/admin-auth-fixture";

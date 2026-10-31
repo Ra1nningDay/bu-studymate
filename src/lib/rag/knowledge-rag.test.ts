@@ -1,18 +1,18 @@
 import assert from "node:assert/strict";
 import { afterEach, before, test } from "node:test";
 import { KnowledgeManifestSchema } from "@/src/dtos/knowledge.dto";
-import { knowledgeContentHash, splitKnowledgeContent, tokenizeKnowledge } from "@/lib/knowledge-index";
-import { fetchKnowledgeSource, isPublicKnowledgeAddress } from "@/lib/knowledge-source";
+import { knowledgeContentHash, splitKnowledgeContent, tokenizeKnowledge } from "@/src/lib/rag/knowledge-index";
+import { fetchKnowledgeSource, isPublicKnowledgeAddress } from "@/src/lib/rag/knowledge-source";
 import type { KnowledgeEvidence, KnowledgeRepository } from "@/src/repositories/knowledge.repository";
 
 let env: typeof import("@/src/config/env").env;
-let embedding: typeof import("@/lib/knowledge-embedding");
+let embedding: typeof import("@/src/lib/rag/knowledge-embedding");
 let KnowledgeService: typeof import("@/src/services/knowledge.service").KnowledgeService;
 let KnowledgeIngestionService: typeof import("@/src/services/knowledge-ingestion.service").KnowledgeIngestionService;
 let rewrite: typeof import("@/lib/ai").rewriteKnowledgeAnswer;
-let rerank: typeof import("@/lib/knowledge-rerank").rerankKnowledge;
-let rewriteQuery: typeof import("@/lib/knowledge-query").rewriteKnowledgeQuery;
-let isStandaloneKnowledgeQuery: typeof import("@/lib/knowledge-query").isStandaloneKnowledgeQuery;
+let rerank: typeof import("@/src/lib/rag/knowledge-rerank").rerankKnowledge;
+let rewriteQuery: typeof import("@/src/lib/rag/knowledge-query").rewriteKnowledgeQuery;
+let isStandaloneKnowledgeQuery: typeof import("@/src/lib/rag/knowledge-query").isStandaloneKnowledgeQuery;
 const originalFetch = globalThis.fetch;
 const vector = [1, ...Array<number>(1535).fill(0)];
 const now = new Date("2026-10-13T00:00:00Z");
@@ -39,12 +39,12 @@ before(async () => {
   process.env.DATABASE_URL ??= "postgresql://fixture:fixture@localhost:5432/fixture_unused";
   ({ env } = await import("@/src/config/env"));
   env.OPENAI_API_KEY = "synthetic-key";
-  embedding = await import("@/lib/knowledge-embedding");
+  embedding = await import("@/src/lib/rag/knowledge-embedding");
   ({ KnowledgeService } = await import("@/src/services/knowledge.service"));
   ({ KnowledgeIngestionService } = await import("@/src/services/knowledge-ingestion.service"));
   ({ rewriteKnowledgeAnswer: rewrite } = await import("@/lib/ai"));
-  ({ rerankKnowledge: rerank } = await import("@/lib/knowledge-rerank"));
-  ({ rewriteKnowledgeQuery: rewriteQuery, isStandaloneKnowledgeQuery } = await import("@/lib/knowledge-query"));
+  ({ rerankKnowledge: rerank } = await import("@/src/lib/rag/knowledge-rerank"));
+  ({ rewriteKnowledgeQuery: rewriteQuery, isStandaloneKnowledgeQuery } = await import("@/src/lib/rag/knowledge-query"));
 });
 afterEach(() => {
   globalThis.fetch = originalFetch;

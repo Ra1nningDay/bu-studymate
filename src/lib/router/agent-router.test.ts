@@ -2,14 +2,14 @@ import assert from "node:assert/strict";
 import { afterEach, before, test } from "node:test";
 
 let env: typeof import("@/src/config/env").env;
-let classifyWithAgentRouter: typeof import("@/lib/agent-router").classifyWithAgentRouter;
+let classifyWithAgentRouter: typeof import("@/src/lib/router/agent-router").classifyWithAgentRouter;
 const originalFetch = globalThis.fetch;
 const originalInfo = console.info;
 
 before(async () => {
   process.env.DATABASE_URL ??= "postgresql://test:test@localhost:5432/studymate_test";
   ({ env } = await import("@/src/config/env"));
-  ({ classifyWithAgentRouter } = await import("@/lib/agent-router"));
+  ({ classifyWithAgentRouter } = await import("@/src/lib/router/agent-router"));
 });
 
 afterEach(() => {

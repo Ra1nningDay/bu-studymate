@@ -1,8 +1,8 @@
 import type { AiUsageEntry } from "@/src/dtos/ai-usage.dto";
-import { rewriteKnowledgeAnswer } from "@/lib/ai";
-import { embedKnowledge } from "@/lib/knowledge-embedding";
-import { rerankKnowledge } from "@/lib/knowledge-rerank";
-import { rewriteKnowledgeQuery } from "@/lib/knowledge-query";
+import { rewriteKnowledgeAnswer } from "@/src/lib/ai/knowledge-answer";
+import { embedKnowledge } from "@/src/lib/rag/knowledge-embedding";
+import { rerankKnowledge } from "@/src/lib/rag/knowledge-rerank";
+import { rewriteKnowledgeQuery } from "@/src/lib/rag/knowledge-query";
 import { officialKnowledgeUrlSchema } from "@/src/dtos/knowledge.dto";
 import { appendActionLinks } from "@/src/presenters/knowledge-answer.presenter";
 import { knowledgeRepository, type KnowledgeRepository } from "@/src/repositories/knowledge.repository";

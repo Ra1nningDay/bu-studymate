@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { env } from "@/src/config/env";
-import { bumailEmail, exchangeGoogleCode, googleAuthUrl } from "@/lib/google-oidc";
+import { bumailEmail, exchangeGoogleCode, googleAuthUrl } from "@/src/lib/auth/google-oidc";
 import { studentAccountRepository, type StudentAccountRepository } from "@/src/repositories/student-account.repository";
 import { signToken, verifyToken } from "./signed-token";
 
