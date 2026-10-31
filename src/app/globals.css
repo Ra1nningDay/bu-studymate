@@ -23,7 +23,11 @@ textarea {
 }
 
 .admin-workspace {
-  font-family: Inter, "Segoe UI", Tahoma, sans-serif;
+  --admin-ground: #f4f6f5;
+  --admin-ink: #18231e;
+  --admin-border: #e5e9e6;
+  font-family: var(--font-admin-sans), "Segoe UI", Tahoma, sans-serif;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Keep the chat composer visible while the history and trace scroll independently. */

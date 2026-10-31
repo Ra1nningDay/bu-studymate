@@ -6,6 +6,7 @@ import { PlaygroundSessionIdSchema, type PlaygroundConversation, type Playground
 import { consumeChatSseResponse, SseStreamError } from "@/lib/chat-sse-client";
 import { RunTrace } from "./run-trace";
 import { ChatAvatar, ChatSources } from "./chat-ui";
+import { AdminPageHeader } from "../admin-page-header";
 
 const storageKey = "studymate-playground-session";
 const api = "/api/admin/playground";
@@ -336,20 +337,30 @@ export function Playground() {
   return (
     <main className={`chat-workspace grid min-w-0 ${traceOpen ? "xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_394px]" : "grid-cols-1"}`}>
       <div className="flex min-h-0 min-w-0 flex-col">
-        <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-5 py-4 md:px-7">
-          <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-widest text-emerald-700">BU StudyMate / Test workspace</p>
-            <h1 className="mt-1 text-[28px] font-semibold tracking-tight">Web Chat</h1>
-            <p className="mt-0.5 text-xs text-slate-500">ทดสอบการสนทนากับ AI ของ StudyMate และตรวจสอบคำตอบ</p>
-          </div>
-          <div className="flex items-center gap-2">
-            {conversation && (conversation.messages.length > 0 || conversation.runs.length > 0) && <a href={`/admin/chat/report/${conversation.sessionId}`} target="_blank" rel="noopener" className={button}><FileText aria-hidden="true" className="h-4 w-4" />รายงาน</a>}
-            <details className="relative">
-              <summary aria-label="ตัวเลือกบทสนทนา" className={`${button} cursor-pointer list-none px-2.5`}><MoreVertical aria-hidden="true" className="h-5 w-5" /></summary>
-              <div className="absolute right-0 top-full z-20 mt-2 w-48 rounded-xl border border-slate-200 bg-white p-2 shadow-lg"><button onClick={refresh} disabled={busy} className={`${button} w-full border-0`}><RefreshCw aria-hidden="true" className="h-4 w-4" />โหลดข้อมูลใหม่</button></div>
-            </details>
-          </div>
-        </header>
+        <AdminPageHeader
+          title="Web Chat"
+          description="ทดสอบการสนทนากับ AI ของ StudyMate และตรวจสอบคำตอบ"
+          className="px-5 py-4 md:px-7"
+          actions={
+            <>
+              {conversation && (conversation.messages.length > 0 || conversation.runs.length > 0) && (
+                <a href={`/admin/chat/report/${conversation.sessionId}`} target="_blank" rel="noopener" className={button}>
+                  <FileText aria-hidden="true" className="h-4 w-4" />รายงาน
+                </a>
+              )}
+              <details className="relative">
+                <summary aria-label="ตัวเลือกบทสนทนา" className={`${button} cursor-pointer list-none px-2.5`}>
+                  <MoreVertical aria-hidden="true" className="h-5 w-5" />
+                </summary>
+                <div className="absolute right-0 top-full z-20 mt-2 w-48 rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
+                  <button onClick={refresh} disabled={busy} className={`${button} w-full border-0`}>
+                    <RefreshCw aria-hidden="true" className="h-4 w-4" />โหลดข้อมูลใหม่
+                  </button>
+                </div>
+              </details>
+            </>
+          }
+        />
         {error && <p role="alert" className="mx-3 mb-3 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}
         <div className={`mx-3 mb-3 grid min-h-0 grid-cols-1 flex-1 overflow-hidden rounded-xl border border-slate-200 bg-white ${historyOpen ? "md:grid-cols-[228px_minmax(0,1fr)] 2xl:grid-cols-[276px_minmax(0,1fr)]" : ""}`}>
           {historyOpen && <aside aria-label="ประวัติการสนทนา" className="flex min-h-0 min-w-0 flex-col border-b border-slate-200 md:border-b-0 md:border-r">
