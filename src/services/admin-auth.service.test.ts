@@ -52,7 +52,8 @@ test("getSession rejects expired, tampered, old-format and wrong-secret tokens w
   const now = 1_800_000_000_000;
   const token = await f.tokenFor("boss@bumail.net", "boss-pw", now);
   assert.ok(await f.service.getSession(token, now + 1000));
-  assert.equal(await f.service.getSession(token, now + 9 * 3600 * 1000), null);
+  assert.ok(await f.service.getSession(token, now + 29 * 24 * 3600 * 1000));
+  assert.equal(await f.service.getSession(token, now + 31 * 24 * 3600 * 1000), null);
   const [exp, , sig] = token.split(".");
   const other = f.users[1].id;
   const old = `${exp}.${"a".repeat(32)}.${sig}`;

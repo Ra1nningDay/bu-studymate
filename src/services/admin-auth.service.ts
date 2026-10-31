@@ -6,7 +6,7 @@ import { hashPassword, verifyPassword } from "@/src/services/password";
 export type { AdminRole, AdminSession };
 
 export const adminCookieName = "studymate-admin";
-export const adminSessionSeconds = 8 * 60 * 60;
+export const adminSessionSeconds = 30 * 24 * 60 * 60;
 
 // Verified against when the email is unknown so a miss costs the same as a wrong password.
 const dummyHash = hashPassword("dummy-password-for-timing");

@@ -56,7 +56,7 @@ export class AdminAuthController {
     const response = NextResponse.redirect(new URL(token ? "/admin" : "/login?login=failed", getPublicOrigin(request)), 303);
     response.headers.set("Cache-Control", "private, no-store");
     if (token) response.cookies.set(adminCookieName, token, {
-      httpOnly: true, secure: env.NODE_ENV === "production", sameSite: "strict",
+      httpOnly: true, secure: env.NODE_ENV === "production", sameSite: "lax",
       path: "/", maxAge: adminSessionSeconds
     });
     return response;

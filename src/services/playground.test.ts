@@ -81,7 +81,7 @@ test("login submits by POST and sets a protected cookie without placing credenti
   assert.equal(response.status, 303);
   assert.equal(response.headers.get("location"), `${origin}/admin`);
   assert.match(response.headers.get("set-cookie") ?? "", /HttpOnly/i);
-  assert.match(response.headers.get("set-cookie") ?? "", /SameSite=strict/i);
+  assert.match(response.headers.get("set-cookie") ?? "", /SameSite=lax/i);
   assert.doesNotMatch(response.headers.get("set-cookie") ?? "", /boss-pw/);
   const logout = await f.authController.logout(f.request("logout", {}));
   assert.match(logout.headers.get("set-cookie") ?? "", /Max-Age=0/i);
