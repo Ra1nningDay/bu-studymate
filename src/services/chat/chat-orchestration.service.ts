@@ -117,7 +117,8 @@ export class ChatOrchestrationService {
     if (route.guideAction) {
       const guide = chatGuides[route.guideAction];
       executionLog.push({ ...guide.step });
-      reply = asReply(guide.text, undefined, undefined, undefined, undefined, executionLog);
+      const quickReply = "quickReply" in guide ? guide.quickReply : undefined;
+      reply = asReply(guide.text, undefined, undefined, undefined, undefined, executionLog, quickReply);
     } else if (route.resetRequested || intent === "CREATE_TICKET" || intent === "CHECK_TICKET_STATUS") {
       reply = await executeTicketWorkflow({ route, lineUserId, trimmedMessage, session, isThai, executionLog }, this.ticketSvc);
     } else if (intent === "ADD_STUDY_NOTE" || intent === "LIST_ASSIGNMENTS" || intent === "LIST_NOTEBOOKS" || intent === "VIEW_NOTEBOOK" || intent === "ASK_STUDY_MEMORY") {

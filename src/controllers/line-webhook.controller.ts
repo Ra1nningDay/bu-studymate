@@ -137,9 +137,12 @@ export class LineWebhookController {
 
     const reply = await this.chatSvc.createBotReply({ channel: "line", lineUserId, message });
     if (reply.flexMessage) {
-      await replyLineMessage(replyToken, [reply.flexMessage]);
+      const flexMessage = reply.quickReply
+        ? { ...reply.flexMessage, quickReply: reply.quickReply }
+        : reply.flexMessage;
+      await replyLineMessage(replyToken, [flexMessage]);
     } else {
-      await replyLineText(replyToken, reply.text);
+      await replyLineText(replyToken, reply.text, reply.quickReply);
     }
   }
 

@@ -77,8 +77,12 @@ export async function showLineLoadingAnimation(chatId: string, loadingSeconds = 
   }
 }
 
-export async function replyLineText(replyToken: string, text: string) {
-  return replyLineMessage(replyToken, [{ type: "text", text }]);
+export async function replyLineText(replyToken: string, text: string, quickReply?: any) {
+  const message: Record<string, any> = { type: "text", text };
+  if (quickReply) {
+    message.quickReply = quickReply;
+  }
+  return replyLineMessage(replyToken, [message]);
 }
 
 export async function replyLineMessage(replyToken: string, messages: any[]) {

@@ -13,7 +13,8 @@ export function asReply(
   },
   model?: string,
   flexMessage?: any,
-  executionLog?: ExecutionLogEntry[]
+  executionLog?: ExecutionLogEntry[],
+  quickReply?: any
 ): BotReply {
-  return { text, sources, usage, model, flexMessage, executionLog };
+  return { text, sources, usage, model, flexMessage, executionLog, quickReply };
 }

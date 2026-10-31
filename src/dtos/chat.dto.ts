@@ -18,6 +18,7 @@ export type ChatResponseDto = {
   flexMessage?: any;
   sources?: AnswerSourceDto[];
   usedWebSearch?: boolean;
+  quickReply?: any;
 };
 
 export type SavedStudyFileDto = {

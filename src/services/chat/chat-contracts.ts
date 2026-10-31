@@ -23,6 +23,7 @@ export type BotReply = {
   sources?: AnswerSource[];
   text: string;
   flexMessage?: any;
+  quickReply?: any;
   usedWebSearch?: boolean;
   usage?: AiTokenUsage;
   usageEntries?: AiUsageEntry[];

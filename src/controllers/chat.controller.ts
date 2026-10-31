@@ -93,7 +93,8 @@ export class ChatController {
             reply: reply.text,
             flexMessage: reply.flexMessage,
             sources: reply.sources ?? [],
-            usedWebSearch: Boolean(reply.usedWebSearch)
+            usedWebSearch: Boolean(reply.usedWebSearch),
+            quickReply: reply.quickReply
           }),
           runId: reply.runId ?? null
         })
@@ -111,7 +112,8 @@ export class ChatController {
       reply: reply.text,
       flexMessage: reply.flexMessage,
       sources: reply.sources ?? [],
-      usedWebSearch: Boolean(reply.usedWebSearch)
+      usedWebSearch: Boolean(reply.usedWebSearch),
+      quickReply: reply.quickReply
     });
 
     return NextResponse.json(responseDto);

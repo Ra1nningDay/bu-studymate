@@ -1,13 +1,20 @@
 # StudyMate Work Status
 
-Updated: 2026-10-27
+Updated: 2026-10-31
 
 This index owns local work status. Specs and tickets own scope and verification;
 [AGENTS.md](../AGENTS.md) owns working rules. A plan is not implementation proof.
 
 ## Current Handoff
 
-- Latest effort: Shared analytics DateRangeFilter ([analytics-dates-02](analytics-dates/issues/02-consistent-date-filter.md)),
+- Latest effort: Ask BU info guide copy and Quick Reply, completed locally on 2026-10-31:
+  updated ASK_BU_INFO_GUIDE with 6 verified examples, official BU Links & BU FAQ links, and 6 LINE Quick Reply buttons
+  (strictly non-AI emojis: 📶, 📧, 💳, 📅, 📄, 🏛️); verified with full test suites, typecheck, lint, and graphify update.
+- Previous effort: Live Playground benchmark ([chat-benchmark-01](chat-benchmark/issues/01-live-playground.md)),
+  completed locally on 2026-10-31: 50 real provider/DB HTTP turns in 10 saved sessions;
+  40/40 expected first-ranked articles in RAG, 5 fresh-search cases, cost telemetry
+  incomplete. See [report](chat-benchmark/report.md); visual browser check unavailable.
+  Previous effort: Shared analytics DateRangeFilter ([analytics-dates-02](analytics-dates/issues/02-consistent-date-filter.md)),
   resolved locally on 2026-10-31; uncommitted. Shared layout/presets and URL preservation verified; not deployed.
   Previous effort: Recorded analytics and date filters ([analytics-dates-01](analytics-dates/issues/01-real-usage-date-filters.md)),
   resolved locally on 2026-10-31; uncommitted. Read-only real usage and synthetic UI verified; not deployed.
@@ -44,7 +51,9 @@ This index owns local work status. Specs and tickets own scope and verification;
 | Effort | Status | Record | Evidence boundary |
 |---|---|---|---|
 | Chat routing/workflow organization | Resolved locally, 2026-10-31; master publication authorized | [chat-structure plan](chat-structure/plan.md), [chat-structure-02](chat-structure/issues/02-separate-chat-modules.md) | Routing, five workflows, AI adapters/contracts and explicit imports; 311 offline tests, 116 before/after turns, typecheck/lint, isolated full-app build (24/24 static pages), links and Graphify passed. Root Prisma generate DLL-locked; isolated generation passed. No live UAT or deployment. |
-| Model rates and cost telemetry | Resolved locally, 2026-10-31; migration pending | [model-costs-01](model-costs/issues/01-model-pricing.md) | Luna/Jev rates, per-call usage/provider cost/search fees and honest historical estimates. 96 scoped tests, typecheck/lint, SELECT-only SQL and production-fixture browser checks passed; migration not applied, no deployment. |
+| Model rates and cost telemetry | Pushed to master `1493f62`, 2026-10-31; migration pending | [model-costs-01](model-costs/issues/01-model-pricing.md) | Luna/Jev rates, per-call usage/provider cost/search fees and honest historical estimates. 110 focused tests, typecheck/lint, SELECT-only SQL and production-fixture browser checks passed; migration not applied, no deployment. |
+| Runtime harness inventory | Resolved source audit, 2026-10-31 | [harness-audit-01](harness-audit/issues/01-runtime-inventory.md) | [Eight-category inventory](harness-audit/report.md); 93 focused offline tests passed. Partial runtime coverage, telemetry/eval gaps recorded; no runtime edits, fresh live UAT or deployment. |
+| Live Playground benchmark | Completed locally, 2026-10-31 | [chat-benchmark-01](chat-benchmark/issues/01-live-playground.md) | 50 real SSE HTTP turns, 10 saved sessions, 50 linked successful runs/100 messages, 10 report HTTP checks, unchanged old data/corpus. 40/40 RAG expected top-1; 5 fresh searches; incomplete billing telemetry. No visual UI check or deployment. |
 | Agent Workflow explorer | Claimed, 2026-10-31 | [agent-workflow-01](agent-workflow/issues/01-workflow-explorer.md) | Approved read-only routing map and saved-run evidence; verification pending. |
 | Admin navigation performance | Resolved locally, 2026-10-31; uncommitted | [admin-perf plan](admin-perf/plan.md) | Tickets 01-06 resolved: @prisma/adapter-pg (478ms -> 98ms/query), React cache() requireAdmin (1 lookup/request), admin/loading.tsx skeleton, Overview Suspense streaming + 60s corpus count cache, internal next/link conversions. 87 tests, Playwright 1440/768/390 checks, typecheck/lint and graph passed. |
 | Shared analytics date filter | Resolved locally, 2026-10-31; uncommitted | [analytics-dates-02](analytics-dates/issues/02-consistent-date-filter.md) | One DateRangeFilter, 7/30/90/365 presets, independent Runs forms; typecheck/lint, 24 regressions, production fixture and geometry/interaction checks at 1440/1280/768/390 passed. No live DB/provider UAT or deployment. |

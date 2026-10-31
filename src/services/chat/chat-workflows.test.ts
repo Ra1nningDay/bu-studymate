@@ -22,7 +22,8 @@ for (const channel of ["web", "line"] as const) {
     ["งานที่ต้องส่งมีอะไรบ้าง", "LIST_ASSIGNMENTS", "ยังไม่พบ assignment ในโน้ตที่บันทึกไว้ครับ", ["find-course", "assignments"]],
     ["ดูบันทึกโน้ต", "LIST_NOTEBOOKS", "Saved notebooks", ["notebooks"]],
     ["BU-TICKET-0001", "CHECK_TICKET_STATUS", "ยังไม่พบ Ticket: BU-TICKET-0001 ครับ", ["ticket:BU-TICKET-0001"]],
-    ["cancel", "GENERAL_CHAT", "Conversation reset. How can I help you?", ["reset"]]
+    ["cancel", "GENERAL_CHAT", "Conversation reset. How can I help you?", ["reset"]],
+    ["ถามข้อมูลทั่วไป", "GENERAL_CHAT", "อยากรู้เรื่องไหนเกี่ยวกับ BU พิมพ์ถามได้เลยครับ 😊", []]
   ] as const) {
     test(`${channel}: branch ${message} preserves dispatch, output and saved reply`, async () => {
       globalThis.fetch = async () => { throw new Error("Hard guards must skip provider calls"); };
@@ -51,6 +52,12 @@ for (const channel of ["web", "line"] as const) {
       assert.equal(reply.executionLog?.at(-1)?.action, "Output");
       if (message.startsWith("/addnote Math")) assert.ok(reply.flexMessage);
       if (expectedIntent === "LIST_ASSIGNMENTS") assert.equal(reply.flexMessage, null);
+      if (message === "ถามข้อมูลทั่วไป") {
+        assert.ok(reply.quickReply);
+        assert.equal(reply.quickReply.items.length, 6);
+        assert.match(reply.text, /https:\/\/bulinks\.bu\.ac\.th\//);
+        assert.match(reply.text, /https:\/\/faq\.bu\.ac\.th\//);
+      }
     });
   }
 }

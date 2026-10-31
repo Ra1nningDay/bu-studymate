@@ -10,20 +10,23 @@ export class ChatResponsePresenter {
     reply,
     flexMessage,
     sources = [],
-    usedWebSearch = false
+    usedWebSearch = false,
+    quickReply
   }: {
     aiConfigured: boolean;
     reply: string;
     flexMessage?: any;
     sources?: Array<{ title: string; url: string }>;
     usedWebSearch?: boolean;
+    quickReply?: any;
   }): ChatResponseDto {
     return {
       aiConfigured,
       reply,
       flexMessage,
       sources,
-      usedWebSearch
+      usedWebSearch,
+      quickReply
     };
   }
 

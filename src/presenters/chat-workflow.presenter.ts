@@ -62,9 +62,79 @@ export function formatAssignmentsReply(
     .join("\n\n");
 }
 
+export type LineQuickReplyItem = {
+  type: "action";
+  action: {
+    type: "message";
+    label: string;
+    text: string;
+  };
+};
+
+export type LineQuickReply = {
+  items: LineQuickReplyItem[];
+};
+
+export const askBuInfoQuickReply: LineQuickReply = {
+  items: [
+    {
+      type: "action",
+      action: {
+        type: "message",
+        label: "📶 Wi-Fi",
+        text: "เชื่อมต่อ BU Wi-Fi ยังไง"
+      }
+    },
+    {
+      type: "action",
+      action: {
+        type: "message",
+        label: "📧 BU Mail",
+        text: "ลืมรหัสผ่าน BU Mail ต้องทำอย่างไร"
+      }
+    },
+    {
+      type: "action",
+      action: {
+        type: "message",
+        label: "💳 ค่าเทอม",
+        text: "ขอผ่อนชำระค่าเทอมได้ไหม"
+      }
+    },
+    {
+      type: "action",
+      action: {
+        type: "message",
+        label: "📅 ปฏิทินการศึกษา",
+        text: "ดูปฏิทินการศึกษาและวันหยุดที่ไหน"
+      }
+    },
+    {
+      type: "action",
+      action: {
+        type: "message",
+        label: "📄 ขอใบรับรอง",
+        text: "ขอใบรับรองนักศึกษายังไง"
+      }
+    },
+    {
+      type: "action",
+      action: {
+        type: "message",
+        label: "🏛️ ติดต่อทะเบียน",
+        text: "ติดต่อฝ่ายทะเบียนช่องทางไหน"
+      }
+    }
+  ]
+};
+
 export const chatGuides = {
   UPLOAD_STUDY_MATERIAL: { text: "บันทึกบทเรียนได้ 2 วิธีครับ\n\n1. แนบไฟล์ PDF หรือ DOCX มาในแชตนี้ได้เลย\n\n2. พิมพ์โน้ตเป็นข้อความด้วยรูปแบบนี้:\n/addnote <ชื่อวิชา>\n<เนื้อหาที่เรียนหรืองานที่ต้องส่ง>\n\nตัวอย่าง:\n/addnote Marketing\nToday we learned customer segmentation.\nAssignment due Friday: create one customer persona.", step: { action: "Greeting Menu Guide", details: "Upload study material" } },
-  ASK_BU_INFO_GUIDE: { text: "พิมพ์คำถามเกี่ยวกับ BU มาได้เลยครับ\n\nตัวอย่าง:\n- BU Wi-Fi ใช้ยังไง\n- ดูวันหยุดมหาวิทยาลัยที่ไหน\n- ติดต่อหน่วยงานไหนได้บ้าง", step: { action: "Greeting Menu Guide", details: "Ask BU info" } },
+  ASK_BU_INFO_GUIDE: {
+    text: "อยากรู้เรื่องไหนเกี่ยวกับ BU พิมพ์ถามได้เลยครับ 😊\n\nตัวอย่างคำถาม\n• เชื่อมต่อ BU Wi-Fi ยังไง\n• ลืมรหัสผ่าน BU Mail ต้องทำอย่างไร\n• ขอผ่อนชำระค่าเทอมได้ไหม\n• ดูปฏิทินการศึกษาและวันหยุดที่ไหน\n• ขอใบรับรองนักศึกษายังไง\n• ติดต่อฝ่ายทะเบียนช่องทางไหน\n\nหรือเปิดเว็บไซต์โดยตรง\n🔗 BU Links — บริการนักศึกษาและประกาศ: https://bulinks.bu.ac.th/\n🔗 BU FAQ — บัญชีผู้ใช้ Wi-Fi และบริการ IT: https://faq.bu.ac.th/",
+    quickReply: askBuInfoQuickReply,
+    step: { action: "Greeting Menu Guide", details: "Ask BU info" }
+  },
   REPORT_ISSUE_GUIDE: { text: "แจ้งอาคาร ห้อง และรายละเอียดปัญหาได้เลยครับ\n\nตัวอย่าง:\nอาคาร A3 ชั้น 2 ห้อง LAB 2 แอร์ไม่เย็น", step: { action: "Greeting Menu Guide", details: "Report classroom issue" } },
   ASK_LATEST_STUDY_GUIDE: { text: "พิมพ์คำถามเกี่ยวกับบทเรียนล่าสุดได้เลยครับ\n\nตัวอย่าง:\n- อธิบายหัวข้อนี้ให้ง่ายขึ้น\n- จุดไหนสำคัญสุด\n- ออกข้อสอบจากบทเรียนนี้ให้หน่อย", step: { action: "Study Pack Guide", details: "Ask from latest lesson" } }
 };
