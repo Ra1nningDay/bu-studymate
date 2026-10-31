@@ -1,3 +1,4 @@
+import { aiTokenUsageSchema, type AiTokenUsage } from "@/src/dtos/ai-usage.dto";
 import { z } from "zod";
 import { env } from "@/src/config/env";
 
@@ -34,7 +35,7 @@ export async function rewriteKnowledgeQuery(
 ) {
   const fallback = {
     query,
-    usage: undefined as { total_tokens: number } | undefined,
+    usage: undefined as AiTokenUsage | undefined,
     model: undefined as string | undefined,
     status: "fallback" as "applied" | "fallback" | "skipped"
   };
@@ -69,7 +70,7 @@ export async function rewriteKnowledgeQuery(
     if (!response.ok) throw new Error(`Knowledge query rewrite failed (${response.status})`);
     const data = z.object({
       choices: z.unknown().optional(),
-      usage: z.object({ total_tokens: z.number().int().nonnegative() }).optional(),
+      usage: aiTokenUsageSchema.optional(),
       model: z.string().optional()
     }).parse(await response.json());
     const metadata = { usage: data.usage, model: data.model || configuredModel };

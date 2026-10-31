@@ -1,3 +1,5 @@
+import { aiTokenUsageSchema, type AiTokenUsage } from "@/src/dtos/ai-usage.dto";
+
 export function isEventStreamResponse(response: Response): boolean {
   return Boolean(response.headers.get("content-type")?.toLowerCase().includes("text/event-stream"));
 }
@@ -50,12 +52,7 @@ export async function readSseDataEvents(
   }
 }
 
-export interface StreamTokenUsage {
-  total_tokens: number;
-  prompt_tokens?: number;
-  completion_tokens?: number;
-  cached_tokens?: number;
-}
+export type StreamTokenUsage = AiTokenUsage;
 
 export async function consumeChatCompletionStream(
   response: Response,
@@ -97,12 +94,7 @@ export async function consumeChatCompletionStream(
 
     if (chunk.model) model = chunk.model;
     if (typeof chunk.usage?.total_tokens === "number") {
-      usage = {
-        total_tokens: chunk.usage.total_tokens,
-        prompt_tokens: chunk.usage.prompt_tokens,
-        completion_tokens: chunk.usage.completion_tokens,
-        cached_tokens: chunk.usage.prompt_tokens_details?.cached_tokens
-      };
+      usage = aiTokenUsageSchema.safeParse(chunk.usage).data;
     }
     const choice = chunk.choices?.[0];
     if (choice?.finish_reason) {
@@ -267,7 +259,7 @@ export type ResponsesApiPayload = {
     type?: string;
   }>;
   output_text?: string;
-  usage?: StreamTokenUsage;
+  usage?: StreamTokenUsage & { input_tokens?: number; output_tokens?: number; input_tokens_details?: { cached_tokens?: number } };
   model?: string;
 };
 
@@ -312,12 +304,7 @@ export async function consumeResponsesStream(
       if (event.response.model) model = event.response.model;
       if (event.response.usage) {
         const u = event.response.usage;
-        usage = {
-          total_tokens: u.total_tokens ?? 0,
-          prompt_tokens: u.prompt_tokens,
-          completion_tokens: u.completion_tokens,
-          cached_tokens: u.prompt_tokens_details?.cached_tokens
-        };
+        usage = aiTokenUsageSchema.safeParse(u).data;
       }
     }
   });
@@ -325,6 +312,7 @@ export async function consumeResponsesStream(
   if (completed) {
     return {
       ...completed,
+      usage: aiTokenUsageSchema.safeParse(completed.usage).data,
       output_text: completed.output_text ?? outputText
     };
   }

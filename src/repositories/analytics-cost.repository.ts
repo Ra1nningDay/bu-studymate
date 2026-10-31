@@ -8,6 +8,10 @@ export interface UsageBucket {
   tokens: number;
   promptTokens: number;
   cachedTokens: number;
+  completionTokens: number;
+  step: string;
+  costSource: string | null;
+  webSearchCalls: number | null;
   costUsd: number | null;
   hasTokenBreakdown: boolean;
   legacy: boolean;
@@ -30,43 +34,51 @@ export class AnalyticsCostRepository {
     ` : Prisma.sql`
       SELECT NULL::uuid AS bot_run_id, NULL::text AS model, NULL::text AS provider,
         0::int AS total_tokens, 0::int AS prompt_tokens, 0::int AS completion_tokens,
-        0::int AS cached_tokens, NULL::numeric AS cost_usd, NULL::timestamptz AS usage_at
+        0::int AS cached_tokens, NULL::numeric AS cost_usd, NULL::text AS step, NULL::timestamptz AS usage_at
       WHERE FALSE
     `;
     const rows = await this.db.$queryRaw<Array<{
       day: string; model: string; provider: string; tokens: bigint;
-      prompt_tokens: bigint; cached_tokens: bigint; cost_usd: Prisma.Decimal | null;
+      prompt_tokens: bigint; completion_tokens: bigint; cached_tokens: bigint; cost_usd: Prisma.Decimal | null;
+      step: string; cost_source: string | null; web_search_calls: bigint | null;
       has_token_breakdown: boolean; legacy: boolean;
     }>>(Prisma.sql`
       WITH logs AS (${logs}), logged_totals AS (
         SELECT bot_run_id, SUM(total_tokens) AS tokens FROM logs GROUP BY bot_run_id
       ), usage AS (
         SELECT usage_at, model, provider, total_tokens::numeric AS tokens,
-          prompt_tokens, cached_tokens, cost_usd,
-          (prompt_tokens + completion_tokens > 0) AS has_token_breakdown, FALSE AS legacy
+          prompt_tokens, completion_tokens, cached_tokens, cost_usd, step,
+          to_jsonb(logs)->>'cost_source' AS cost_source,
+          (to_jsonb(logs)->>'web_search_calls')::int AS web_search_calls,
+          (prompt_tokens + completion_tokens = total_tokens AND total_tokens > 0
+            AND cached_tokens <= prompt_tokens AND prompt_tokens >= 0 AND completion_tokens >= 0
+            AND cached_tokens >= 0) AS has_token_breakdown, FALSE AS legacy
         FROM logs WHERE usage_at >= ${start} AND usage_at < ${end}
         UNION ALL
         SELECT r.created_at, 'Legacy (รวมหลายขั้นตอน)', 'BotRun',
           GREATEST((CASE WHEN jsonb_typeof(r.metadata->'tokensUsed') = 'number'
             THEN (r.metadata->>'tokensUsed')::numeric ELSE 0 END)
             - COALESCE(t.tokens, 0), 0),
-          0, 0, NULL::numeric, FALSE, TRUE
+          0, 0, 0, NULL::numeric, 'legacy', NULL::text, NULL::int, FALSE, TRUE
         FROM bot_runs r LEFT JOIN logged_totals t ON t.bot_run_id = r.id
         WHERE r.created_at >= ${start} AND r.created_at < ${end}
       )
       SELECT to_char(usage_at AT TIME ZONE 'Asia/Bangkok', 'YYYY-MM-DD') AS day,
         model, provider, SUM(tokens)::bigint AS tokens,
-        SUM(prompt_tokens)::bigint AS prompt_tokens, SUM(cached_tokens)::bigint AS cached_tokens,
+        SUM(prompt_tokens)::bigint AS prompt_tokens, SUM(completion_tokens)::bigint AS completion_tokens,
+        SUM(cached_tokens)::bigint AS cached_tokens, step, cost_source, SUM(web_search_calls)::bigint AS web_search_calls,
         SUM(cost_usd) AS cost_usd, has_token_breakdown, legacy
-      FROM usage WHERE tokens > 0
-      GROUP BY day, model, provider, has_token_breakdown, legacy ORDER BY day, model
+      FROM usage WHERE tokens > 0 OR web_search_calls > 0 OR (cost_source = 'provider' AND cost_usd > 0)
+      GROUP BY day, model, provider, step, cost_source, has_token_breakdown, legacy, (web_search_calls IS NULL) ORDER BY day, model
     `);
     return {
       detailedLogsAvailable,
       buckets: rows.map((row): UsageBucket => ({
         day: row.day, model: row.model, provider: row.provider,
         tokens: Number(row.tokens), promptTokens: Number(row.prompt_tokens),
-        cachedTokens: Number(row.cached_tokens),
+        cachedTokens: Number(row.cached_tokens), completionTokens: Number(row.completion_tokens),
+        step: row.step, costSource: row.cost_source,
+        webSearchCalls: row.web_search_calls === null ? null : Number(row.web_search_calls),
         costUsd: row.cost_usd === null ? null : Number(row.cost_usd),
         hasTokenBreakdown: row.has_token_breakdown, legacy: row.legacy
       }))

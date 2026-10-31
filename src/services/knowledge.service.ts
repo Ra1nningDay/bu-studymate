@@ -1,3 +1,4 @@
+import type { AiUsageEntry } from "@/src/dtos/ai-usage.dto";
 import { rewriteKnowledgeAnswer } from "@/lib/ai";
 import { embedKnowledge } from "@/lib/knowledge-embedding";
 import { rerankKnowledge } from "@/lib/knowledge-rerank";
@@ -22,12 +23,14 @@ export class KnowledgeService {
 
   async retrieve(query: string, history: Array<{ content: string; role: "assistant" | "user" }> = []) {
     const trace: ExecutionLogEntry[] = [];
+    const usageEntries: AiUsageEntry[] = [];
     if (!query.trim() || Buffer.byteLength(query, "utf8") > 7500 || !await this.repo.hasIndexedEvidence()) {
       trace.push({ action: "Hybrid Retrieval", status: "skipped", details: "ไม่มีคำถามที่ค้นได้หรือไม่มี corpus ที่อนุมัติ" });
-      return { items: [], usage: undefined, model: undefined, trace };
+      return { items: [], usage: undefined, model: undefined, trace, usageEntries };
     }
     const rewriteStarted = performance.now();
     const rewritten = await this.rewriteQuery(query, history);
+    if (rewritten.usage && rewritten.model) usageEntries.push({ provider: "openai", model: rewritten.model, step: "query_rewrite", usage: rewritten.usage });
     trace.push({ action: "Query Rewrite", status: rewritten.status,
       durationMs: Math.round(performance.now() - rewriteStarted),
       details: rewritten.status === "applied" ? "สร้างคำถามสำหรับค้นจากบริบทสนทนา" : "ใช้คำถามเดิม",
@@ -43,6 +46,8 @@ export class KnowledgeService {
       usage = { total_tokens: (usage?.total_tokens ?? 0) + result.usage.total_tokens };
       model = result.model;
       embeddingTokens = result.usage.total_tokens;
+      usageEntries.push({ provider: "openai", model: result.model, step: "embedding",
+        usage: { total_tokens: embeddingTokens, prompt_tokens: embeddingTokens, completion_tokens: 0 } });
     } catch {
       console.warn("Knowledge embedding unavailable; using current approved keyword evidence");
     }
@@ -66,6 +71,7 @@ export class KnowledgeService {
       rag: { chunks } });
     const rerankStarted = performance.now();
     const ranked = await this.rerank(rewritten.query, candidates);
+    if (ranked.usage && ranked.model) usageEntries.push({ provider: "openai", model: ranked.model, step: "rerank", usage: ranked.usage });
     trace.push({ action: "Reranker", status: ranked.status,
       durationMs: Math.round(performance.now() - rerankStarted),
       details: `${ranked.status === "applied" ? "LLM ranking" : "RRF order"} · เลือก ${ranked.items.length} จาก ${chunks.length} chunks`,
@@ -73,7 +79,7 @@ export class KnowledgeService {
         chunks: ranked.items.map((item, index) => ({ ...chunks.find((chunk) => chunk.id === item.id)!, selectedRank: index + 1 })) } });
     if (ranked.usage) usage = { total_tokens: (usage?.total_tokens ?? 0) + ranked.usage.total_tokens };
     return { items: ranked.items, usage, model, rerankModel: ranked.model, rerankStatus: ranked.status,
-      queryRewriteModel: rewritten.model, queryRewriteStatus: rewritten.status, trace };
+      queryRewriteModel: rewritten.model, queryRewriteStatus: rewritten.status, trace, usageEntries };
   }
 
   async search(query: string): Promise<KnowledgeItem | null> {
@@ -88,7 +94,7 @@ export class KnowledgeService {
     const retrieval = await this.retrieve(query, history);
     const evidence = retrieval.items;
     const metadata = { retrievalModel: retrieval.model, rerankModel: retrieval.rerankModel, rerankStatus: retrieval.rerankStatus,
-      queryRewriteModel: retrieval.queryRewriteModel, queryRewriteStatus: retrieval.queryRewriteStatus, trace: retrieval.trace };
+      queryRewriteModel: retrieval.queryRewriteModel, queryRewriteStatus: retrieval.queryRewriteStatus, trace: retrieval.trace, usageEntries: retrieval.usageEntries };
     if (!evidence.length) {
       retrieval.trace.push({ action: "LLM Generation", status: "skipped", details: "ไม่มีหลักฐานสำหรับสร้างคำตอบ" });
       return { text: FALLBACK_NO_INFO, sources: [], usage: retrieval.usage, model: undefined,
@@ -115,6 +121,7 @@ export class KnowledgeService {
       details: `ใช้ ${evidence.length} chunks · ${result.sources.length} citations`,
       rag: { model: result.model, tokens: result.usage?.total_tokens,
         chunks: retrieval.trace.find((step) => step.action === "Reranker")?.rag?.chunks } });
+    if (result.usage && result.model) retrieval.usageEntries.push({ provider: "openai", model: result.model, step: "answer", usage: result.usage });
     if (retrieval.usage) result.usage = { total_tokens: retrieval.usage.total_tokens + (result.usage?.total_tokens ?? 0) };
     if (result.text === "NO_VERIFIED_INFO_FOUND") {
       return { ...result, text: FALLBACK_NO_INFO, sources: [], ...metadata, isMiss: true };

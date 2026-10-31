@@ -1,3 +1,4 @@
+import { aiTokenUsageSchema } from "@/src/dtos/ai-usage.dto";
 import { env } from "@/src/config/env";
 import { z } from "zod";
 import type { ActionLink } from "@/src/dtos/knowledge.dto";
@@ -273,13 +274,13 @@ function extractResponseTextAndSources(data: {
   }
 
   sources.push(...extractSourcesFromText(text));
+  const reportedUsage = aiTokenUsageSchema.safeParse(data.usage).data;
+  const calls = data.output?.filter(item => item.type === "web_search_call").length;
+  const usage = reportedUsage ? { ...reportedUsage, web_search_calls: calls }
+    : calls != null ? { total_tokens: 0, web_search_calls: calls } : undefined;
 
-  return {
-    sources: uniqueSources(sources),
-    text: cleanChatText(text),
-    usage: data.usage,
-    model: data.model
-  };
+  return { sources: uniqueSources(sources), text: cleanChatText(text), usage, model: data.model };
+
 }
 
 export async function createWebSearchResponse({
@@ -391,10 +392,11 @@ export async function createWebSearchResponse({
     if (onTextDelta && parsed.text && !parsed.text.includes("VERIFIED_SOURCE_NOT_FOUND")) {
       onTextDelta(parsed.text);
     }
-    return parsed;
+    return { ...parsed, model: parsed.model || env.OPENAI_WEB_SEARCH_MODEL || env.OPENAI_MODEL, step: toolType };
   }
 
-  return extractResponseTextAndSources(data);
+  const parsed = extractResponseTextAndSources(data);
+  return { ...parsed, model: parsed.model || env.OPENAI_WEB_SEARCH_MODEL || env.OPENAI_MODEL, step: toolType };
 }
 
 export async function answerWithWebSearch(
@@ -524,14 +526,7 @@ export async function generateGeneralChatReply(
   const text = data.choices?.[0]?.message?.content?.trim();
   const finalText = text || fallback;
   options.onTextDelta?.(finalText);
-  const usage: StreamTokenUsage | undefined = data.usage
-    ? {
-        total_tokens: data.usage.total_tokens,
-        prompt_tokens: data.usage.prompt_tokens,
-        completion_tokens: data.usage.completion_tokens,
-        cached_tokens: data.usage.prompt_tokens_details?.cached_tokens
-      }
-    : undefined;
+  const usage = aiTokenUsageSchema.safeParse(data.usage).data;
   return {
     text: finalText,
     usage,
@@ -648,14 +643,7 @@ export async function rewriteKnowledgeAnswer({
       model?: string;
     };
     rawContent = data.choices?.[0]?.message?.content ?? "";
-    usage = data.usage
-      ? {
-          total_tokens: data.usage.total_tokens,
-          prompt_tokens: data.usage.prompt_tokens,
-          completion_tokens: data.usage.completion_tokens,
-          cached_tokens: data.usage.prompt_tokens_details?.cached_tokens
-        }
-      : undefined;
+    usage = aiTokenUsageSchema.safeParse(data.usage).data;
     model = data.model;
   }
 

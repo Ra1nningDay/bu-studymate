@@ -279,7 +279,9 @@ model AiTokenLog {
   completionTokens Int      @default(0) @map("completion_tokens")
   cachedTokens     Int      @default(0) @map("cached_tokens")
   totalTokens      Int      @default(0) @map("total_tokens")
-  costUsd          Decimal  @default(0) @map("cost_usd") @db.Decimal(10, 6)
+  costUsd          Decimal? @map("cost_usd") @db.Decimal(16, 10)
+  costSource       String?  @map("cost_source")
+  webSearchCalls   Int?     @map("web_search_calls")
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@index([createdAt])

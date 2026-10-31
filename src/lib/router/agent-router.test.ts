@@ -72,6 +72,10 @@ test("Jev routes fresh information using the Decisions API and local policy", as
   assert.equal(decision.needsWebSearch, true);
   assert.equal(decision.confidence, 0.94);
   assert.equal(decision.usage?.total_tokens, 120);
+  assert.equal(decision.usage?.prompt_tokens, 100);
+  assert.equal(decision.usage?.completion_tokens, 20);
+  assert.equal(decision.usageEntries?.[0].provider, "openrouter");
+  assert.equal(decision.usageEntries?.[0].usage.cost, 0.0000042);
 });
 
 test("Jev falls back to OpenAI when its probability is below the configured threshold", async () => {
@@ -92,6 +96,7 @@ test("Jev falls back to OpenAI when its probability is below the configured thre
   assert.equal(decision.intent, "ASK_BU_INFO");
   assert.equal(decision.selectedTarget, "knowledge_base");
   assert.equal(calls.length, 2);
+  assert.equal(decision.usageEntries?.[0].provider, "openrouter");
 });
 
 test("Jev falls back to OpenAI on malformed output", async () => {
@@ -141,4 +146,5 @@ test("shadow mode keeps OpenAI's decision and logs no student message", async ()
   assert.equal(decision.intent, "ASK_BU_INFO");
   assert.equal((logs[0]?.[1] as { agreed: boolean }).agreed, false);
   assert.equal(JSON.stringify(logs).includes("private student message"), false);
+  assert.equal(decision.usageEntries?.at(-1)?.provider, "openrouter");
 });

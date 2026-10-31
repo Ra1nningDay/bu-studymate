@@ -168,8 +168,16 @@ to both list and count before pagination. Cost calls `AnalyticsCostService` →
 `AnalyticsCostRepository` to aggregate token logs plus positive residual legacy
 `BotRun.metadata.tokensUsed` totals. Linked log timestamps follow run creation;
 unlinked usage follows log creation. Legacy usage lacks per-model input/output
-splits and stays unpriced. Existing saved estimates are summed only for supported
-models with token breakdowns; unsupported/fallback-priced logs stay unpriced.
+splits and stays unpriced. Explicit provider-reported costs are retained; other
+complete consistent splits are estimated at the displayed current Standard rates.
+Old fallback costs without provenance are ignored. `ai-usage.dto.ts` normalizes
+Chat Completions/Responses token fields; chat routing, RAG and search pass per-call
+usage entries to `TokenUsageRepository` before returning a completed saved turn.
+Jev retains its OpenRouter identity and reported cost; embeddings keep their own
+model. Observed search calls add tool fees once, separately from token pricing.
+Migration `20261031000000_usage_cost_provenance` adds provenance/search counts and
+nullable higher-precision cost, without backfilling history; apply before using
+the new writer. Cost reads remain compatible with the pre-migration schema.
 The repository detects an absent additive log table and reads legacy totals
 without mutations. Missing data, zero and read errors are distinct. Current
 ticket/knowledge snapshots are independent of analytics dates. See

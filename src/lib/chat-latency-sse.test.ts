@@ -267,7 +267,8 @@ test("createWebSearchResponse streams Responses API deltas while trimming traili
         response: {
           model: "gpt-6-luna",
           output_text: "มหาวิทยาลัยเปิดทำการปกติ\n\nแหล่งที่มา:\nhttps://bu.ac.th/news",
-          usage: { total_tokens: 55 }
+          usage: { total_tokens: 55, input_tokens: 40, output_tokens: 15, input_tokens_details: { cached_tokens: 20 } },
+          output: [{ type: "web_search_call" }, { type: "web_search_call" }]
         }
       })}\n\n`,
       "data: [DONE]\n\n"
@@ -281,6 +282,10 @@ test("createWebSearchResponse streams Responses API deltas while trimming traili
   });
   assert.deepEqual(deltas, ["มหาวิทยาลัยเปิดทำการปกติ"]);
   assert.equal(res?.text, "มหาวิทยาลัยเปิดทำการปกติ");
+  assert.equal(res?.usage?.prompt_tokens, 40);
+  assert.equal(res?.usage?.completion_tokens, 15);
+  assert.equal(res?.usage?.cached_tokens, 20);
+  assert.equal(res?.usage?.web_search_calls, 2);
   assert.deepEqual(res?.sources, [{ title: "https://bu.ac.th/news", url: "https://bu.ac.th/news" }]);
 });
 

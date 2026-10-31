@@ -1,3 +1,4 @@
+import type { AiTokenUsage, AiUsageEntry } from "@/src/dtos/ai-usage.dto";
 import {
   generateGeneralChatReply,
   isAiConfigured,
@@ -60,7 +61,8 @@ export type BotReply = {
   text: string;
   flexMessage?: any;
   usedWebSearch?: boolean;
-  usage?: { total_tokens: number };
+  usage?: AiTokenUsage;
+  usageEntries?: AiUsageEntry[];
   model?: string;
   executionLog?: ExecutionLogEntry[];
 };
@@ -81,7 +83,8 @@ type ResolvedRoute = {
   routerType: RouterType;
   selectedTarget: RouteTarget;
   safetyCritical?: boolean;
-  usage?: { total_tokens: number };
+  usage?: AiTokenUsage;
+  usageEntries?: AiUsageEntry[];
   model?: string;
 };
 
@@ -241,6 +244,15 @@ export class ChatOrchestrationService {
     private buLinksLookup?: BuLinksLookupFn,
     private tokenUsageRepo: TokenUsageRepository = tokenUsageRepository
   ) {}
+
+  private async recordUsageEntries(botRunId: string, entries: AiUsageEntry[]) {
+    if (!entries.length) return;
+    await this.tokenUsageRepo.recordUsages(entries.map(({ provider, model, step, usage }) => ({
+      botRunId, provider, model, step, totalTokens: usage.total_tokens,
+      promptTokens: usage.prompt_tokens, completionTokens: usage.completion_tokens,
+      cachedTokens: usage.cached_tokens, costUsd: usage.cost, webSearchCalls: usage.web_search_calls
+    }))).catch(error => console.error("Failed to record token usage logs:", error));
+  }
 
   private freshInfoLogEntry(reply: FreshInfoAnswer, started: number): ExecutionLogEntry {
     const timing = { status: "applied" as const, durationMs: Math.round(performance.now() - started) };
@@ -411,7 +423,7 @@ export class ChatOrchestrationService {
 
     // Keep deterministic ticket behavior unless the response needs urgent safety guidance.
     if (guarded && !decision.safetyCritical) {
-      return { ...guarded, usage: decision.usage, model: decision.model };
+      return { ...guarded, usage: decision.usage, usageEntries: decision.usageEntries, model: decision.model };
     }
 
     return {
@@ -423,6 +435,7 @@ export class ChatOrchestrationService {
       selectedTarget: decision.selectedTarget,
       safetyCritical: decision.safetyCritical,
       usage: decision.usage,
+      usageEntries: decision.usageEntries,
       model: decision.model
     };
   }
@@ -632,7 +645,7 @@ export class ChatOrchestrationService {
         reply = fresh;
         executionLog.push(this.freshInfoLogEntry(fresh, freshStarted));
         if (knowledgeAnswer.usage && reply.usage) {
-          reply.usage.total_tokens += knowledgeAnswer.usage.total_tokens;
+          reply.usage = { total_tokens: reply.usage.total_tokens + knowledgeAnswer.usage.total_tokens };
         } else if (knowledgeAnswer.usage) {
           reply.usage = knowledgeAnswer.usage;
         }
@@ -646,6 +659,7 @@ export class ChatOrchestrationService {
           executionLog
         );
       }
+      if (knowledgeAnswer.usageEntries) reply.usageEntries = [...knowledgeAnswer.usageEntries, ...(reply.usageEntries ?? [])];
       if (!reply.executionLog) reply.executionLog = executionLog;
     } else if (intent === "CREATE_TICKET") {
       executionLog.push({ action: "Continue Ticket Flow" });
@@ -822,6 +836,8 @@ export class ChatOrchestrationService {
       })
     ]);
 
+    const routerEntries = route.usageEntries ?? (route.usage && route.model
+      ? [{ provider: "openai", model: route.model, step: "router", usage: route.usage }] : []);
     try {
       const reply = await this.executeBotReply({
         history,
@@ -834,7 +850,10 @@ export class ChatOrchestrationService {
       });
 
       const assistantMessageId = crypto.randomUUID();
-      const totalTokens = (route.usage?.total_tokens ?? 0) + (reply.usage?.total_tokens ?? 0);
+      const replyEntries = reply.usageEntries ?? (reply.usage && reply.model
+        ? [{ provider: "openai", model: reply.model, step: "answer", usage: reply.usage }] : []);
+      const usageEntries = [...routerEntries, ...replyEntries];
+      const totalTokens = usageEntries.reduce((sum, entry) => sum + entry.usage.total_tokens, 0);
       const finalModel = reply.model || route.model;
 
       await Promise.all([
@@ -882,55 +901,12 @@ export class ChatOrchestrationService {
         })
       ]);
 
-      const tokenLogs = [];
-      const routeUsage = route.usage as { total_tokens: number; prompt_tokens?: number; completion_tokens?: number; cached_tokens?: number } | undefined;
-      if (routeUsage && routeUsage.total_tokens > 0) {
-        tokenLogs.push({
-          botRunId: run!.id,
-          provider: "openai",
-          model: route.model || "gpt-4o-mini",
-          step: "router",
-          promptTokens: routeUsage.prompt_tokens,
-          completionTokens: routeUsage.completion_tokens,
-          cachedTokens: routeUsage.cached_tokens,
-          totalTokens: routeUsage.total_tokens
-        });
-      }
-      const replyUsage = reply.usage as { total_tokens: number; prompt_tokens?: number; completion_tokens?: number; cached_tokens?: number } | undefined;
-      if (replyUsage && replyUsage.total_tokens > 0) {
-        tokenLogs.push({
-          botRunId: run!.id,
-          provider: "openai",
-          model: reply.model || finalModel || "gpt-4o-mini",
-          step: "answer",
-          promptTokens: replyUsage.prompt_tokens,
-          completionTokens: replyUsage.completion_tokens,
-          cachedTokens: replyUsage.cached_tokens,
-          totalTokens: replyUsage.total_tokens
-        });
-      }
-      if (tokenLogs.length > 0) {
-        this.tokenUsageRepo.recordUsages(tokenLogs).catch((err) => {
-          console.error("Failed to record token usage logs:", err);
-        });
-      }
+      await this.recordUsageEntries(run!.id, usageEntries);
 
       return { ...reply, runId: run!.id };
     } catch (error) {
       if (run?.id) {
-        if (route.usage && route.usage.total_tokens > 0) {
-          const routeUsage = route.usage as { total_tokens: number; prompt_tokens?: number; completion_tokens?: number; cached_tokens?: number };
-          this.tokenUsageRepo.recordUsage({
-            botRunId: run.id,
-            provider: "openai",
-            model: route.model || "gpt-4o-mini",
-            step: "router",
-            promptTokens: routeUsage.prompt_tokens,
-            completionTokens: routeUsage.completion_tokens,
-            cachedTokens: routeUsage.cached_tokens,
-            totalTokens: routeUsage.total_tokens
-          }).catch(() => {});
-        }
+        await this.recordUsageEntries(run.id, routerEntries);
         await this.chatLogRepo.updateBotRun(run.id, {
           errorCode: error instanceof Error ? error.name : "UNKNOWN_ERROR",
           latencyMs: Date.now() - startedAt,

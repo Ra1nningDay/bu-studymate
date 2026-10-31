@@ -3,6 +3,7 @@ import type { ChatLogRepository, CreateChatMessageData, CreateBotRunData, Update
 import type { TicketService } from "@/src/services/ticket.service";
 import type { StudyMemoryService } from "@/src/services/study-memory.service";
 import type { KnowledgeService } from "@/src/services/knowledge.service";
+import type { CreateAiTokenLogData, TokenUsageRepository } from "@/src/repositories/token-usage.repository";
 
 import type { BuLinksLookupFn } from "@/lib/fresh-info";
 
@@ -23,6 +24,11 @@ export async function createConciseChatFixture(options: {
   const updates: UpdateBotRunData[] = [];
   const historyRequests: Array<{ completed: boolean; limit?: number }> = [];
   const workflowCalls: string[] = [];
+  const tokenLogs: CreateAiTokenLogData[] = [];
+  const tokenUsage = { recordUsages: async (items: CreateAiTokenLogData[]) => {
+    tokenLogs.push(...items);
+    return { count: items.length };
+  } } as unknown as TokenUsageRepository;
   const session: ChatSession = {
     id: "synthetic-session",
     line_user_id: "synthetic-eval-user",
@@ -76,11 +82,12 @@ export async function createConciseChatFixture(options: {
     }
   } as unknown as KnowledgeService;
   return {
-    service: new ChatOrchestrationService(logRepository, tickets, study, options.knowledgeService ?? knowledge, undefined, options.buLinksLookup ?? (async () => null)),
+    service: new ChatOrchestrationService(logRepository, tickets, study, options.knowledgeService ?? knowledge, undefined, options.buLinksLookup ?? (async () => null), tokenUsage),
     messages,
     runs,
     updates,
     historyRequests,
-    workflowCalls
+    workflowCalls,
+    tokenLogs
   };
 }

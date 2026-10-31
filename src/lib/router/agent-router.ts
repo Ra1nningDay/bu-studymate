@@ -1,3 +1,4 @@
+import { aiTokenUsageSchema, type AiTokenUsage, type AiUsageEntry } from "@/src/dtos/ai-usage.dto";
 import { z } from "zod";
 import type { Intent } from "@/lib/intent";
 import { env } from "@/src/config/env";
@@ -46,7 +47,8 @@ export type AgentRouterContext = {
 export type AgentRouterDecision = z.infer<typeof RouterDecisionSchema> & {
   intent: AgentRouterIntent;
   routerType: "agent_router" | "fallback" | "policy_fallback";
-  usage?: { total_tokens: number; cost?: number };
+  usage?: AiTokenUsage;
+  usageEntries?: AiUsageEntry[];
   model?: string;
 };
 
@@ -291,6 +293,13 @@ async function classifyWithJev(
     const safetyCritical = parsed.data.answers.safetyPolicy.choice === "safety_critical";
     const intent = safetyCritical ? "GENERAL_CHAT" : choice;
     const selectedTarget = expectedTarget(intent);
+    const usage = parsed.data.usage && {
+      total_tokens: parsed.data.usage.input_tokens + parsed.data.usage.output_tokens,
+      prompt_tokens: parsed.data.usage.input_tokens,
+      completion_tokens: parsed.data.usage.output_tokens,
+      cost: parsed.data.usage.cost
+    };
+    const model = parsed.data.model ?? env.JEV_ROUTER_MODEL;
     return {
       status: "ok",
       decision: {
@@ -301,11 +310,9 @@ async function classifyWithJev(
         routerType: "agent_router",
         selectedTarget,
         safetyCritical,
-        model: parsed.data.model ?? env.JEV_ROUTER_MODEL,
-        usage: parsed.data.usage && {
-          total_tokens: parsed.data.usage.input_tokens + parsed.data.usage.output_tokens,
-          cost: parsed.data.usage.cost
-        }
+        model,
+        usage,
+        usageEntries: usage ? [{ provider: "openrouter", model, step: "router", usage }] : []
       }
     };
   } catch {
@@ -472,13 +479,11 @@ async function classifyWithOpenAi(
   }
 
   const parsed = parseRouterResponse(data);
-  if (!parsed) {
-    return fallbackDecision("Agent Router returned an invalid structured decision");
-  }
-
-  const validated = validateRouterPolicy(parsed);
-  validated.usage = data.usage;
-  validated.model = data.model;
+  const validated = parsed ? validateRouterPolicy(parsed)
+    : fallbackDecision("Agent Router returned an invalid structured decision");
+  validated.usage = aiTokenUsageSchema.safeParse(data.usage).data;
+  validated.model = data.model || env.OPENAI_AGENT_ROUTER_MODEL;
+  validated.usageEntries = validated.usage ? [{ provider: "openai", model: validated.model, step: "router", usage: validated.usage }] : [];
   return validated;
 }
 
@@ -525,7 +530,7 @@ export async function classifyWithAgentRouter(
       openAiMs: openAi.elapsedMs,
       jevMs: jev.elapsedMs
     });
-    return openAi.decision;
+    return { ...openAi.decision, usageEntries: [...(openAi.decision.usageEntries ?? []), ...(jev.result.decision?.usageEntries ?? [])] };
   }
 
   const jev = await classifyWithJev(message, context);
@@ -538,7 +543,8 @@ export async function classifyWithAgentRouter(
     intent: jev.decision?.intent ?? null,
     probability: jev.decision?.confidence ?? null
   });
-  return openAiDecision();
+  const fallback = await openAiDecision();
+  return { ...fallback, usageEntries: [...(jev.decision?.usageEntries ?? []), ...(fallback.usageEntries ?? [])] };
 }
 
 export function isRouterIntent(intent: Intent): intent is AgentRouterIntent {

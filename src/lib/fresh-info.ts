@@ -1,3 +1,4 @@
+import type { AiTokenUsage, AiUsageEntry } from "@/src/dtos/ai-usage.dto";
 import { createWebSearchResponse, type AnswerSource } from "@/lib/ai";
 import { formatUnverifiedBuReply } from "@/src/presenters/chat-policy.presenter";
 import { buLinksService, type BuLinksLookup } from "@/src/services/bulinks.service";
@@ -12,7 +13,8 @@ export type FreshInfoAnswer = {
   sources: AnswerSource[];
   text: string;
   usedWebSearch: boolean;
-  usage?: { total_tokens: number };
+  usage?: AiTokenUsage;
+  usageEntries?: AiUsageEntry[];
   model?: string;
   origin?: "bulinks" | "web_search";
   links?: Array<{ title: string; url: string }>;
@@ -114,6 +116,10 @@ export async function answerFreshInfoFromVerifiedSources(
     return null;
   });
 
+  const usageEntries: AiUsageEntry[] = response?.usage
+    ? [{ provider: "openai", model: response.model, step: response.step, usage: response.usage }] : [];
+  const metadata = { usage: response?.usage, model: response?.model, usageEntries };
+
   if (!response || !response.text || response.text.includes("VERIFIED_SOURCE_NOT_FOUND")) {
     if (streamedAny) {
       stream?.onTextReset?.();
@@ -124,7 +130,8 @@ export async function answerFreshInfoFromVerifiedSources(
       sources: [],
       text: unverifiedText,
       usedWebSearch: true,
-      origin: "web_search"
+      origin: "web_search",
+      ...metadata
     };
   }
 
@@ -133,8 +140,7 @@ export async function answerFreshInfoFromVerifiedSources(
     text: response.text,
     usedWebSearch: true,
     origin: "web_search",
-    usage: response.usage,
-    model: response.model
+    ...metadata
   };
 }
 

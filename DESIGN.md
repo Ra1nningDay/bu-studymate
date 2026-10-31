@@ -194,8 +194,15 @@ authenticated database UAT and deployment.
 - **Cost:** Read recorded token logs plus remaining legacy BotRun totals, never
   sample values. Unknown prices/cache data show a dash; a query error shows an
   alert, and an empty period shows zero tokens with an empty-state message.
-  Stored prices are estimates, converted at the displayed fixed THB/USD rate.
-  Legacy totals and unsupported/missing model breakdowns stay visibly unpriced.
+  Used models show input/cached/output USD rates per million tokens and a source
+  link; Luna/Jev rates carry their verification date. Costs combine explicitly
+  provider-reported amounts with current Standard estimates for complete splits,
+  converted at the configured fixed THB/USD rate. Values below ฿0.01 keep a visible
+  less-than label. Missing token detail and missing model rates have separate
+  labels. Cost details disclose provider/estimated amounts and observed search
+  calls/fees; incomplete search accounting stays explicit. Legacy totals remain
+  unpriced. The top-level cost explanation and database-migration notice are
+  omitted at the user's request; operational prerequisites remain in the admin guide.
   Prompt cached-token ratio is distinct from semantic-cache hits. Daily bars scroll
   within their panel and expose the numeric values in keyboard-operable details.
   See [analytics-dates-01](.scratch/analytics-dates/issues/01-real-usage-date-filters.md)

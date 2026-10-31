@@ -118,12 +118,30 @@ Linked logs follow their run's creation time; standalone usage follows its own
 timestamp. Without the additive token-log table, legacy totals remain readable.
 
 Legacy totals combine multiple steps/models and lack input/output splits, so their
-price remains unknown. Logs for unsupported models or without token splits are
-also unpriced; the page counts those tokens separately. Available saved estimates
-are summed without repricing history and converted with the displayed fixed
-`USD_TO_THB_RATE`. They are partial estimates, not a provider invoice or current
-exchange-rate quote. Prompt Cached Token Rate uses recorded cached/prompt tokens,
-not semantic cache hits. No cache savings or previous-month growth is invented.
+price remains unknown. The page separates missing token details from missing model
+rates and shows input/cached/output USD rates per million tokens for used models.
+Provider-reported costs with explicit provenance are retained. Other complete,
+consistent token splits are estimated at the displayed current Standard rates;
+old fallback `cost_usd` amounts are not trusted or rewritten. The fixed
+`USD_TO_THB_RATE` supplies the conversion; this is not a provider invoice or live FX quote.
+Prompt Cached Token Rate uses recorded cached/prompt tokens, not semantic cache.
+
+Router (including observed shadow/low-confidence calls), query rewrite, embedding,
+rerank, answer and web search retain separate model/provider/step usage. Search
+fees use observed `web_search_call` output items, including a verified-source miss,
+never an assumed one-call-per-answer. Provider costs already include their fees;
+estimated search fees are added once. Missing call counts and attempts without
+returned usage remain outside the complete cost picture. Estimates assume Standard
+short-context text pricing, excluding explicit cache writes, nonstandard processing
+tiers, tax and other provider fees.
+
+Apply migration `20261031000000_usage_cost_provenance` before using the new writer.
+It adds cost provenance/search counts and allows unknown costs to be null, retaining
+more decimal precision for tiny calls. Historical rows remain untouched. Reads
+still support the old schema. The page omits the general cost explanation and
+migration notice at the user's request; this prerequisite still applies.
+No migration is run by the Cost page. See
+[model-costs-01](../.scratch/model-costs/issues/01-model-pricing.md) for verification.
 
 Read failures show an alert; empty periods show zero tokens, not sample metrics.
 See [analytics-dates-01](../.scratch/analytics-dates/issues/01-real-usage-date-filters.md)

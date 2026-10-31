@@ -1,3 +1,4 @@
+import { aiTokenUsageSchema, type AiTokenUsage } from "@/src/dtos/ai-usage.dto";
 import { z } from "zod";
 import { env } from "@/src/config/env";
 import type { KnowledgeEvidence } from "@/src/repositories/knowledge.repository";
@@ -7,7 +8,7 @@ export async function rerankKnowledge(query: string, evidence: KnowledgeEvidence
   const take = Math.min(5, candidates.length);
   const fallback = {
     items: candidates.slice(0, take),
-    usage: undefined as { total_tokens: number } | undefined,
+    usage: undefined as AiTokenUsage | undefined,
     model: undefined as string | undefined,
     status: "fallback" as "applied" | "fallback" | "skipped"
   };
@@ -45,7 +46,7 @@ export async function rerankKnowledge(query: string, evidence: KnowledgeEvidence
     if (!response.ok) throw new Error(`Knowledge rerank request failed (${response.status})`);
     const data = z.object({
       choices: z.unknown().optional(),
-      usage: z.object({ total_tokens: z.number().int().nonnegative() }).optional(),
+      usage: aiTokenUsageSchema.optional(),
       model: z.string().optional()
     }).parse(await response.json());
     const metadata = { usage: data.usage, model: data.model || configuredModel };

@@ -9,9 +9,20 @@ export interface ModelPricing {
   cachedPromptCostPerMillion: number;
 }
 
-// Rates as of late 2024 / 2025
+export const PRICING_CHECKED_AT = "2026-10-31";
+// Standard, short-context rates. See .scratch/model-costs/plan.md for sources.
 export const MODEL_PRICING: Record<string, ModelPricing> = {
   // OpenAI
+  "gpt-6-luna": {
+    promptCostPerMillion: 0.10,
+    completionCostPerMillion: 0.50,
+    cachedPromptCostPerMillion: 0.01
+  },
+  "typesafe/jev-1.13": {
+    promptCostPerMillion: 0.042,
+    completionCostPerMillion: 0,
+    cachedPromptCostPerMillion: 0.042
+  },
   "gpt-4o-mini": {
     promptCostPerMillion: 0.15,
     completionCostPerMillion: 0.60,
@@ -51,11 +62,21 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
   }
 };
 
-export const DEFAULT_MODEL_PRICING: ModelPricing = {
-  promptCostPerMillion: 0.15,
-  completionCostPerMillion: 0.60,
-  cachedPromptCostPerMillion: 0.075
-};
+export function getModelPricing(modelName: string): ModelPricing | null {
+  const name = modelName.toLowerCase().replace(/^openai\//, "");
+  const key = Object.keys(MODEL_PRICING).find(model => name === model ||
+    (name.startsWith(`${model}-`) && /^(?:\d{4}-\d{2}-\d{2}|\d{8})$/.test(name.slice(model.length + 1))));
+  return key ? MODEL_PRICING[key] : null;
+}
+
+export function calculateSearchCost(model: string, step: string, calls: number | null | undefined): number | null {
+  if (step !== "web_search" && step !== "web_search_preview") return 0;
+  if (calls == null || !Number.isSafeInteger(calls) || calls < 0) return null;
+  if (step === "web_search") return calls * 0.01;
+  if (/^(?:openai\/)?(?:gpt-[56](?:[.-]|$)|o[134](?:-|$))/.test(model)) return calls * 0.01;
+  if (/^(?:openai\/)?gpt-4o?(?:[.-]|$)/.test(model)) return calls * 0.025;
+  return null;
+}
 
 export const USD_TO_THB_RATE = 35.0;
 
@@ -74,15 +95,14 @@ export interface CalculatedCost {
 /**
  * Calculates estimated USD and THB cost for given tokens and model name.
  */
-export function calculateAiCost(modelName: string, usage: TokenUsageInput): CalculatedCost {
-  const normalizedModel = Object.keys(MODEL_PRICING).find(
-    (key) => modelName.toLowerCase().includes(key.toLowerCase())
-  );
-  const pricing = normalizedModel ? MODEL_PRICING[normalizedModel] : DEFAULT_MODEL_PRICING;
-
-  const prompt = Math.max(0, usage.promptTokens ?? 0);
-  const completion = Math.max(0, usage.completionTokens ?? 0);
-  const cached = Math.max(0, usage.cachedTokens ?? 0);
+export function calculateAiCost(modelName: string, usage: TokenUsageInput): CalculatedCost | null {
+  const pricing = getModelPricing(modelName);
+  const prompt = usage.promptTokens;
+  const completion = usage.completionTokens;
+  const cached = usage.cachedTokens ?? 0;
+  if (!pricing || prompt == null || completion == null ||
+    ![prompt, completion, cached].every(value => Number.isSafeInteger(value) && value >= 0) ||
+    cached > prompt || (usage.totalTokens != null && prompt + completion !== usage.totalTokens)) return null;
 
   // Non-cached prompt tokens
   const nonCachedPrompt = Math.max(0, prompt - cached);

@@ -43,6 +43,7 @@ This index owns local work status. Specs and tickets own scope and verification;
 
 | Effort | Status | Record | Evidence boundary |
 |---|---|---|---|
+| Model rates and cost telemetry | Resolved locally, 2026-10-31; migration pending | [model-costs-01](model-costs/issues/01-model-pricing.md) | Luna/Jev rates, per-call usage/provider cost/search fees and honest historical estimates. 96 scoped tests, typecheck/lint, SELECT-only SQL and production-fixture browser checks passed; migration not applied, no deployment. |
 | Agent Workflow explorer | Claimed, 2026-10-31 | [agent-workflow-01](agent-workflow/issues/01-workflow-explorer.md) | Approved read-only routing map and saved-run evidence; verification pending. |
 | Admin navigation performance | Resolved locally, 2026-10-31; uncommitted | [admin-perf plan](admin-perf/plan.md) | Tickets 01-06 resolved: @prisma/adapter-pg (478ms -> 98ms/query), React cache() requireAdmin (1 lookup/request), admin/loading.tsx skeleton, Overview Suspense streaming + 60s corpus count cache, internal next/link conversions. 87 tests, Playwright 1440/768/390 checks, typecheck/lint and graph passed. |
 | Shared analytics date filter | Resolved locally, 2026-10-31; uncommitted | [analytics-dates-02](analytics-dates/issues/02-consistent-date-filter.md) | One DateRangeFilter, 7/30/90/365 presets, independent Runs forms; typecheck/lint, 24 regressions, production fixture and geometry/interaction checks at 1440/1280/768/390 passed. No live DB/provider UAT or deployment. |
